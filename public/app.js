@@ -277,7 +277,7 @@ function renderQuotes() {
           <td>${esc(q.title)}</td>
           <td>${fdate(q.date)}</td>
           <td><span class="badge ${q.status}">${STATUS[q.status]}</span>${linkedBadge(q)}</td>
-          <td class="right"><b>${money(totals(q).ttc)}</b></td>
+          <td class="right"><b>${money(totals(q).ttc)}</b>${(() => { if (!linkedInvoices(q).length) return ''; const b = quoteBilling(q); return `<div class="muted" style="font-size:.76rem;white-space:nowrap">${b.remaining > 0.005 ? 'reste à payer ' + money(b.remaining) : 'soldé'}</div>`; })()}</td>
           <td class="right" style="white-space:nowrap">
             <button class="btn small" data-act="edit" data-id="${q.id}">Ouvrir</button>
             <button class="btn small" data-act="make-invoice" data-id="${q.id}" title="Créer la facture à partir de ce devis">🧾 Facturer</button>
@@ -516,6 +516,8 @@ function renderDoc(q) {
         ${t.paid ? `<div class="tr"><span>Déjà réglé</span><span>− ${money(t.paid)}</span></div><div class="tr grand"><span>Net à payer</span><span>${money(t.due)}</span></div>` : ''}
         ${isInv(q) && q.status === 'payee' ? `<div class="stamp">Facture acquittée${q.paidAt ? ' le ' + fdate(q.paidAt) : ''}</div>` : ''}
       </div>
+      ${(() => { const src = isInv(q) && q.stepId && q.fromQuoteId && getQuote(q.fromQuoteId); if (!src) return ''; const b = quoteBilling(src, q.id), after = Math.max(0, b.total - b.paid - t.ttc);
+        return `<div class="qsum"><div><span>Total du devis ${esc(src.number)}</span><b>${money(b.total)}</b></div>${b.paid > 0.005 ? `<div><span>Déjà réglé</span><b>${money(b.paid)}</b></div>` : ''}<div><span>Reste à régler après cette facture</span><b>${after > 0.005 ? money(after) : 'soldé'}</b></div></div>`; })()}
       ${q.notes ? `<div class="fnotes">${esc(q.notes)}</div>` : ''}
     </div>
   </div>

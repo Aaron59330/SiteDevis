@@ -48,7 +48,7 @@ EXTRA.invoices = function renderInvoices() {
           <td>${fdate(q.date)}</td><td>${q.dueDate ? fdate(q.dueDate) : '—'}</td>
           <td><span class="badge ${st}">${INV_LABEL[st]}</span></td>
           <td class="right"><b>${money(t.ttc)}</b></td>
-          <td class="right">${q.status === 'payee' || q.status === 'annulee' ? '—' : money(t.due)}</td>
+          <td class="right">${q.status === 'payee' || q.status === 'annulee' ? '—' : `<b>${money(t.due)}</b>`}${(() => { const src = q.fromQuoteId && getQuote(q.fromQuoteId); if (!src || !q.stepId) return ''; const b = quoteBilling(src); return `<div class="muted" style="font-size:.76rem;white-space:nowrap" title="Reste à payer sur le devis ${esc(src.number)} (toutes factures confondues)">devis : ${b.remaining > 0.005 ? 'reste ' + money(b.remaining) : 'soldé'}</div>`; })()}</td>
           <td class="right" style="white-space:nowrap">
             <button class="btn small" data-act="edit" data-id="${q.id}">Ouvrir</button>
             ${q.status !== 'payee' && q.status !== 'annulee' ? `<button class="btn small" data-act="mark-paid" data-id="${q.id}" title="Marquer comme payée">✓ Payée</button>` : ''}
@@ -211,3 +211,11 @@ Object.assign(actions, {
     const inv = createStepInvoice(src, i); save(); toast(`Facture ${inv.number} créée pour l'échéance « ${src.payments[i].label || 'Paiement'} »`); $('#modal').close(); go('editor', inv.id);
   }
 });
+
+/* ---------- Reste à payer d'un devis (toutes ses factures confondues) ---------- */
+function quoteBilling(src, exceptId) {
+  const t = totals(src).ttc, live = linkedInvoices(src).filter(i => i.status !== 'annulee');
+  const paid = live.filter(i => i.status === 'payee' && i.id !== exceptId).reduce((s, i) => s + totals(i).ttc, 0);
+  const billed = live.reduce((s, i) => s + totals(i).ttc, 0);
+  return { total: t, paid, billed, remaining: Math.max(0, t - paid), toBill: Math.max(0, t - billed) };
+}

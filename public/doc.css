@@ -66,3 +66,6 @@
   .doc { zoom: 1 !important; width: auto; min-height: 285mm; margin: 0; padding: 0; box-shadow: none; }
   .doc table.items th, .doc tr.sub td, .doc .totbox { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+
+.doc .qsum { margin: 12pt 3pt 0 24pt; font-size: 8.2pt; line-height: 12pt; }
+.doc .qsum div { display: flex; justify-content: space-between; gap: 10pt; } .doc .qsum b { font-weight: 700; white-space: nowrap; }
