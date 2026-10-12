@@ -10,7 +10,21 @@ const crypto = require('crypto');
 const ai = require('./ai');
 const importer = require('./importer');
 
-const GEMINI_MODEL = () => process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/';
+let autoModel = '';
+/* Modèle choisi : GEMINI_MODEL si défini, sinon le plus récent modèle « flash » que la clé peut utiliser (les noms changent avec le temps) */
+async function pickModel(force) {
+  if (process.env.GEMINI_MODEL && !force) return process.env.GEMINI_MODEL;
+  if (autoModel && !force) return autoModel;
+  const r = await fetch(GEMINI_BASE + 'models?pageSize=200', { headers: { 'x-goog-api-key': process.env.GEMINI_API_KEY }, signal: AbortSignal.timeout(20000) });
+  if (!r.ok) { const er = new Error(r.status === 400 || r.status === 403 ? 'Clé Gemini refusée ou invalide (erreur ' + r.status + '). Vérifiez GEMINI_API_KEY.' : 'Impossible de lister les modèles Gemini (erreur ' + r.status + ').'); er.status = 502; er.expose = true; throw er; }
+  const list = ((await r.json()).models || []).filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
+    .map(m => String(m.name || '').replace(/^models\//, '')).filter(n => /flash/.test(n) && !/(lite|tts|image|live|audio|embed|exp|8b|thinking)/.test(n));
+  const ver = n => { const m = /gemini-(\d+(?:\.\d+)?)/.exec(n); return m ? parseFloat(m[1]) : 0; };
+  list.sort((a, b) => ver(b) - ver(a) || (/preview/.test(a) ? 1 : 0) - (/preview/.test(b) ? 1 : 0) || a.length - b.length);
+  if (!list.length) { const er = new Error('Aucun modèle Gemini utilisable avec cette clé. Vérifiez qu\'elle vient de aistudio.google.com/apikey.'); er.status = 502; er.expose = true; throw er; }
+  autoModel = list[0]; return autoModel;
+}
 const geminiOk = () => !!process.env.GEMINI_API_KEY;
 let tessOk = false;
 try { const p = spawn('tesseract', ['--version'], { stdio: 'ignore' }); p.on('error', () => { tessOk = false; }); p.on('close', c => { tessOk = c === 0; }); } catch (e) { tessOk = false; }
@@ -26,16 +40,16 @@ const SHAPE = `Réponds uniquement par un objet JSON de cette forme exacte (aucu
 async function gemini(imgs) {
   const parts = [...imgs.map(i => ({ inline_data: { mime_type: i.mime, data: i.buf.toString('base64') } })),
     { text: imgs.length > 1 ? 'Ces images sont les pages successives du document. Extrais son contenu.' : 'Extrais le contenu de ce document.' }];
-  let r;
-  try {
-    r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(GEMINI_MODEL()) + ':generateContent', {
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
-      body: JSON.stringify({ systemInstruction: { parts: [{ text: ai.IMPORT_SYSTEM + ai.PHOTO_EXTRA + '\n\n' + SHAPE }] }, contents: [{ role: 'user', parts }], generationConfig: { responseMimeType: 'application/json', temperature: 0.1 } }),
-      signal: AbortSignal.timeout(90000)
-    });
-  } catch (e) { const er = new Error('Service de lecture injoignable.'); er.status = 502; er.expose = true; throw er; }
+  const body = JSON.stringify({ systemInstruction: { parts: [{ text: ai.IMPORT_SYSTEM + ai.PHOTO_EXTRA + '\n\n' + SHAPE }] }, contents: [{ role: 'user', parts }], generationConfig: { responseMimeType: 'application/json', temperature: 0.1 } });
+  const call = async model => {
+    try {
+      return await fetch(GEMINI_BASE + 'models/' + encodeURIComponent(model) + ':generateContent', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY }, body, signal: AbortSignal.timeout(90000) });
+    } catch (e) { const er = new Error('Service de lecture injoignable.'); er.status = 502; er.expose = true; throw er; }
+  };
+  let model = await pickModel(false), r = await call(model);
+  if (r.status === 404) { model = await pickModel(true); r = await call(model); }       // nom périmé : on choisit un modèle disponible
   if (r.status === 429) { const er = new Error('Le service gratuit de lecture est saturé (limite atteinte). Réessayez dans une minute.'); er.status = 429; er.expose = true; throw er; }
-  if (!r.ok) { const body = (await r.text()).slice(0, 300); console.error('Gemini', r.status, body); const er = new Error(r.status === 400 || r.status === 403 ? 'Clé Gemini refusée ou invalide (erreur ' + r.status + '). Vérifiez GEMINI_API_KEY.' : r.status === 404 ? 'Modèle Gemini introuvable : définissez GEMINI_MODEL dans /etc/sitedevis.env.' : 'Le service de lecture a refusé la requête (erreur ' + r.status + ').'); er.status = 502; er.expose = true; throw er; }
+  if (!r.ok) { const txt = (await r.text()).slice(0, 300); console.error('Gemini', model, r.status, txt); const er = new Error(r.status === 400 || r.status === 403 ? 'Clé Gemini refusée ou invalide (erreur ' + r.status + '). Vérifiez GEMINI_API_KEY.' : 'Le service de lecture a refusé la requête (erreur ' + r.status + ').'); er.status = 502; er.expose = true; throw er; }
   const j = await r.json();
   const txt = (((j.candidates || [])[0] || {}).content || {}).parts;
   const out = Array.isArray(txt) ? txt.map(p => p.text || '').join('') : '';
