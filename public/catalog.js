@@ -607,46 +607,63 @@ document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.cl
 /* ---------- Recherche automatique par référence : magasin, prix, désignation, lien, fournisseur ---------- */
 function refSearch(f, refresh, editId) {
   const E = f.elements, $$ = i => document.getElementById(i), btn = $$('refGo'), panel = $$('autoPanel');
-  if (!btn) { panel.innerHTML = session.config.priceSearch === false ? '' : ''; return; }
-  let offers = [], pick = -1;
+  if (!btn) return;
+  let offers = [], pages = [], found = null, pick = -1;
+  const key = x => nrm(x).replace(/[^a-z0-9]/g, '');
+  const cur = () => supplier($$('msup').value);                                  // le fournisseur choisi par l'utilisateur : jamais modifié sans demande
+  const isMine = o => o.mine === true || !!(!('mine' in o) && (() => { const sp = cur(), k = key(o.store), n = sp ? key(sp.name) : ''; return !!(n && k && (n.includes(k) || k.includes(n))); })());
   const clean = (t, store) => String(t || '').replace(new RegExp('\\s*[-–|]\\s*' + String(store || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '.*$', 'i'), '').trim();
   const rank = ref => {
-    const k = nrm(ref).replace(/[^a-z0-9]/g, '');
-    return offers.map((o, i) => ({ o, i, hit: k && nrm(o.title + ' ' + (o.link || '')).replace(/[^a-z0-9]/g, '').includes(k) ? 0 : 1 })).sort((a, b) => a.hit - b.hit || a.o.price - b.o.price).map(x => x.i);
+    const k = key(ref);
+    return offers.map((o, i) => ({ o, i, mine: isMine(o) ? 0 : 1, hit: k && key(o.title + ' ' + (o.link || '')).includes(k) ? 0 : 1 }))
+      .sort((a, b) => a.mine - b.mine || a.hit - b.hit || a.o.price - b.o.price).map(x => x.i);
   };
-  const supplierFor = o => {
-    const k = nrm(o.store).replace(/[^a-z0-9]/g, ''); if (!k) return null;
-    let sp = sups().find(s => { const n = nrm(s.name).replace(/[^a-z0-9]/g, ''); return n && (n.includes(k) || k.includes(n)); });
-    if (!sp) { let site = ''; try { site = o.link ? new URL(o.link).origin : ''; } catch (e) { /* ignore */ } sp = { id: uid(), name: o.store, contact: '', phone: '', email: '', address: '', website: site, account: '', notes: 'Créé automatiquement par la recherche web', markup: 0 }; sups().push(sp); sups().sort((a, b) => a.name.localeCompare(b.name, 'fr')); }
-    const sel = $$('msup'); sel.innerHTML = sups().map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join(''); sel.value = sp.id; return sp;
+  const useSupplier = o => {
+    const k = key(o.store); let sp = sups().find(s => { const n = key(s.name); return n && (n.includes(k) || k.includes(n)); });
+    if (!sp) { let site = ''; try { site = o.link ? new URL(o.link).origin : ''; } catch (e) { /* ignore */ } sp = { id: uid(), name: o.store, contact: '', phone: '', email: '', address: '', website: site, account: '', notes: '', markup: 0 }; sups().push(sp); sups().sort((a, b) => a.name.localeCompare(b.name, 'fr')); }
+    const sel = $$('msup'); sel.innerHTML = sups().map(x => `<option value="${x.id}">${esc(x.name)}</option>`).join(''); sel.value = sp.id; refresh();
   };
   const apply = (i, per) => {
     const o = offers[i]; pick = i; const vat = num(E.vat.value), g = guessContent(o.title);
     const ht = o.price / (1 + vat / 100), unit = per && g ? g.unit : (E.unit.value && E.unit.value !== 'pièce(s)' ? E.unit.value : 'pièce(s)'), cost = per && g ? ht / g.qty : ht;
     if (!E.desc.value.trim() || E.desc.dataset.auto === '1') { E.desc.value = clean(o.title, o.store); E.desc.dataset.auto = '1'; }
     E.cost.value = r4(cost); E.unit.value = unit; if (o.link) E.sourceUrl.value = o.link; E.priceDate.value = today();
-    const sp = supplierFor(o); if (sp && !E.markup.value) E.markup.value = '';
     refresh(); show(g);
   };
-  const show = g => {
-    const o = offers[pick], vat = num(E.vat.value), order = rank(E.ref.value);
-    panel.innerHTML = `<div class="notice ok" style="margin:6px 0 12px"><b>Rempli automatiquement</b> avec l'offre de <b>${esc(o.store)}</b> : ${money(o.price)} TTC (${money(o.price / (1 + vat / 100))} HT).
-        ${o.link ? `<a href="${esc(o.link)}" target="_blank" rel="noopener">voir la fiche ↗</a>` : ''}
-        ${g ? `<div style="margin-top:6px"><button type="button" class="btn small" id="perUnit">Convertir au ${esc(g.unit)} (contenu détecté : ${fmtNum.format(g.qty)} ${esc(g.unit)})</button></div>` : ''}
-        <div class="muted" style="font-size:.8rem;margin-top:6px">Vérifiez la désignation et l'unité. Autres offres trouvées :</div>
-        <div class="offers">${order.slice(0, 8).map(i => `<button type="button" class="offer-row ${i === pick ? 'on' : ''}" data-i="${i}"><span>${esc(offers[i].store)}</span><span class="muted">${esc(clean(offers[i].title, offers[i].store)).slice(0, 56)}</span><b>${money(offers[i].price)}</b></button>`).join('')}</div></div>`;
+  const list = order => `<div class="offers">${order.slice(0, 8).map(i => `<button type="button" class="offer-row ${i === pick ? 'on' : ''}" data-i="${i}"><span>${esc(offers[i].store)}${isMine(offers[i]) ? ' ✓' : ''}</span><span class="muted">${esc(clean(offers[i].title, offers[i].store)).slice(0, 56)}</span><b>${money(offers[i].price)}</b></button>`).join('')}</div>`;
+  const bind = g => {
     const pu = $$('perUnit'); if (pu) pu.onclick = () => { apply(pick, true); toast(`Prix converti au ${g.unit}`); };
+    const sw = $$('swSup'); if (sw) sw.onclick = () => { useSupplier(offers[pick]); show(g); toast('Fournisseur changé : ' + offers[pick].store); };
     panel.querySelectorAll('.offer-row').forEach(b => b.onclick = () => apply(+b.dataset.i));
+  };
+  const show = g => {
+    const o = offers[pick], vat = num(E.vat.value), sp = cur(), mine = isMine(o);
+    panel.innerHTML = `<div class="notice ok" style="margin:6px 0 12px">${found && mine ? `Fournisseur reconnu : <b>${esc(found.name)}</b> (${esc(found.domain)}). ` : ''}<b>Rempli automatiquement</b> avec l'offre de <b>${esc(o.store)}</b> : ${money(o.price)} TTC (${money(o.price / (1 + vat / 100))} HT).
+        ${o.link ? `<a href="${esc(o.link)}" target="_blank" rel="noopener">voir la fiche ↗</a>` : ''}
+        <div class="muted" style="font-size:.82rem;margin-top:4px">Fournisseur conservé : <b>${esc(sp ? sp.name : '—')}</b>.${mine ? '' : ` Cette offre vient d'un autre magasin : le prix est donné à titre indicatif.`}</div>
+        ${mine ? '' : `<div style="margin-top:6px"><button type="button" class="btn small" id="swSup">Utiliser ${esc(o.store)} comme fournisseur</button></div>`}
+        ${g ? `<div style="margin-top:6px"><button type="button" class="btn small" id="perUnit">Convertir au ${esc(g.unit)} (contenu détecté : ${fmtNum.format(g.qty)} ${esc(g.unit)})</button></div>` : ''}
+        <div class="muted" style="font-size:.8rem;margin-top:6px">Autres offres trouvées :</div>${list(rank(E.ref.value))}</div>`;
+    bind(g);
   };
   const run = async () => {
     const ref = E.ref.value.trim(); if (ref.length < 4) return toast('Saisissez une référence de 4 caractères ou plus');
-    const mine = db.catalog.find(c => isMat(c) && c.id !== editId && nrm(c.ref) === nrm(ref) && nrm(ref));
-    if (mine && !confirm(`Cette référence existe déjà dans votre catalogue (${mine.desc.slice(0, 60)}). Chercher quand même sur le web ?`)) return;
-    btn.disabled = true; btn.textContent = 'Recherche…'; panel.innerHTML = '<p class="muted" style="margin:6px 0">Recherche de cette référence chez les magasins…</p>';
+    const mineCat = db.catalog.find(c => isMat(c) && c.id !== editId && nrm(c.ref) === nrm(ref) && nrm(ref));
+    if (mineCat && !confirm(`Cette référence existe déjà dans votre catalogue (${mineCat.desc.slice(0, 60)}). Chercher quand même sur le web ?`)) return;
+    const sp = cur();
+    btn.disabled = true; btn.textContent = 'Recherche…'; panel.innerHTML = `<p class="muted" style="margin:6px 0">Recherche de cette référence${sp ? ' chez ' + esc(sp.name) + ' (nom reconnu même approximatif)' : ''} et ailleurs…</p>`;
     try {
-      offers = (await api('GET', '/api/prices/search?q=' + encodeURIComponent(ref))).offers.filter(o => o.price > 0);
-      if (!offers.length) { panel.innerHTML = '<div class="notice bad" style="margin:6px 0 12px">Aucune offre trouvée pour cette référence. Essayez avec le code EAN ou la désignation, ou saisissez le prix à la main.</div>'; return; }
-      apply(rank(ref)[0]);
+      const res = await api('GET', '/api/prices/search?q=' + encodeURIComponent(ref) + (sp ? '&s=' + encodeURIComponent(sp.name) + (sp.website ? '&w=' + encodeURIComponent(sp.website) : '') : ''));
+      offers = res.offers.filter(o => o.price > 0); pages = res.pages || []; found = res.store;
+      const pg = pages.length ? `<div class="muted" style="font-size:.82rem;margin-top:8px">Fiches trouvées sur ${esc(found ? found.domain : 'le site')} (prix à lire sur la page) : ${pages.slice(0, 4).map(x => `<a href="${esc(x.link)}" target="_blank" rel="noopener">${esc(x.title.slice(0, 48))} ↗</a>`).join(' · ')}</div>` : '';
+      if (!offers.length) { panel.innerHTML = `<div class="notice bad" style="margin:6px 0 12px">Aucune offre avec prix trouvée pour cette référence${found ? ' chez ' + esc(found.name) : ''}. Essayez avec le code EAN ou la désignation, ou saisissez le prix à la main.${pg}</div>`; return; }
+      const order = rank(ref);
+      if (isMine(offers[order[0]])) apply(order[0]);                       // offre de votre fournisseur : remplissage automatique
+      else {                                                               // aucune offre chez lui : on propose, sans rien remplir ni changer de fournisseur
+        pick = -1;
+        panel.innerHTML = `<div class="notice" style="margin:6px 0 12px"><b>Aucune offre de ${esc(sp ? sp.name : 'ce fournisseur')} trouvée pour cette référence.</b> Voici ce qui existe ailleurs : choisissez une offre pour reprendre son prix et sa désignation (votre fournisseur ne change pas).${list(order)}</div>`;
+        panel.querySelector('.notice').insertAdjacentHTML('beforeend', pg); bind(null);
+      }
     } catch (e) { panel.innerHTML = `<div class="notice bad" style="margin:6px 0 12px">${esc(e.message)}</div>`; } finally { btn.disabled = false; btn.textContent = 'Chercher'; }
   };
   btn.onclick = run;

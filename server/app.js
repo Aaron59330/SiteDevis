@@ -6,6 +6,7 @@ const ai = require('./ai');
 const pdf = require('./pdf');
 const spell = require('./spell');
 const importer = require('./importer');
+const stores = require('./stores');
 let importFreeOk = false; importer.available().then(v => { importFreeOk = v; });
 const { db } = store;
 
@@ -216,14 +217,32 @@ function shoppingOffers(j) {
 route('GET', '/api/prices/search', 'user', async ctx => {
   const key = process.env.SERPAPI_KEY;
   if (!key) throw err(503, 'La recherche automatique de prix n\'est pas activée (clé SERPAPI_KEY absente).');
-  limit('prices:' + ctx.user.id, 30, 3600e3);
+  limit('prices:' + ctx.user.id, 40, 3600e3);
   const q = str(ctx.query.q, 120);
   if (q.length < 3) throw err(400, 'Saisissez au moins 3 caractères.');
-  let r;
-  try { r = await fetch('https://serpapi.com/search.json?' + new URLSearchParams({ engine: 'google_shopping', q, gl: 'fr', hl: 'fr', google_domain: 'google.fr', api_key: key })); }
-  catch (e) { throw err(502, 'Service de prix injoignable.'); }
-  if (!r.ok) throw err(502, 'Le service de prix a refusé la requête (' + r.status + ').');
-  return ok({ offers: shoppingOffers(await r.json()) });
+  const store = stores.matchStore(str(ctx.query.s, 80), str(ctx.query.w, 120));       // fournisseur reconnu même mal écrit (« pointp », « leroy merlain »…)
+  const serp = async params => {
+    let r; try { r = await fetch('https://serpapi.com/search.json?' + new URLSearchParams({ gl: 'fr', hl: 'fr', google_domain: 'google.fr', api_key: key, ...params })); }
+    catch (e) { throw err(502, 'Service de prix injoignable.'); }
+    if (!r.ok) throw err(502, 'Le service de prix a refusé la requête (' + r.status + ').');
+    return r.json();
+  };
+  const shop = serp({ engine: 'google_shopping', q: store ? q + ' ' + store.name : q });
+  const site = store && store.domain ? serp({ engine: 'google', q: 'site:' + store.domain + ' ' + q, num: '10' }).catch(() => null) : Promise.resolve(null);
+  const [j, js] = await Promise.all([shop, site]);
+  const offers = shoppingOffers(j), pages = [];
+  for (const r of ((js && js.organic_results) || []).slice(0, 8)) {
+    let host = ''; try { host = new URL(r.link).hostname.replace(/^www\./, ''); } catch (e) { continue; }
+    if (!(host === store.domain || host.endsWith('.' + store.domain))) continue;
+    const ext = r.rich_snippet && r.rich_snippet.top && r.rich_snippet.top.detected_extensions;
+    const m = /(\d{1,4}(?:[ \u00a0]\d{3})*(?:[,.]\d{1,2}))\s?€/.exec(String(r.snippet || '') + ' ' + String(r.title || ''));
+    const price = ext && Number.isFinite(Number(ext.price)) ? Number(ext.price) : m ? parseFloat(m[1].replace(/[\s\u00a0]/g, '').replace(',', '.')) : null;
+    const item = { title: str(r.title, 200), store: store.name, link: r.link, priceText: price != null ? price.toFixed(2).replace('.', ',') + ' €' : '', price, thumbnail: '', site: true };
+    if (price > 0) offers.unshift(item); else pages.push({ title: item.title, link: item.link });
+  }
+  const same = n => { const k = stores.key(n), t = store ? stores.key(store.name) : ''; return !!(t && k && (k.includes(t) || t.includes(k) || (stores.matchStore(n, '') || {}).name === store.name)); };
+  offers.forEach(o => { o.mine = same(o.store); });
+  return ok({ offers, pages, store: store ? { name: store.name, domain: store.domain } : null });
 });
 
 /* ---------- Téléchargement PDF du devis ou de la facture ---------- */
