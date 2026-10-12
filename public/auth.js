@@ -66,7 +66,7 @@ function renderAuth(mode, opts = {}) {
   $('#app').innerHTML = `
   <div class="auth">
     <section class="auth-hero">
-      <div class="brand big">${name}</div>
+      <div class="brand big">${brandHtml(cfg.siteName)}</div>
       <h1>Des devis professionnels,<br>en quelques minutes.</h1>
       <ul>
         <li>📄 Devis multi-pages prêts à imprimer en PDF</li>
@@ -145,6 +145,7 @@ document.addEventListener('click', e => { if (!e.target.closest('#userbox')) $('
 function updateTopbar() {
   const u = session.user, a = session.access;
   if (!u) return;
+  const bd = $('#topbar .brand'); if (bd) bd.innerHTML = brandHtml(session.config.siteName);
   const items = [['quotes', 'Devis'], ['invoices', 'Factures'], ['clients', 'Clients'], ['catalog', 'Catalogue'], ['tools', 'Boîte à outils', 'Outils'], ['company', 'Mon entreprise', 'Entreprise'], ['custom', 'Personnalisation', 'Style'], ['billing', 'Abonnement']];
   if (db.settings.useSites) items.splice(3, 0, ['sites', 'Chantiers']);
   if (u.role === 'admin') items.push(['admin', 'Administration', 'Admin']);
@@ -180,3 +181,10 @@ document.addEventListener('click', e => {
   const b = e.target.closest('#bottomnav button[data-view], #moreSheet button[data-view]');
   if (b) { $('#moreSheet').hidden = true; go(b.dataset.view); }
 });
+
+/* Logo + nom du site (« OptiDevis » en deux graisses) */
+const LOGO_MARK = '<img class="logo-mark" src="/logo.svg" alt="" width="30" height="30">';
+function brandHtml(name) {
+  const n = String(name || 'OptiDevis'), m = /^(opti)(devis)$/i.exec(n);
+  return LOGO_MARK + '<span class="nm">' + (m ? esc(m[1]) + '<b>' + esc(m[2]) + '</b>' : esc(n)) + '</span>';
+}

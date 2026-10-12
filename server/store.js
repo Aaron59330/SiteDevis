@@ -15,7 +15,7 @@ const defaults = () => ({
     { id: 'monthly', name: 'Mensuel', priceCents: 990, interval: 'month', description: 'Sans engagement, renouvelable à la demande', features, active: true },
     { id: 'yearly', name: 'Annuel', priceCents: 9900, interval: 'year', description: '2 mois offerts', features, active: true }
   ],
-  settings: { siteName: 'Mes Devis', trialDays: 0, registrationOpen: true, requireVerification: true, supportEmail: '', receiptCounter: 0 }
+  settings: { siteName: 'OptiDevis', trialDays: 0, registrationOpen: true, requireVerification: true, supportEmail: '', receiptCounter: 0 }
 });
 
 let db;
@@ -23,6 +23,7 @@ try {
   const raw = JSON.parse(fs.readFileSync(FILE, 'utf8'));
   db = { ...defaults(), ...raw };
   db.settings = { ...defaults().settings, ...raw.settings };
+  if (db.settings.siteName === 'Mes Devis') db.settings.siteName = 'OptiDevis';
 } catch (e) { db = defaults(); }
 db.sessions = db.sessions.filter(s => s.exp > Date.now());
 db.tokens = db.tokens.filter(t => t.exp > Date.now());

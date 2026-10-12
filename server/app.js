@@ -640,7 +640,7 @@ route('GET', '/api/admin/settings', A, () => ({
 }));
 route('PATCH', '/api/admin/settings', A, ctx => {
   const b = ctx.body, s = db.settings;
-  if (b.siteName !== undefined) s.siteName = str(b.siteName, 60) || 'Mes Devis';
+  if (b.siteName !== undefined) s.siteName = str(b.siteName, 60) || 'OptiDevis';
   if (b.trialDays !== undefined) s.trialDays = Math.max(0, Math.min(365, parseInt(b.trialDays, 10) || 0));
   if (b.registrationOpen !== undefined) s.registrationOpen = !!b.registrationOpen;
   if (b.requireVerification !== undefined) s.requireVerification = !!b.requireVerification;

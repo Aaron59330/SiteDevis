@@ -1,4 +1,4 @@
-# Mes Devis
+# OptiDevis
 
 Site de création de devis professionnels avec **comptes utilisateurs, abonnement payant et espace administrateur**.
 

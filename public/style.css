@@ -33,7 +33,9 @@ details summary { cursor: pointer; color: var(--text); font-weight: 500; }
 .topbar { display: flex; align-items: center; gap: 24px; padding: 0 28px; height: 60px; position: sticky; top: 0; z-index: 10;
   background: color-mix(in srgb, var(--bg) 78%, transparent); backdrop-filter: blur(14px); border-bottom: 1px solid var(--line); }
 .brand { font-weight: 800; font-size: 1.1rem; display: flex; align-items: center; gap: 10px; }
-.brand::before { content: ""; width: 26px; height: 26px; border-radius: 8px; background: var(--accent); box-shadow: 0 0 0 4px var(--primary-soft); }
+.brand .logo-mark { width: 30px; height: 30px; flex: none; display: block; }
+.brand .nm b { font-weight: 800; color: var(--accent, currentColor); }
+.brand .nm { letter-spacing: -.02em; }
 #nav { display: flex; gap: 4px; }
 #nav button { background: none; border: 0; color: var(--muted); padding: 8px 14px; border-radius: 10px; cursor: pointer; font: inherit; font-weight: 500; transition: .15s; }
 #nav button:hover { color: var(--text); background: var(--card); }

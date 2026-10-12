@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Installation de « Mes Devis » sur un VPS Ubuntu/Debian (IONOS, OVH, Hetzner…).
+# Installation de « OptiDevis » sur un VPS Ubuntu/Debian (IONOS, OVH, Hetzner…).
 # À lancer en root depuis le dossier du site :   bash deploy/install.sh
 # Relancer le script = mise à jour (la configuration et les données sont conservées).
 set -euo pipefail
@@ -28,7 +28,7 @@ if [ ! -f "$ENVF" ]; then
   ask STRIPE_SECRET_KEY "Clé secrète Stripe (sk_live_…) — vide = paiements de démonstration" ""
   ask STRIPE_WEBHOOK_SECRET "Secret du webhook Stripe (whsec_…) — facultatif" ""
   ask RESEND_API_KEY "Clé API Resend pour l'envoi d'emails — vide = mode démo" ""
-  if [ -n "${RESEND_API_KEY:-}" ]; then ask MAIL_FROM "Expéditeur des emails" "Mes Devis <contact@${DOMAIN}>"; fi
+  if [ -n "${RESEND_API_KEY:-}" ]; then ask MAIL_FROM "Expéditeur des emails" "OptiDevis <contact@${DOMAIN}>"; fi
   ask SERPAPI_KEY "Clé SerpApi (recherche de prix en ligne) — facultatif" ""
   ask ANTHROPIC_API_KEY "Clé API Anthropic (relecture des devis par l'IA) — facultatif" ""
   SIM=true; [ -n "${STRIPE_SECRET_KEY:-}" ] && SIM=false
@@ -93,7 +93,7 @@ fi
 say "Création du service systemd"
 cat > /etc/systemd/system/$SVC.service <<UNIT
 [Unit]
-Description=Mes Devis
+Description=OptiDevis
 After=network.target
 
 [Service]

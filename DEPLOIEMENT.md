@@ -1,4 +1,4 @@
-# Installer et configurer Mes Devis (guide pas à pas)
+# Installer et configurer OptiDevis (guide pas à pas)
 
 ## Partie A — Essayer sur votre ordinateur (facultatif, 10 minutes)
 1. Installez **Node.js** (version 18 ou plus) : <https://nodejs.org>.
@@ -28,7 +28,7 @@ Les clés se placent dans `/etc/sitedevis.env` sur le serveur : `nano /etc/sited
 
 | Service | À quoi ça sert | Variables |
 |---|---|---|
-| **Resend** (resend.com) | Envoyer les vrais emails (confirmation de compte, mot de passe oublié, reçus) | `RESEND_API_KEY`, `MAIL_FROM="Mes Devis <contact@votredomaine.fr>"` |
+| **Resend** (resend.com) | Envoyer les vrais emails (confirmation de compte, mot de passe oublié, reçus) | `RESEND_API_KEY`, `MAIL_FROM="OptiDevis <contact@votredomaine.fr>"` |
 | **Stripe** (stripe.com) | Encaisser les abonnements par carte | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` |
 | **Anthropic** (console.anthropic.com) | Relecture des devis par l'IA | `ANTHROPIC_API_KEY` (+ `ANTHROPIC_MODEL=claude-haiku-5-5` pour une option moins chère) |
 | **SerpApi** (serpapi.com) | Recherche automatique de prix de matériaux | `SERPAPI_KEY` |
