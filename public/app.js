@@ -281,6 +281,7 @@ function renderEditor() {
   <div class="row between no-print" style="margin-bottom:16px">
     <div class="row"><button class="btn" data-act="back">← Retour</button><h1 style="margin:0">${esc(q.opts.docLabel)} ${esc(q.number)}</h1></div>
     <div class="row">
+      ${session.config.ai ? '<button class="btn" data-act="ai-review" title="Correction des fautes et suggestions, sans rien modifier sans votre accord">✨ Relire avec l\'IA</button>' : ''}
       <button class="btn" data-act="toggle-wide">👁 Aperçu large / ✎ Édition</button>
       ${isInv(q)
         ? `${q.fromQuoteId && getQuote(q.fromQuoteId) ? `<button class="btn" data-act="edit" data-id="${q.fromQuoteId}">← Voir le devis ${esc(q.fromNumber || '')}</button>` : ''}${q.status !== 'payee' ? '<button class="btn" data-act="mark-paid">✓ Marquer comme payée</button>' : ''}`

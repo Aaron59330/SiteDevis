@@ -2,6 +2,7 @@
 const crypto = require('crypto');
 const store = require('./store');
 const mail = require('./mail');
+const ai = require('./ai');
 const { db } = store;
 
 /* ---------- Utilitaires ---------- */
@@ -194,7 +195,7 @@ async function handle(req, res, url) {
 /* ---------- Config publique ---------- */
 route('GET', '/api/config', 'none', () => ({
   siteName: db.settings.siteName, registrationOpen: db.settings.registrationOpen, trialDays: db.settings.trialDays,
-  mailConfigured: mail.configured(), priceSearch: !!process.env.SERPAPI_KEY, stripe: !!stripeKey(), simulated: simulatedAllowed(),
+  mailConfigured: mail.configured(), ai: ai.available() && db.settings.aiEnabled !== false, priceSearch: !!process.env.SERPAPI_KEY, stripe: !!stripeKey(), simulated: simulatedAllowed(),
   plans: db.plans.filter(p => p.active)
 }));
 
@@ -217,6 +218,23 @@ route('GET', '/api/prices/search', 'user', async ctx => {
   catch (e) { throw err(502, 'Service de prix injoignable.'); }
   if (!r.ok) throw err(502, 'Le service de prix a refusé la requête (' + r.status + ').');
   return ok({ offers: shoppingOffers(await r.json()) });
+});
+
+/* ---------- Relecture IA des devis ---------- */
+route('POST', '/api/ai/review', 'user', async ctx => {
+  if (!ai.available() || db.settings.aiEnabled === false) throw err(503, 'L\'assistant IA n\'est pas activé.');
+  if (!access(ctx.user).active) throw err(402, 'Un abonnement actif est nécessaire.', { code: 'payment_required' });
+  limit('ai:' + ctx.user.id, 15, 3600e3); limit('aiday:' + ctx.user.id, 60, 86400e3);
+  if (!ctx.body || typeof ctx.body !== 'object' || !Array.isArray(ctx.body.lines)) throw err(400, 'Document invalide.');
+  let r;
+  try { r = await ai.review(ctx.body); }
+  catch (e) {
+    if (e.status && e.status < 500 && e.status !== 429) throw err(e.status, e.message);
+    console.error('IA :', e.status || '', e.message);
+    throw err(502, e.status === 429 ? 'Le service IA est très sollicité, réessayez dans un instant.' : 'Le service IA est momentanément indisponible.');
+  }
+  ctx.user.aiCalls = (ctx.user.aiCalls || 0) + 1; db.settings.aiTotal = (db.settings.aiTotal || 0) + 1; store.save();
+  return ok(r);
 });
 
 /* ---------- Authentification ---------- */
@@ -609,7 +627,7 @@ route('DELETE', '/api/admin/plans/:id', A, ctx => {
 });
 
 route('GET', '/api/admin/settings', A, () => ({
-  settings: db.settings, env: { mail: mail.configured(), stripe: !!stripeKey(), webhook: !!process.env.STRIPE_WEBHOOK_SECRET, simulated: simulatedAllowed(), appUrl: APP_URL() }
+  settings: db.settings, env: { ai: ai.available(), aiModel: ai.model(), aiTotal: db.settings.aiTotal || 0, mail: mail.configured(), stripe: !!stripeKey(), webhook: !!process.env.STRIPE_WEBHOOK_SECRET, simulated: simulatedAllowed(), appUrl: APP_URL() }
 }));
 route('PATCH', '/api/admin/settings', A, ctx => {
   const b = ctx.body, s = db.settings;
@@ -618,6 +636,7 @@ route('PATCH', '/api/admin/settings', A, ctx => {
   if (b.registrationOpen !== undefined) s.registrationOpen = !!b.registrationOpen;
   if (b.requireVerification !== undefined) s.requireVerification = !!b.requireVerification;
   if (b.supportEmail !== undefined) s.supportEmail = str(b.supportEmail, 254);
+  if (b.aiEnabled !== undefined) s.aiEnabled = !!b.aiEnabled;
   audit(ctx.user, 'réglages modifiés', '', Object.keys(b).join(', ')); store.save();
   return ok({ settings: s });
 });

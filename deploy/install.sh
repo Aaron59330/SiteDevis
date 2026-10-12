@@ -30,6 +30,7 @@ if [ ! -f "$ENVF" ]; then
   ask RESEND_API_KEY "Clé API Resend pour l'envoi d'emails — vide = mode démo" ""
   if [ -n "${RESEND_API_KEY:-}" ]; then ask MAIL_FROM "Expéditeur des emails" "Mes Devis <contact@${DOMAIN}>"; fi
   ask SERPAPI_KEY "Clé SerpApi (recherche de prix en ligne) — facultatif" ""
+  ask ANTHROPIC_API_KEY "Clé API Anthropic (relecture des devis par l'IA) — facultatif" ""
   SIM=true; [ -n "${STRIPE_SECRET_KEY:-}" ] && SIM=false
   [ "$SIM" = true ] && echo "ATTENTION : sans clé Stripe, les paiements de démonstration restent actifs (accès gratuit pour tous). Ajoutez la clé Stripe avant l'ouverture au public."
 fi
@@ -56,6 +57,7 @@ id sitedevis >/dev/null 2>&1 || useradd --system --home "$DATA" --shell /usr/sbi
 mkdir -p "$APP" "$DATA" /var/backups/sitedevis
 rsync -a --delete --exclude '.git' --exclude 'data' --exclude '.env' --exclude 'video' --exclude 'node_modules' "$SRC"/ "$APP"/
 chown -R root:root "$APP"
+(cd "$APP" && npm install --omit=dev --no-audit --no-fund)
 chown -R sitedevis:sitedevis "$DATA"
 chmod 700 "$DATA"
 
@@ -77,6 +79,8 @@ STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
 RESEND_API_KEY=${RESEND_API_KEY:-}
 MAIL_FROM="${MAIL_FROM:-}"
 SERPAPI_KEY=${SERPAPI_KEY:-}
+ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+ANTHROPIC_MODEL=
 ENV
   chmod 600 "$ENVF"
   FIRST=1

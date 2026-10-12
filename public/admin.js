@@ -231,11 +231,13 @@ async function adminSettings() {
       <div class="field"><label>Nom du site</label><input name="siteName" value="${esc(s.siteName)}"></div>
       <div class="grid2"><div class="field"><label>Essai gratuit (jours)</label><input type="number" name="trialDays" min="0" max="365" value="${s.trialDays}"></div>
       <div class="field"><label>Email de support</label><input name="supportEmail" value="${esc(s.supportEmail)}"></div></div>
+      <label class="check"><input type="checkbox" name="aiEnabled" ${s.aiEnabled !== false ? 'checked' : ''}> Assistant IA de relecture des devis activé</label>
       <label class="check"><input type="checkbox" name="registrationOpen" ${s.registrationOpen ? 'checked' : ''}> Inscriptions ouvertes</label>
       <label class="check"><input type="checkbox" name="requireVerification" ${s.requireVerification ? 'checked' : ''}> Exiger la confirmation de l'email</label>
       <p class="muted" style="font-size:.8rem">L'essai gratuit est accordé à la confirmation de l'email (une seule fois par compte).</p>
       <div class="form-err" hidden></div><button class="btn primary">Enregistrer</button></form></div>
     <div class="card"><h2>Intégrations</h2>
+      ${st(env.ai, 'Assistant IA (Claude)', env.ai ? `Actif — modèle ${esc(env.aiModel)}, ${env.aiTotal} analyse(s) effectuée(s). Chaque analyse est facturée par Anthropic.` : 'Non configuré : renseignez ANTHROPIC_API_KEY dans .env (et lancez npm install).')}
       ${st(env.mail, 'Envoi d\'emails (Resend)', env.mail ? 'Les emails sont réellement envoyés.' : 'Non configuré : emails visibles dans l\'onglet « Emails » (mode démo). Renseignez RESEND_API_KEY et MAIL_FROM dans .env.')}
       ${st(env.stripe, 'Paiement par carte (Stripe)', env.stripe ? 'Paiements réels activés.' : 'Non configuré : paiements simulés. Renseignez STRIPE_SECRET_KEY dans .env.')}
       ${st(env.webhook, 'Webhook Stripe', env.webhook ? 'Signature vérifiée.' : 'Optionnel : STRIPE_WEBHOOK_SECRET (endpoint /api/stripe/webhook).')}
@@ -244,7 +246,7 @@ async function adminSettings() {
 }
 forms.settings = f => withBusy(f, async () => {
   const r = await api('PATCH', '/api/admin/settings', { siteName: val(f, 'siteName'), trialDays: val(f, 'trialDays'), supportEmail: val(f, 'supportEmail'),
-    registrationOpen: f.elements.registrationOpen.checked, requireVerification: f.elements.requireVerification.checked });
+    registrationOpen: f.elements.registrationOpen.checked, aiEnabled: f.elements.aiEnabled.checked, requireVerification: f.elements.requireVerification.checked });
   session.config.siteName = r.settings.siteName; session.config.registrationOpen = r.settings.registrationOpen; formMsg(f, 'Réglages enregistrés ✓', true);
 });
 
