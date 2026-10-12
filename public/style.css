@@ -614,4 +614,3 @@ a.badge.info2 { text-decoration: none; cursor: pointer; }
 .offers { display: grid; gap: 6px; margin-top: 8px; }
 .offer-row { display: grid; grid-template-columns: 130px 1fr auto; gap: 10px; align-items: center; text-align: left; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--text); font: inherit; font-size: .85rem; cursor: pointer; }
 .offer-row:hover { border-color: var(--accent); } .offer-row.on { border-color: var(--accent); background: var(--primary-soft); }
-@media (max-width: 640px) { .offer-row { grid-template-columns: 1fr auto; } .offer-row .muted { display: none; } }

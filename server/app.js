@@ -7,6 +7,8 @@ const pdf = require('./pdf');
 const spell = require('./spell');
 const importer = require('./importer');
 const stores = require('./stores');
+const storefetch = require('./storefetch');
+const storefetchLookup = (...a) => storefetch.lookup(...a);
 let importFreeOk = false; importer.available().then(v => { importFreeOk = v; });
 const { db } = store;
 
@@ -202,7 +204,7 @@ async function handle(req, res, url) {
 /* ---------- Config publique ---------- */
 route('GET', '/api/config', 'none', () => ({
   siteName: db.settings.siteName, registrationOpen: db.settings.registrationOpen, trialDays: db.settings.trialDays,
-  mailConfigured: mail.configured(), pdf: pdf.available(), importFree: importFreeOk, importAi: ai.available() && db.settings.aiEnabled !== false, ai: db.settings.aiEnabled !== false, aiKind: ai.available() ? 'claude' : 'free', priceSearch: !!process.env.SERPAPI_KEY, stripe: !!stripeKey(), simulated: simulatedAllowed(),
+  mailConfigured: mail.configured(), pdf: pdf.available(), importFree: importFreeOk, importAi: ai.available() && db.settings.aiEnabled !== false, priceSearch: true, ai: db.settings.aiEnabled !== false, aiKind: ai.available() ? 'claude' : 'free', stripe: !!stripeKey(), simulated: simulatedAllowed(),
   plans: db.plans.filter(p => p.active)
 }));
 
@@ -216,33 +218,52 @@ function shoppingOffers(j) {
 }
 route('GET', '/api/prices/search', 'user', async ctx => {
   const key = process.env.SERPAPI_KEY;
-  if (!key) throw err(503, 'La recherche automatique de prix n\'est pas activée (clé SERPAPI_KEY absente).');
   limit('prices:' + ctx.user.id, 40, 3600e3);
-  const q = str(ctx.query.q, 120);
+  const q = str(ctx.query.q, 200);
   if (q.length < 3) throw err(400, 'Saisissez au moins 3 caractères.');
   const store = stores.matchStore(str(ctx.query.s, 80), str(ctx.query.w, 120));       // fournisseur reconnu même mal écrit (« pointp », « leroy merlain »…)
+  const extra = [store && store.domain, stores.domainOf(str(ctx.query.w, 120))].filter(Boolean);
+  const isUrl = /^https:\/\//i.test(q), ref = isUrl ? '' : q, rk = stores.key(ref);
+  const exactOf = o => !!(rk && rk.length >= 4 && (stores.key(o.title + ' ' + (o.link || '') + ' ' + (o.sku || '') + ' ' + (o.ean || '')).includes(rk)));
   const serp = async params => {
+    if (!key) return null;
     let r; try { r = await fetch('https://serpapi.com/search.json?' + new URLSearchParams({ gl: 'fr', hl: 'fr', google_domain: 'google.fr', api_key: key, ...params })); }
     catch (e) { throw err(502, 'Service de prix injoignable.'); }
     if (!r.ok) throw err(502, 'Le service de prix a refusé la requête (' + r.status + ').');
     return r.json();
   };
-  const shop = serp({ engine: 'google_shopping', q: store ? q + ' ' + store.name : q });
-  const site = store && store.domain ? serp({ engine: 'google', q: 'site:' + store.domain + ' ' + q, num: '10' }).catch(() => null) : Promise.resolve(null);
-  const [j, js] = await Promise.all([shop, site]);
+  const quoted = ref && /^[\w.\-\/ ]{4,40}$/.test(ref) ? '"' + ref + '"' : ref;
+  // 1) lecture directe : adresse collée, ou recherche sur le site du magasin ; 2) Google Shopping ; 3) recherche limitée au site du magasin
+  const direct = storefetchLookup(q, store, extra).catch(() => null);
+  const shop = isUrl ? Promise.resolve(null) : serp({ engine: 'google_shopping', q: (store ? quoted + ' ' + store.name : quoted) }).catch(() => null);
+  const site = !isUrl && store && store.domain ? serp({ engine: 'google', q: 'site:' + store.domain + ' ' + quoted, num: '10' }).catch(() => null) : Promise.resolve(null);
+  const [d, j, js] = await Promise.all([direct, shop, site]);
   const offers = shoppingOffers(j), pages = [];
+  if (d) offers.unshift({ title: d.title, store: d.store, priceText: d.priceText, price: d.price, link: d.link, thumbnail: d.thumbnail || '', direct: true, sku: d.sku, ean: d.ean });
+  const cand = [];
   for (const r of ((js && js.organic_results) || []).slice(0, 8)) {
     let host = ''; try { host = new URL(r.link).hostname.replace(/^www\./, ''); } catch (e) { continue; }
-    if (!(host === store.domain || host.endsWith('.' + store.domain))) continue;
+    if (!(store && (host === store.domain || host.endsWith('.' + store.domain)))) continue;
     const ext = r.rich_snippet && r.rich_snippet.top && r.rich_snippet.top.detected_extensions;
     const m = /(\d{1,4}(?:[ \u00a0]\d{3})*(?:[,.]\d{1,2}))\s?€/.exec(String(r.snippet || '') + ' ' + String(r.title || ''));
     const price = ext && Number.isFinite(Number(ext.price)) ? Number(ext.price) : m ? parseFloat(m[1].replace(/[\s\u00a0]/g, '').replace(',', '.')) : null;
-    const item = { title: str(r.title, 200), store: store.name, link: r.link, priceText: price != null ? price.toFixed(2).replace('.', ',') + ' €' : '', price, thumbnail: '', site: true };
-    if (price > 0) offers.unshift(item); else pages.push({ title: item.title, link: item.link });
+    cand.push({ title: str(r.title, 200), link: r.link, price, snippet: str(r.snippet, 200) });
+  }
+  // pour les fiches qui correspondent à la référence : on lit la page pour récupérer le prix exact
+  const exactPages = cand.filter(c => exactOf(c)).slice(0, 2);
+  const read = await Promise.all(exactPages.map(c => storefetchLookup(c.link, store, extra).catch(() => null)));
+  exactPages.forEach((c, i) => { const rd = read[i]; if (rd && !offers.some(o => o.link === rd.link)) offers.unshift({ title: rd.title, store: rd.store, priceText: rd.priceText, price: rd.price, link: rd.link, thumbnail: rd.thumbnail || '', direct: true, sku: rd.sku, ean: rd.ean }); c.done = !!rd; });
+  for (const c of cand) {
+    if (c.done) continue;
+    if (c.price > 0) offers.unshift({ title: c.title, store: store.name, priceText: c.price.toFixed(2).replace('.', ',') + ' €', price: c.price, link: c.link, thumbnail: '', site: true });
+    else pages.push({ title: c.title, link: c.link, exact: exactOf(c) });
   }
   const same = n => { const k = stores.key(n), t = store ? stores.key(store.name) : ''; return !!(t && k && (k.includes(t) || t.includes(k) || (stores.matchStore(n, '') || {}).name === store.name)); };
-  offers.forEach(o => { o.mine = same(o.store); });
-  return ok({ offers, pages, store: store ? { name: store.name, domain: store.domain } : null });
+  offers.forEach(o => { o.mine = same(o.store); o.exact = exactOf(o) || (o.direct && isUrl); });
+  offers.sort((a, b) => (b.exact ? 1 : 0) - (a.exact ? 1 : 0) || (b.mine ? 1 : 0) - (a.mine ? 1 : 0) || a.price - b.price);
+  pages.sort((a, b) => (b.exact ? 1 : 0) - (a.exact ? 1 : 0));
+  if (!key && !offers.length && !pages.length && !d) throw err(503, 'La recherche automatique n\'a rien trouvé et la recherche web (clé SERPAPI_KEY) n\'est pas activée. Collez l\'adresse de la fiche produit pour que le site la lise.');
+  return ok({ offers, pages, store: store ? { name: store.name, domain: store.domain } : null, exact: offers.some(o => o.exact) });
 });
 
 /* ---------- Téléchargement PDF du devis ou de la facture ---------- */

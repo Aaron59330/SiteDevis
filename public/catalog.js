@@ -615,8 +615,8 @@ function refSearch(f, refresh, editId) {
   const clean = (t, store) => String(t || '').replace(new RegExp('\\s*[-–|]\\s*' + String(store || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '.*$', 'i'), '').trim();
   const rank = ref => {
     const k = key(ref);
-    return offers.map((o, i) => ({ o, i, mine: isMine(o) ? 0 : 1, hit: k && key(o.title + ' ' + (o.link || '')).includes(k) ? 0 : 1 }))
-      .sort((a, b) => a.mine - b.mine || a.hit - b.hit || a.o.price - b.o.price).map(x => x.i);
+    return offers.map((o, i) => ({ o, i, ex: o.exact ? 0 : 1, mine: isMine(o) ? 0 : 1, hit: k && key(o.title + ' ' + (o.link || '')).includes(k) ? 0 : 1 }))
+            .sort((a, b) => a.ex - b.ex || a.mine - b.mine || a.hit - b.hit || a.o.price - b.o.price).map(x => x.i);
   };
   const useSupplier = o => {
     const k = key(o.store); let sp = sups().find(s => { const n = key(s.name); return n && (n.includes(k) || k.includes(n)); });
@@ -631,7 +631,13 @@ function refSearch(f, refresh, editId) {
     refresh(); show(g);
   };
   const list = order => `<div class="offers">${order.slice(0, 8).map(i => `<button type="button" class="offer-row ${i === pick ? 'on' : ''}" data-i="${i}"><span>${esc(offers[i].store)}${isMine(offers[i]) ? ' ✓' : ''}</span><span class="muted">${esc(clean(offers[i].title, offers[i].store)).slice(0, 56)}</span><b>${money(offers[i].price)}</b></button>`).join('')}</div>`;
+  const bindPages = () => panel.querySelectorAll('[data-page]').forEach(b => b.onclick = () => {
+    const x = pages[+b.dataset.page]; if (!x) return;
+    if (!E.desc.value.trim() || E.desc.dataset.auto === '1') { E.desc.value = clean(x.title, found ? found.name : ''); E.desc.dataset.auto = '1'; }
+    E.sourceUrl.value = x.link; E.priceDate.value = today(); toast('Fiche reprise : ouvrez-la et saisissez le prix d\'achat');
+  });
   const bind = g => {
+    bindPages();
     const pu = $$('perUnit'); if (pu) pu.onclick = () => { apply(pick, true); toast(`Prix converti au ${g.unit}`); };
     const sw = $$('swSup'); if (sw) sw.onclick = () => { useSupplier(offers[pick]); show(g); toast('Fournisseur changé : ' + offers[pick].store); };
     panel.querySelectorAll('.offer-row').forEach(b => b.onclick = () => apply(+b.dataset.i));
@@ -655,14 +661,15 @@ function refSearch(f, refresh, editId) {
     try {
       const res = await api('GET', '/api/prices/search?q=' + encodeURIComponent(ref) + (sp ? '&s=' + encodeURIComponent(sp.name) + (sp.website ? '&w=' + encodeURIComponent(sp.website) : '') : ''));
       offers = res.offers.filter(o => o.price > 0); pages = res.pages || []; found = res.store;
-      const pg = pages.length ? `<div class="muted" style="font-size:.82rem;margin-top:8px">Fiches trouvées sur ${esc(found ? found.domain : 'le site')} (prix à lire sur la page) : ${pages.slice(0, 4).map(x => `<a href="${esc(x.link)}" target="_blank" rel="noopener">${esc(x.title.slice(0, 48))} ↗</a>`).join(' · ')}</div>` : '';
-      if (!offers.length) { panel.innerHTML = `<div class="notice bad" style="margin:6px 0 12px">Aucune offre avec prix trouvée pour cette référence${found ? ' chez ' + esc(found.name) : ''}. Essayez avec le code EAN ou la désignation, ou saisissez le prix à la main.${pg}</div>`; return; }
+      const pg = pages.length ? `<div class="muted" style="font-size:.82rem;margin-top:8px">${pages.some(x => x.exact) ? '<b>Fiche trouvée pour cette référence</b>' : 'Pages trouvées'} sur ${esc(found ? found.domain : 'le site')} (prix à lire sur la page) :
+          ${pages.slice(0, 4).map((x, i) => `<div style="margin-top:6px">${x.exact ? '✓ ' : ''}${esc(x.title.slice(0, 70))} — <a href="${esc(x.link)}" target="_blank" rel="noopener">ouvrir ↗</a> <button type="button" class="btn small" data-page="${i}">Utiliser la fiche</button></div>`).join('')}</div>` : '';
+      if (!offers.length) { panel.innerHTML = `<div class="notice bad" style="margin:6px 0 12px">Aucune offre avec prix trouvée pour cette référence${found ? ' chez ' + esc(found.name) : ''}. Essayez avec le code EAN, collez l'adresse de la fiche produit, ou saisissez le prix à la main.${pg}</div>`; bindPages(); return; }
       const order = rank(ref);
-      if (isMine(offers[order[0]])) apply(order[0]);                       // offre de votre fournisseur : remplissage automatique
-      else {                                                               // aucune offre chez lui : on propose, sans rien remplir ni changer de fournisseur
+      if (offers[order[0]].exact) apply(order[0]);                          // produit trouvé avec cette référence exacte : remplissage automatique
+      else {                                                               // rien d'exact : on propose, sans rien remplir
         pick = -1;
-        panel.innerHTML = `<div class="notice" style="margin:6px 0 12px"><b>Aucune offre de ${esc(sp ? sp.name : 'ce fournisseur')} trouvée pour cette référence.</b> Voici ce qui existe ailleurs : choisissez une offre pour reprendre son prix et sa désignation (votre fournisseur ne change pas).${list(order)}</div>`;
-        panel.querySelector('.notice').insertAdjacentHTML('beforeend', pg); bind(null);
+        panel.innerHTML = `<div class="notice" style="margin:6px 0 12px"><b>Aucune offre ne correspond exactement à la référence « ${esc(ref)} ».</b> Ce sont les plus proches, peut-être pas le bon produit : choisissez-en une pour reprendre prix et désignation (votre fournisseur ne change pas), ou collez l'adresse de la fiche produit dans le champ référence.${list(order)}${pg}</div>`;
+        bind(null);
       }
     } catch (e) { panel.innerHTML = `<div class="notice bad" style="margin:6px 0 12px">${esc(e.message)}</div>`; } finally { btn.disabled = false; btn.textContent = 'Chercher'; }
   };
