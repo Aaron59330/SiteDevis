@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mes Devis</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar no-print">
+  <div class="brand">📄 Mes Devis</div>
+  <nav id="nav">
+    <button data-view="quotes">Devis</button>
+    <button data-view="clients">Clients</button>
+    <button data-view="catalog">Catalogue</button>
+    <button data-view="company">Mon entreprise</button>
+  </nav>
+  <span id="saved" class="saved"></span>
+</header>
+
+<main id="app"></main>
+
+<dialog id="modal"></dialog>
+<div id="toast" class="toast no-print"></div>
+<input type="file" id="fileImport" accept="application/json" hidden>
+
+<script src="app.js"></script>
+</body>
+</html>
