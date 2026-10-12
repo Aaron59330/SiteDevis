@@ -556,3 +556,10 @@ html[data-density="compact"] .btn { padding: 6px 12px; }
 @media (max-width: 900px) { .pref-grid { grid-template-columns: 1fr; } .pref-grid .card[style] { grid-column: auto !important; } }
 .sw:not(.on) { color: transparent; } .sw.neutral.on { color: #0a0a0a; }
 #nav button { white-space: nowrap; }
+
+/* ===== Chantiers ===== */
+.bar { height: 8px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
+.bar.over i { background: var(--danger); }
+.kv { display: grid; grid-template-columns: 90px 1fr; gap: 8px 14px; margin: 0; }
+.kv dt { color: var(--muted); font-size: .85rem; } .kv dd { margin: 0; overflow-wrap: anywhere; }

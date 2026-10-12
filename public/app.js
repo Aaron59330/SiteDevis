@@ -19,10 +19,11 @@ const DEFAULT_FOOTER =
 const defaults = () => ({
   company: { name: '', legalLine: '', address: '', phone: '', email: '', siret: '', vatNumber: '', bank: '', logo: '', vatExempt: false, accent: '#26323f' },
   settings: { numberPattern: 'DEV-{YYYY}-{N}', next: 1, invoicePattern: 'FAC-{YYYY}-{N}', invoiceNext: 1, dueDays: 30, defaultVat: 20, validityDays: 30,
-    defaultPayments: '30 | Acompte à la commande\n70 | Solde à la fin des travaux',
+    defaultPayments: '30 | Acompte à la commande\n70 | Solde à la fin des travaux', useSites: false,
     defaultFooter: DEFAULT_FOOTER },
   clients: [],
   suppliers: [],
+  sites: [],
   catalog: [],
   quotes: []
 });
@@ -42,7 +43,7 @@ function normalize(raw) {
   const c = { ...(raw.company || {}) };
   if (!c.bank && c.iban) c.bank = 'IBAN : ' + c.iban;
   const out = { ...d, ...raw, company: { ...d.company, ...c }, settings: { ...d.settings, ...s } };
-  out.clients = out.clients || []; out.catalog = out.catalog || []; out.suppliers = out.suppliers || [];
+  out.clients = out.clients || []; out.catalog = out.catalog || []; out.suppliers = out.suppliers || []; out.sites = (out.sites || []).map(normSite);
   out.quotes = (out.quotes || []).map(q => normQuote(q, out));
   return out;
 }
@@ -50,7 +51,8 @@ function normQuote(q, base) {
   base = base || db;
   q.kind = q.kind === 'facture' ? 'facture' : 'devis';
   q.lines = (q.lines && q.lines.length ? q.lines : [newItem(base)]).map(l => ({ t: 'item', ref: '', ...l }));
-  q.opts = { showRef: true, showVat: true, docLabel: q.kind === 'facture' ? 'FACTURE' : 'DEVIS', agreeLabel: q.kind === 'facture' ? '' : 'Bon pour Accord', ...(q.opts || {}) };
+  q.opts = { showRef: true, showVat: true, docLabel: q.kind === 'facture' ? 'FACTURE' : 'DEVIS', agreeLabel: q.kind === 'facture' ? '' : 'Bon pour Accord', showSite: false, showSiteHours: false, ...(q.opts || {}) };
+  q.siteId = q.siteId || '';
   if (q.kind === 'facture') { q.dueDate = q.dueDate || ''; q.serviceDate = q.serviceDate || ''; q.alreadyPaid = num(q.alreadyPaid); q.payMethod = q.payMethod ?? 'Virement bancaire'; q.paidAt = q.paidAt || ''; }
   if (q.issuerText == null) q.issuerText = issuerBlock(base.company);
   if (q.clientText == null) q.clientText = clientBlock((base.clients || []).find(c => c.id === q.clientId));
@@ -187,7 +189,7 @@ function render() {
 }
 function navFor() {
   if (view === 'editor') return isInv(getQuote(editingId)) ? 'invoices' : 'quotes';
-  return view === 'account' ? 'billing' : view;
+  return view === 'account' ? 'billing' : view === 'site' ? 'sites' : view;
 }
 function go(v, id = null) {
   if (v === 'editor' && !requireAccess()) return;
@@ -318,6 +320,7 @@ function renderEditor() {
           <div class="field"><label>Statut</label>
             <select data-f="status">${Object.entries(statusOf(q)).map(([k, v]) => `<option value="${k}" ${q.status === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
         </div>
+        ${siteField(q)}
         <details>
           <summary>Blocs « Émetteur » et « Client » affichés sur le document (modifiables)</summary>
           <div class="field" style="margin-top:10px"><label>Émetteur (première ligne en gras)
@@ -369,6 +372,8 @@ function renderEditor() {
         <div class="row">
           <label style="margin:0"><input type="checkbox" data-o="showRef" ${q.opts.showRef ? 'checked' : ''} style="width:auto"> Colonne Référence</label>
           <label style="margin:0"><input type="checkbox" data-o="showVat" ${q.opts.showVat ? 'checked' : ''} style="width:auto"> Colonne TVA</label>
+          ${q.siteId ? `<label style="margin:0"><input type="checkbox" data-o="showSite" ${q.opts.showSite ? 'checked' : ''} style="width:auto"> Afficher le chantier (lieu, dates)</label>
+          <label style="margin:0"><input type="checkbox" data-o="showSiteHours" ${q.opts.showSiteHours ? 'checked' : ''} style="width:auto"> Afficher la durée estimée</label>` : ''}
         </div>
       </div>
     </div>
@@ -456,6 +461,7 @@ function renderDoc(q) {
   <div class="dnum">${esc(o.docLabel)} N° ${esc(q.number)}</div>
   <div class="ddate">Le ${flongdate(q.date)}${!isInv(q) && q.validUntil ? ` — valable jusqu'au ${fdate(q.validUntil)}` : ''}</div>
   ${isInv(q) ? `<div class="dmeta">${q.fromNumber ? `<span>Suite au devis N° ${esc(q.fromNumber)}</span>` : ''}${q.serviceDate ? `<span>Prestation réalisée le ${fdate(q.serviceDate)}</span>` : ''}${q.dueDate ? `<span><b>Échéance de paiement : ${fdate(q.dueDate)}</b></span>` : ''}</div>` : ''}
+  ${siteDocLine(q)}
   <table class="items">
     <colgroup>${cols.map(c => `<col style="width:${c === 'desc' ? 100 - used : widths[c]}%">`).join('')}</colgroup>
     <thead><tr>${cols.map(c => `<th class="${['qty', 'price', 'vat', 'amount'].includes(c) ? 'r' : ''}">${head[c]}</th>`).join('')}</tr></thead>
@@ -721,6 +727,10 @@ function renderCompany() {
         <div class="row"><input type="file" id="logoFile" accept="image/*" style="max-width:260px">${co.logo ? '<button class="btn danger" data-act="rm-logo">Retirer</button>' : ''}</div>
         <div class="field" style="margin-top:12px"><label>Couleur des titres</label><input type="color" data-c="accent" value="${esc(co.accent)}" style="width:80px;padding:2px;height:36px"></div>
       </div>
+      <div class="card"><h2>Chantiers</h2>
+        <div class="field"><label><input type="checkbox" data-s="useSites" ${s.useSites ? 'checked' : ''} style="width:auto"> Activer la gestion des chantiers (optionnel)</label></div>
+        <p class="muted" style="margin:-4px 0 0;font-size:.82rem">Ajoute l'onglet « Chantiers » : lieu, ville, dates, heures prévues et réalisées, et le rattachement des devis et factures. Rien ne change tant que vous ne l'utilisez pas.</p>
+      </div>
       <div class="card"><h2>Réglages des devis</h2>
         <div class="grid2">
           <div class="field"><label>Modèle de numérotation</label><input data-s="numberPattern" value="${esc(s.numberPattern)}"></div>
@@ -892,7 +902,7 @@ document.addEventListener('input', e => {
     }
   } else if (view === 'company') {
     if (t.dataset.c) { db.company[t.dataset.c] = t.type === 'checkbox' ? t.checked : t.value; save(); }
-    if (t.dataset.s) { db.settings[t.dataset.s] = t.type === 'number' || t.dataset.s === 'defaultVat' ? num(t.value) : t.value; save(); }
+    if (t.dataset.s) { db.settings[t.dataset.s] = t.type === 'checkbox' ? t.checked : t.type === 'number' || t.dataset.s === 'defaultVat' ? num(t.value) : t.value; save(); if (t.dataset.s === 'useSites') updateTopbar(); }
   }
 });
 
