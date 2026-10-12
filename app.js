@@ -3,13 +3,19 @@
 /* ---------- Données ---------- */
 const KEY = 'sitedevis.v1';
 const STATUS = { brouillon: 'Brouillon', envoye: 'Envoyé', accepte: 'Accepté', refuse: 'Refusé' };
-const UNITS = ['u', 'h', 'jour', 'forfait', 'm²', 'm', 'kg', 'mois'];
+const UNITS = ['u', 'pièce(s)', 'h', 'jour', 'forfait', 'm2', 'm²', 'ml', 'm', 'kg', 'mois'];
 const VATS = [0, 5.5, 10, 20];
+const VAT_MENTION = 'TVA non applicable – article 293 B du Code général des impôts.';
+const DEFAULT_FOOTER =
+  'Clause de réserve de propriété : les matériaux et marchandises fournis demeurent la propriété de {entreprise} jusqu\'au paiement intégral de leur prix.\n' +
+  'Pénalités de retard : 3 fois le taux d\'intérêt légal en vigueur à compter de la date d\'échéance. Aucun escompte n\'est accordé pour paiement anticipé.\n' +
+  'Une indemnité forfaitaire de 40 € pour frais de recouvrement est due en cas de retard de paiement par un client professionnel, conformément à l\'article L441-10 du Code de commerce.';
 
 const defaults = () => ({
-  company: { name: '', address: '', email: '', phone: '', siret: '', vatNumber: '', iban: '', logo: '', vatExempt: false, footer: '' },
-  settings: { prefix: 'DEV', next: 1, defaultVat: 20, validityDays: 30, defaultDeposit: 30,
-    defaultConditions: 'Paiement à 30 jours à réception de facture.\nDevis valable pendant la durée indiquée ci-dessus.' },
+  company: { name: '', legalLine: '', address: '', phone: '', email: '', siret: '', vatNumber: '', bank: '', logo: '', vatExempt: false, accent: '#26323f' },
+  settings: { numberPattern: 'DEV-{YYYY}-{N}', next: 1, defaultVat: 20, validityDays: 30,
+    defaultPayments: '30 | Acompte à la commande\n70 | Solde à la fin des travaux',
+    defaultFooter: DEFAULT_FOOTER },
   clients: [],
   catalog: [],
   quotes: []
@@ -18,16 +24,35 @@ const defaults = () => ({
 let db = load();
 let view = 'quotes';
 let editingId = null;
+let wide = false;
 let filter = { q: '', status: '' };
 
+function normalize(raw) {
+  const d = defaults();
+  raw = raw || {};
+  const s = { ...(raw.settings || {}) };
+  if (s.prefix && !s.numberPattern) s.numberPattern = `${s.prefix}-{YYYY}-{N}`;
+  const c = { ...(raw.company || {}) };
+  if (!c.bank && c.iban) c.bank = 'IBAN : ' + c.iban;
+  const out = { ...d, ...raw, company: { ...d.company, ...c }, settings: { ...d.settings, ...s } };
+  out.clients = out.clients || []; out.catalog = out.catalog || [];
+  out.quotes = (out.quotes || []).map(q => normQuote(q, out));
+  return out;
+}
+function normQuote(q, base) {
+  base = base || db;
+  q.lines = (q.lines && q.lines.length ? q.lines : [newItem(base)]).map(l => ({ t: 'item', ref: '', ...l }));
+  q.opts = { showRef: true, showVat: true, docLabel: 'DEVIS', agreeLabel: 'Bon pour Accord', ...(q.opts || {}) };
+  if (q.issuerText == null) q.issuerText = issuerBlock(base.company);
+  if (q.clientText == null) q.clientText = clientBlock((base.clients || []).find(c => c.id === q.clientId));
+  if (q.footer == null) q.footer = makeFooter(base);
+  if (q.bank == null) q.bank = base.company.bank || '';
+  if (!q.payments) q.payments = q.deposit ? [{ pct: num(q.deposit), label: 'Acompte' }, { pct: 100 - num(q.deposit), label: 'Solde' }] : parsePayments(base.settings.defaultPayments);
+  q.notes = q.notes || ''; q.discount = num(q.discount); q.status = q.status || 'brouillon';
+  return q;
+}
 function load() {
-  try {
-    const raw = JSON.parse(localStorage.getItem(KEY));
-    if (raw) {
-      const d = defaults();
-      return { ...d, ...raw, company: { ...d.company, ...raw.company }, settings: { ...d.settings, ...raw.settings } };
-    }
-  } catch (e) { /* ignore */ }
+  try { const raw = JSON.parse(localStorage.getItem(KEY)); if (raw) return normalize(raw); } catch (e) { /* ignore */ }
   return defaults();
 }
 let saveTimer;
@@ -43,11 +68,14 @@ function save() {
 const $ = (s, r = document) => r.querySelector(s);
 const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const money = n => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(n || 0);
+const fmtMoney = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' });
+const fmtNum = new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const money = n => fmtMoney.format(n || 0);
 const num = v => { const n = parseFloat(String(v).replace(',', '.')); return isFinite(n) ? n : 0; };
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const addDays = (iso, d) => { const t = new Date(iso + 'T12:00:00'); t.setDate(t.getDate() + d); return t.toISOString().slice(0, 10); };
 const fdate = iso => iso ? new Date(iso + 'T12:00:00').toLocaleDateString('fr-FR') : '';
+const flongdate = iso => iso ? new Date(iso + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : '';
 const getClient = id => db.clients.find(c => c.id === id);
 const getQuote = id => db.quotes.find(q => q.id === id);
 function toast(msg) {
@@ -55,28 +83,59 @@ function toast(msg) {
   clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 2200);
 }
 
-function nextNumber() {
-  const y = new Date().getFullYear();
-  const { prefix, next } = db.settings;
-  return `${prefix}-${y}-${String(next).padStart(3, '0')}`;
+function makeNumber() {
+  const d = new Date(), y = String(d.getFullYear());
+  return (db.settings.numberPattern || 'DEV-{YYYY}-{N}')
+    .replace('{YYYY}', y).replace('{YY}', y.slice(2))
+    .replace('{MM}', String(d.getMonth() + 1).padStart(2, '0'))
+    .replace('{N}', String(db.settings.next).padStart(3, '0'));
+}
+function issuerBlock(co) {
+  return [co.name, co.legalLine, co.address, co.phone && `Port. : ${co.phone}`, co.email, co.siret && `N° SIRET : ${co.siret}`,
+    co.vatNumber && `N° TVA : ${co.vatNumber}`].filter(Boolean).join('\n');
+}
+function clientBlock(c) {
+  if (!c) return '';
+  return [c.name, c.address, c.phone && `Port. : ${c.phone}`, c.email].filter(Boolean).join('\n');
+}
+function makeFooter(base) {
+  base = base || db;
+  let f = (base.settings.defaultFooter || '').replace(/\{entreprise\}/g, base.company.name || 'l\'entreprise');
+  if (base.company.vatExempt && !f.includes('293 B')) f += (f ? '\n' : '') + VAT_MENTION;
+  return f;
+}
+function parsePayments(text) {
+  const list = String(text || '').split('\n').map(l => l.trim()).filter(Boolean).map(l => {
+    const [p, ...rest] = l.split('|');
+    return { pct: num(p), label: rest.join('|').trim() };
+  }).filter(p => p.pct > 0);
+  return list.length ? list : [{ pct: 100, label: 'Paiement à la réception' }];
+}
+function newItem(base) { base = base || db; return { t: 'item', ref: '', desc: '', qty: 1, unit: 'u', price: 0, vat: base.settings.defaultVat }; }
+
+function docLines(q) {
+  let run = 0;
+  return q.lines.map(l => {
+    if (l.t === 'subtotal') { const r = { ...l, amount: run }; run = 0; return r; }
+    if (l.t === 'item') { const total = num(l.qty) * num(l.price); run += total; return { ...l, total }; }
+    return { ...l };
+  });
 }
 
 function totals(q) {
   const exempt = db.company.vatExempt;
-  const lines = q.lines.map(l => ({ ...l, total: num(l.qty) * num(l.price) }));
-  const subtotal = lines.reduce((s, l) => s + l.total, 0);
+  const items = q.lines.filter(l => l.t === 'item').map(l => ({ ...l, total: num(l.qty) * num(l.price) }));
+  const subtotal = items.reduce((s, l) => s + l.total, 0);
   const discountAmt = subtotal * num(q.discount) / 100;
   const ratio = subtotal ? (subtotal - discountAmt) / subtotal : 1;
   const byRate = {};
-  lines.forEach(l => {
+  items.forEach(l => {
     const r = exempt ? 0 : num(l.vat);
     byRate[r] = (byRate[r] || 0) + l.total * ratio * r / 100;
   });
   const ht = subtotal - discountAmt;
   const vat = Object.values(byRate).reduce((s, v) => s + v, 0);
-  const ttc = ht + vat;
-  const deposit = ttc * num(q.deposit) / 100;
-  return { lines, subtotal, discountAmt, ht, vat, byRate, ttc, deposit };
+  return { subtotal, discountAmt, ht, vat, byRate, ttc: ht + vat };
 }
 
 /* ---------- Rendu principal ---------- */
@@ -89,9 +148,31 @@ function render() {
   else if (view === 'clients') app.innerHTML = renderClients();
   else if (view === 'catalog') app.innerHTML = renderCatalog();
   else if (view === 'company') app.innerHTML = renderCompany();
+  if (view === 'editor') { fitDoc(); updatePrintStyle(); autosize(); } else updatePrintStyle(true);
   window.scrollTo(0, 0);
 }
 function go(v, id = null) { view = v; editingId = id; render(); }
+
+function fitDoc() {
+  const wrap = $('.preview-wrap'), doc = $('#doc');
+  if (!wrap || !doc) return;
+  doc.style.zoom = Math.min(1, (wrap.clientWidth - 4) / 794);
+}
+function autosize() {
+  document.querySelectorAll('textarea[data-l=desc], textarea.auto').forEach(t => { t.style.height = 'auto'; t.style.height = Math.max(34, t.scrollHeight + 2) + 'px'; });
+}
+function updatePrintStyle(clear) {
+  const el = $('#printStyle');
+  const q = !clear && getQuote(editingId);
+  const s = x => '"' + String(x).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, ' ') + '"';
+  el.textContent = q
+    ? `@page { size: A4; margin: 14mm 10mm 14mm;
+        @top-left { content: ${s(`${q.opts.docLabel} N° ${q.number}`)}; font: 9pt sans-serif; color: #6b7488; }
+        @top-right { content: ${s(flongdate(q.date))}; font: 9pt sans-serif; color: #6b7488; }
+        @bottom-right { content: "Page " counter(page) " / " counter(pages); font: bold 9pt sans-serif; } }
+       @page :first { @top-left { content: none; } @top-right { content: none; } }`
+    : '@page { size: A4; margin: 14mm 10mm; }';
+}
 
 /* ---------- Liste des devis ---------- */
 function renderQuotes() {
@@ -108,7 +189,7 @@ function renderQuotes() {
     <h1>Mes devis</h1>
     <button class="btn primary" data-act="new-quote">＋ Nouveau devis</button>
   </div>
-  ${!db.company.name ? `<div class="card" style="border-color:#fbbf24;background:#fffbeb">👋 Commencez par renseigner <a href="#" data-act="goto-company">votre entreprise</a> : son nom et ses coordonnées apparaîtront sur vos devis.</div>` : ''}
+  ${!db.company.name ? `<div class="card" style="border-color:#fbbf24;background:#fffbeb">👋 Commencez par renseigner <a href="#" data-act="goto-company">votre entreprise</a> (logo, coordonnées, IBAN, mentions légales) : tout sera repris automatiquement sur vos devis. Vous pouvez aussi <a href="#" data-act="demo">charger un exemple</a> pour voir le résultat.</div>` : ''}
   <div class="stats">
     <div class="stat"><div class="n">${all.length}</div><div class="l">Devis au total</div></div>
     <div class="stat"><div class="n">${money(sum('envoye'))}</div><div class="l">En attente de réponse</div></div>
@@ -158,13 +239,14 @@ function renderEditor() {
   if (!q) return renderQuotes();
   return `
   <div class="row between no-print" style="margin-bottom:16px">
-    <div class="row"><button class="btn" data-act="back">← Retour</button><h1 style="margin:0">Devis ${esc(q.number)}</h1></div>
+    <div class="row"><button class="btn" data-act="back">← Retour</button><h1 style="margin:0">${esc(q.opts.docLabel)} ${esc(q.number)}</h1></div>
     <div class="row">
+      <button class="btn" data-act="toggle-wide">👁 Aperçu large / ✎ Édition</button>
       <button class="btn" data-act="dup" data-id="${q.id}">⧉ Dupliquer</button>
-      <button class="btn primary" data-act="print">🖨 Imprimer / Enregistrer en PDF</button>
+      <button class="btn primary" data-act="print" title="Dans la fenêtre d'impression : destination « Enregistrer au format PDF », décochez « En-têtes et pieds de page »">🖨 Imprimer / PDF</button>
     </div>
   </div>
-  <div class="editor">
+  <div class="editor ${wide ? 'wide' : ''}" id="editor">
     <div class="form no-print">
       <div class="card">
         <h2>Informations</h2>
@@ -173,6 +255,7 @@ function renderEditor() {
           <div class="field"><label>Date</label><input type="date" data-f="date" value="${q.date}"></div>
           <div class="field"><label>Valable jusqu'au</label><input type="date" data-f="validUntil" value="${q.validUntil}"></div>
         </div>
+        <div class="field"><label>Titre en haut du devis (objet des travaux)</label><textarea class="auto" rows="2" data-f="title" placeholder="Ex : TRAVAUX DE PLÂTRERIE LOGEMENT 12 RUE DES LILAS">${esc(q.title)}</textarea></div>
         <div class="grid2">
           <div class="field"><label>Client</label>
             <div class="row" style="flex-wrap:nowrap">
@@ -182,29 +265,53 @@ function renderEditor() {
           <div class="field"><label>Statut</label>
             <select data-f="status">${Object.entries(STATUS).map(([k, v]) => `<option value="${k}" ${q.status === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
         </div>
-        <div class="field"><label>Objet du devis</label><input data-f="title" value="${esc(q.title)}" placeholder="Ex : Rénovation de la salle de bain"></div>
-      </div>
-
-      <div class="card ${db.company.vatExempt ? 'novat' : ''}" id="linesCard">
-        <div class="row between"><h2>Prestations</h2>
-          ${db.catalog.length ? `<select id="catalogPick" style="width:auto;max-width:260px"><option value="">+ Ajouter depuis le catalogue…</option>${db.catalog.map(c => `<option value="${c.id}">${esc(c.desc)} — ${money(c.price)}</option>`).join('')}</select>` : ''}
-        </div>
-        <table class="lines">
-          <thead><tr><th class="c-desc">Description</th><th class="c-num">Qté</th><th class="c-num">Unité</th><th class="c-num">Prix HT</th><th class="c-num c-vat">TVA</th><th class="c-tot">Total HT</th><th></th></tr></thead>
-          <tbody id="linesBody">${q.lines.map((l, i) => lineRow(l, i, q.lines.length)).join('')}</tbody>
-        </table>
-        <div style="margin-top:10px"><button class="btn" data-act="add-line">＋ Ajouter une ligne</button></div>
+        <details>
+          <summary>Blocs « Émetteur » et « Client » affichés sur le devis (modifiables)</summary>
+          <div class="field" style="margin-top:10px"><label>Émetteur (première ligne en gras)
+            <a href="#" data-act="reset-issuer" style="float:right;font-weight:400">↻ recopier depuis Mon entreprise</a></label>
+            <textarea class="auto" data-f="issuerText">${esc(q.issuerText)}</textarea></div>
+          <div class="field"><label>Client
+            <a href="#" data-act="reset-client" style="float:right;font-weight:400">↻ recopier depuis la fiche client</a></label>
+            <textarea class="auto" data-f="clientText">${esc(q.clientText)}</textarea></div>
+        </details>
       </div>
 
       <div class="card">
-        <h2>Remise &amp; acompte</h2>
-        <div class="grid2">
-          <div class="field"><label>Remise globale (%)</label><input type="number" min="0" max="100" step="0.5" data-f="discount" value="${q.discount}"></div>
-          <div class="field"><label>Acompte demandé (%)</label><input type="number" min="0" max="100" step="5" data-f="deposit" value="${q.deposit}"></div>
+        <div class="row between"><h2>Prestations</h2>
+          ${db.catalog.length ? `<select id="catalogPick" style="width:auto;max-width:260px"><option value="">+ Ajouter depuis le catalogue…</option>${db.catalog.map(c => `<option value="${c.id}">${esc(c.ref ? c.ref + ' – ' : '')}${esc(c.desc)} — ${money(c.price)}</option>`).join('')}</select>` : ''}
         </div>
-        <h2 style="margin-top:8px">Notes &amp; conditions</h2>
-        <div class="field"><label>Notes (visibles sur le devis)</label><textarea data-f="notes" placeholder="Précisions, délais, matériel fourni…">${esc(q.notes)}</textarea></div>
-        <div class="field"><label>Conditions</label><textarea data-f="conditions">${esc(q.conditions)}</textarea></div>
+        <div id="linesBody">${linesHtml(q)}</div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn" data-act="add-line">＋ Ligne</button>
+          <button class="btn" data-act="add-title">＋ Titre de section</button>
+          <button class="btn" data-act="add-subtotal">＋ Sous-total</button>
+          <button class="btn" data-act="add-spacer">＋ Espace</button>
+        </div>
+        <div class="grid2" style="margin-top:14px">
+          <div class="field"><label>Remise globale (%)</label><input type="number" min="0" max="100" step="0.5" data-f="discount" value="${q.discount}"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Paiement</h2>
+        <label>Conditions de paiement (échéancier)</label>
+        <div id="payBody">${paymentsHtml(q)}</div>
+        <div class="row between" style="margin:6px 0 14px"><button class="btn small" data-act="add-pay">＋ Échéance</button><span id="paySum" class="muted"></span></div>
+        <div class="field"><label>Coordonnées bancaires</label><textarea class="auto" data-f="bank" placeholder="Coordonnées bancaires : …&#10;IBAN : …&#10;BIC/SWIFT : …">${esc(q.bank)}</textarea></div>
+        <div class="field"><label>Notes / remarques (affichées au-dessus de la signature)</label><textarea class="auto" data-f="notes" placeholder="Délais, matériel fourni, précisions…">${esc(q.notes)}</textarea></div>
+      </div>
+
+      <div class="card">
+        <h2>Mentions légales &amp; présentation</h2>
+        <div class="field"><label>Pied de page (répété sur chaque page)</label><textarea class="auto" data-f="footer">${esc(q.footer)}</textarea></div>
+        <div class="grid2">
+          <div class="field"><label>Intitulé du document</label><input data-o="docLabel" value="${esc(q.opts.docLabel)}"></div>
+          <div class="field"><label>Texte de signature</label><input data-o="agreeLabel" value="${esc(q.opts.agreeLabel)}"></div>
+        </div>
+        <div class="row">
+          <label style="margin:0"><input type="checkbox" data-o="showRef" ${q.opts.showRef ? 'checked' : ''} style="width:auto"> Colonne Référence</label>
+          <label style="margin:0"><input type="checkbox" data-o="showVat" ${q.opts.showVat ? 'checked' : ''} style="width:auto"> Colonne TVA</label>
+        </div>
       </div>
     </div>
     <div class="preview-wrap"><div class="doc" id="doc">${renderDoc(q)}</div></div>
@@ -216,93 +323,128 @@ function clientOptions(sel) {
     db.clients.map(c => `<option value="${c.id}" ${c.id === sel ? 'selected' : ''}>${esc(c.name)}</option>`).join('');
 }
 
-function lineRow(l, i, n) {
-  const total = num(l.qty) * num(l.price);
-  return `<tr data-i="${i}">
-    <td class="c-desc"><textarea rows="1" data-l="desc" style="min-height:34px" placeholder="Description">${esc(l.desc)}</textarea></td>
-    <td class="c-num"><input type="number" step="any" min="0" data-l="qty" value="${l.qty}"></td>
-    <td class="c-num"><input data-l="unit" list="units" value="${esc(l.unit)}"></td>
-    <td class="c-num"><input type="number" step="any" min="0" data-l="price" value="${l.price}"></td>
-    <td class="c-num c-vat"><select data-l="vat">${VATS.map(v => `<option value="${v}" ${num(l.vat) === v ? 'selected' : ''}>${String(v).replace('.', ',')} %</option>`).join('')}</select></td>
-    <td class="c-tot" data-total>${money(total)}</td>
-    <td class="c-act">
+function linesHtml(q) {
+  const n = q.lines.length;
+  const rows = docLines(q);
+  return q.lines.map((l, i) => {
+    const acts = `<div class="acts">
       <button class="btn small icon" data-act="line-up" ${i === 0 ? 'disabled' : ''} title="Monter">↑</button>
       <button class="btn small icon" data-act="line-down" ${i === n - 1 ? 'disabled' : ''} title="Descendre">↓</button>
-      <button class="btn small icon danger" data-act="line-del" title="Supprimer">✕</button>
-    </td></tr>`;
+      <button class="btn small icon danger" data-act="line-del" title="Supprimer">✕</button></div>`;
+    if (l.t === 'title') return `<div class="line kind" data-i="${i}"><span class="tag">Titre</span><input data-l="desc" value="${esc(l.desc)}" placeholder="Titre de section">${acts}</div>`;
+    if (l.t === 'subtotal') return `<div class="line kind" data-i="${i}"><span class="tag">Sous-total</span><input data-l="label" value="${esc(l.label ?? 'Sous Total')}"><b data-sub style="white-space:nowrap">${money(rows[i].amount)}</b>${acts}</div>`;
+    if (l.t === 'spacer') return `<div class="line kind" data-i="${i}"><span class="tag">Espace</span><span class="muted grow">Ligne vide</span>${acts}</div>`;
+    return `<div class="line" data-i="${i}">
+      <div class="r1"><input data-l="ref" value="${esc(l.ref)}" placeholder="Réf."><textarea rows="1" data-l="desc" placeholder="Désignation">${esc(l.desc)}</textarea></div>
+      <div class="r2">
+        <div><label>Qté</label><input type="number" step="any" min="0" data-l="qty" value="${l.qty}"></div>
+        <div><label>Unité</label><input data-l="unit" list="units" value="${esc(l.unit)}"></div>
+        <div><label>PU HT</label><input type="number" step="any" min="0" data-l="price" value="${l.price}"></div>
+        <div><label>TVA</label><select data-l="vat">${VATS.map(v => `<option value="${v}" ${num(l.vat) === v ? 'selected' : ''}>${String(v).replace('.', ',')} %</option>`).join('')}</select></div>
+        <div class="tot"><label>Total HT</label><b data-total>${money(rows[i].total)}</b></div>
+        ${acts}
+      </div></div>`;
+  }).join('');
+}
+
+function paymentsHtml(q) {
+  const t = totals(q);
+  return q.payments.map((p, i) => `<div class="pay" data-i="${i}">
+    <input type="number" step="any" min="0" max="100" data-p="pct" value="${p.pct}" style="width:80px"> <span>%</span>
+    <input data-p="label" value="${esc(p.label)}" placeholder="Libellé (Acompte, Solde…)">
+    <b data-amount>${money(t.ttc * num(p.pct) / 100)}</b>
+    <button class="btn small icon danger" data-act="del-pay" title="Supprimer">✕</button></div>`).join('');
 }
 
 function renderDoc(q) {
-  const co = db.company, c = getClient(q.clientId) || {};
-  const t = totals(q);
-  const exempt = co.vatExempt;
-  const lines = t.lines.filter(l => l.desc || l.total);
-  const legal = [
-    co.siret && `SIRET : ${co.siret}`,
-    co.vatNumber && !exempt && `N° TVA : ${co.vatNumber}`,
-    exempt && 'TVA non applicable, art. 293 B du CGI',
-    co.iban && `IBAN : ${co.iban}`,
-    co.footer
-  ].filter(Boolean).join('\n');
+  const co = db.company, t = totals(q), o = q.opts;
+  const rows = docLines(q);
+  const widths = { ref: 15, qty: 10, unit: 11, price: 12, vat: 7, amount: 14 };
+  const cols = [o.showRef && 'ref', 'desc', 'qty', 'unit', 'price', o.showVat && 'vat', 'amount'].filter(Boolean);
+  const used = cols.filter(c => c !== 'desc').reduce((s, c) => s + widths[c], 0);
+  const N = cols.length;
+  const head = { ref: 'Référence', desc: 'Désignation', qty: 'Quantité', unit: 'Unité', price: 'PU Vente', vat: 'TVA', amount: 'Montant' };
+  const cell = (c, l) => ({
+    ref: `<td>${esc(l.ref)}</td>`, desc: `<td class="desc">${esc(l.desc)}</td>`,
+    qty: `<td class="r">${fmtNum.format(num(l.qty))}</td>`, unit: `<td>${esc(l.unit)}</td>`,
+    price: `<td class="r">${money(num(l.price))}</td>`,
+    vat: `<td class="r">${fmtNum.format(db.company.vatExempt ? 0 : num(l.vat))}</td>`, amount: `<td class="r">${money(l.total)}</td>`
+  }[c]);
+  const issuer = (q.issuerText || '').split('\n');
+  const body = rows.map(l => {
+    if (l.t === 'title') return `<tr class="ttl"><td colspan="${N}">${esc(l.desc)}</td></tr>`;
+    if (l.t === 'subtotal') return `<tr class="sub"><td colspan="${N - 1}">${esc(l.label ?? 'Sous Total')}</td><td class="r">${money(l.amount)}</td></tr>`;
+    if (l.t === 'spacer') return `<tr class="spc"><td colspan="${N}"></td></tr>`;
+    return `<tr class="item">${cols.map(c => cell(c, l)).join('')}</tr>`;
+  }).join('') || `<tr><td colspan="${N}" class="r" style="text-align:center;color:#999">Aucune prestation</td></tr>`;
+
+  const pays = q.payments.filter(p => num(p.pct) > 0);
+  const payHtml = pays.length ? `<div class="pay-title">Conditions de paiement :</div>` + pays.map((p, i) =>
+    `<div>• ${fmtNum.format(num(p.pct))} % soit ${money(t.ttc * num(p.pct) / 100)}${p.label ? ' : ' + esc(p.label) : ''}${i === pays.length - 1 ? '.' : ','}</div>`).join('') : '';
+
+  const rates = Object.entries(t.byRate).sort((a, b) => a[0] - b[0]);
+  const vatRows = (rates.length ? rates : [[0, 0]]).map(([r, v]) => `<div class="tr"><span>TVA ( ${String(r).replace('.', ',')} % )</span><span>${money(v)}</span></div>`).join('');
+
   return `
   <div class="head">
-    <div>
-      ${co.logo ? `<img class="logo" src="${co.logo}" alt="">` : ''}
-      <div class="co-name">${esc(co.name || 'Votre entreprise')}</div>
-      <div style="white-space:pre-line">${esc(co.address)}</div>
-      ${co.phone ? `<div>Tél : ${esc(co.phone)}</div>` : ''}${co.email ? `<div>${esc(co.email)}</div>` : ''}
-    </div>
-    <div class="title"><h1>DEVIS</h1>
-      <div><b>N° ${esc(q.number)}</b></div>
-      <div>Date : ${fdate(q.date)}</div>
-      ${q.validUntil ? `<div>Valable jusqu'au : ${fdate(q.validUntil)}</div>` : ''}
-    </div>
+    <div class="logo-box">${co.logo ? `<img class="logo" src="${co.logo}" alt="">` : ''}</div>
+    <h1 class="dtitle">${esc(q.title)}</h1>
   </div>
-  <div class="parties"><div></div>
-    <div class="box"><div class="lbl">Client</div>
-      <b>${esc(c.name || '—')}</b>
-      <div style="white-space:pre-line">${esc(c.address || '')}</div>
-      ${c.email ? `<div>${esc(c.email)}</div>` : ''}${c.phone ? `<div>${esc(c.phone)}</div>` : ''}
-    </div>
+  <div class="parties">
+    <div class="issuer"><b>${esc(issuer[0] || '')}</b>${issuer.length > 1 ? '\n' + esc(issuer.slice(1).join('\n')) : ''}</div>
+    <div class="client">${esc(q.clientText)}</div>
   </div>
-  ${q.title ? `<div class="subject">Objet : ${esc(q.title)}</div>` : ''}
+  <div class="dnum">${esc(o.docLabel)} N° ${esc(q.number)}</div>
+  <div class="ddate">Le ${flongdate(q.date)}${q.validUntil ? ` — valable jusqu'au ${fdate(q.validUntil)}` : ''}</div>
   <table class="items">
-    <thead><tr><th>Description</th><th class="r">Qté</th><th>Unité</th><th class="r">PU HT</th>${exempt ? '' : '<th class="r">TVA</th>'}<th class="r">Total HT</th></tr></thead>
-    <tbody>${lines.length ? lines.map(l => `<tr>
-      <td>${esc(l.desc)}</td><td class="r">${num(l.qty).toLocaleString('fr-FR')}</td><td>${esc(l.unit)}</td>
-      <td class="r">${money(num(l.price))}</td>${exempt ? '' : `<td class="r">${String(num(l.vat)).replace('.', ',')} %</td>`}
-      <td class="r">${money(l.total)}</td></tr>`).join('')
-      : `<tr><td colspan="6" style="text-align:center;color:#999">Aucune prestation</td></tr>`}</tbody>
-  </table>
-  <table class="totals">
-    ${t.discountAmt ? `<tr><td>Sous-total HT</td><td class="r">${money(t.subtotal)}</td></tr>
-    <tr><td>Remise (${num(q.discount)} %)</td><td class="r">− ${money(t.discountAmt)}</td></tr>` : ''}
-    <tr><td>Total HT</td><td class="r">${money(t.ht)}</td></tr>
-    ${exempt ? '' : Object.entries(t.byRate).filter(([r]) => num(r) > 0).map(([r, v]) => `<tr><td>TVA ${String(r).replace('.', ',')} %</td><td class="r">${money(v)}</td></tr>`).join('')}
-    <tr class="grand"><td>Total ${exempt ? 'net à payer' : 'TTC'}</td><td class="r">${money(t.ttc)}</td></tr>
-    ${t.deposit ? `<tr><td>Acompte à la commande (${num(q.deposit)} %)</td><td class="r">${money(t.deposit)}</td></tr>
-    <tr><td>Solde restant</td><td class="r">${money(t.ttc - t.deposit)}</td></tr>` : ''}
-  </table>
-  ${q.notes ? `<div class="notes"><b>Notes</b><br>${esc(q.notes)}</div>` : ''}
-  ${q.conditions ? `<div class="notes"><b>Conditions</b><br>${esc(q.conditions)}</div>` : ''}
-  <div class="sign">
-    <div><b>Le prestataire</b><br><span class="muted">Date et signature</span></div>
-    <div><b>Bon pour accord</b><br><span class="muted">Date, signature précédée de la mention « Bon pour accord »</span></div>
-  </div>
-  ${legal ? `<div class="foot">${esc(legal)}</div>` : ''}`;
+    <colgroup>${cols.map(c => `<col style="width:${c === 'desc' ? 100 - used : widths[c]}%">`).join('')}</colgroup>
+    <thead><tr>${cols.map(c => `<th class="${['qty', 'price', 'vat', 'amount'].includes(c) ? 'r' : ''}">${head[c]}</th>`).join('')}</tr></thead>
+    <tbody>${body}
+      <tr class="final"><td colspan="${N}"><div class="fwrap">
+        <div class="fleft">
+          ${q.notes ? `<div class="fnotes">${esc(q.notes)}</div>` : ''}
+          <div class="agree">${esc(o.agreeLabel)}</div>
+          ${q.bank ? `<div class="bank">${esc(q.bank)}</div>` : ''}
+          <div class="pays">${payHtml}</div>
+        </div>
+        <div class="totbox">
+          ${t.discountAmt ? `<div class="tr"><span>Sous-total HT</span><span>${money(t.subtotal)}</span></div><div class="tr"><span>Remise (${fmtNum.format(num(q.discount))} %)</span><span>− ${money(t.discountAmt)}</span></div>` : ''}
+          <div class="tr b"><span>Total HT</span><span>${money(t.ht)}</span></div>
+          ${vatRows}
+          <div class="tr grand"><span>Total TTC</span><span>${money(t.ttc)}</span></div>
+        </div>
+      </div></td></tr>
+    </tbody>
+    <tfoot><tr><td colspan="${N}" class="legal">${esc(q.footer)}</td></tr></tfoot>
+  </table>`;
 }
 
 function refreshPreview() {
   const q = getQuote(editingId); if (!q) return;
   $('#doc').innerHTML = renderDoc(q);
-  document.querySelectorAll('#linesBody tr').forEach(tr => {
-    const l = q.lines[tr.dataset.i];
-    if (l) tr.querySelector('[data-total]').textContent = money(num(l.qty) * num(l.price));
+  const rows = docLines(q);
+  document.querySelectorAll('#linesBody .line').forEach(el => {
+    const r = rows[el.dataset.i]; if (!r) return;
+    const tot = el.querySelector('[data-total]'); if (tot) tot.textContent = money(r.total);
+    const sub = el.querySelector('[data-sub]'); if (sub) sub.textContent = money(r.amount);
   });
+  const t = totals(q);
+  document.querySelectorAll('#payBody .pay').forEach(el => {
+    el.querySelector('[data-amount]').textContent = money(t.ttc * num(q.payments[el.dataset.i].pct) / 100);
+  });
+  const sum = q.payments.reduce((s, p) => s + num(p.pct), 0);
+  const ps = $('#paySum');
+  if (ps) { ps.textContent = `Total : ${fmtNum.format(sum)} %`; ps.style.color = Math.abs(sum - 100) > 0.001 ? 'var(--danger)' : 'var(--ok)'; }
+  updatePrintStyle();
 }
 function refreshLines() {
   const q = getQuote(editingId);
-  $('#linesBody').innerHTML = q.lines.map((l, i) => lineRow(l, i, q.lines.length)).join('');
+  $('#linesBody').innerHTML = linesHtml(q);
+  refreshPreview(); autosize();
+}
+function refreshPayments() {
+  const q = getQuote(editingId);
+  $('#payBody').innerHTML = paymentsHtml(q);
   refreshPreview();
 }
 
@@ -326,7 +468,7 @@ function clientModal(id, afterSave) {
   const m = $('#modal');
   m.innerHTML = `<form method="dialog" id="clientForm">
     <h2>${id ? 'Modifier le client' : 'Nouveau client'}</h2>
-    <div class="field"><label>Nom / société *</label><input name="name" required value="${esc(c.name)}"></div>
+    <div class="field"><label>Nom / société * (ex : M Jean DUPONT)</label><input name="name" required value="${esc(c.name)}"></div>
     <div class="field"><label>Adresse</label><textarea name="address">${esc(c.address)}</textarea></div>
     <div class="grid2">
       <div class="field"><label>Email</label><input name="email" type="email" value="${esc(c.email)}"></div>
@@ -350,21 +492,22 @@ function clientModal(id, afterSave) {
 function renderCatalog() {
   return `
   <div class="row between" style="margin-bottom:16px"><h1>Catalogue de prestations</h1><button class="btn primary" data-act="new-item">＋ Nouvelle prestation</button></div>
-  <p class="muted">Enregistrez vos prestations habituelles pour les ajouter en un clic dans un devis.</p>
+  <p class="muted">Enregistrez vos prestations et fournitures habituelles pour les ajouter en un clic dans un devis.</p>
   <div class="card">${db.catalog.length ? `<table class="list">
-    <thead><tr><th>Description</th><th>Unité</th><th class="right">Prix HT</th><th>TVA</th><th></th></tr></thead>
-    <tbody>${db.catalog.map(c => `<tr><td>${esc(c.desc)}</td><td>${esc(c.unit)}</td><td class="right">${money(c.price)}</td><td>${String(c.vat).replace('.', ',')} %</td>
+    <thead><tr><th>Réf.</th><th>Désignation</th><th>Unité</th><th class="right">Prix HT</th><th>TVA</th><th></th></tr></thead>
+    <tbody>${db.catalog.map(c => `<tr><td>${esc(c.ref)}</td><td style="white-space:pre-line">${esc(c.desc)}</td><td>${esc(c.unit)}</td><td class="right">${money(c.price)}</td><td>${String(c.vat).replace('.', ',')} %</td>
       <td class="right"><button class="btn small" data-act="edit-item" data-id="${c.id}">Modifier</button>
       <button class="btn small danger" data-act="del-item" data-id="${c.id}">🗑</button></td></tr>`).join('')}</tbody></table>`
     : `<div class="empty">Le catalogue est vide.</div>`}</div>`;
 }
 
 function itemModal(id) {
-  const c = db.catalog.find(x => x.id === id) || { desc: '', unit: 'u', price: 0, vat: db.settings.defaultVat };
+  const c = db.catalog.find(x => x.id === id) || { ref: '', desc: '', unit: 'u', price: 0, vat: db.settings.defaultVat };
   const m = $('#modal');
   m.innerHTML = `<form method="dialog" id="itemForm">
     <h2>${id ? 'Modifier la prestation' : 'Nouvelle prestation'}</h2>
-    <div class="field"><label>Description *</label><input name="desc" required value="${esc(c.desc)}"></div>
+    <div class="grid2"><div class="field"><label>Référence</label><input name="ref" value="${esc(c.ref)}"></div><div></div></div>
+    <div class="field"><label>Désignation *</label><textarea name="desc" required>${esc(c.desc)}</textarea></div>
     <div class="grid3">
       <div class="field"><label>Unité</label><input name="unit" list="units" value="${esc(c.unit)}"></div>
       <div class="field"><label>Prix HT</label><input name="price" type="number" step="any" min="0" value="${c.price}"></div>
@@ -376,7 +519,7 @@ function itemModal(id) {
   $('#itemForm').onsubmit = e => {
     e.preventDefault();
     const f = new FormData(e.target);
-    const data = { desc: f.get('desc').trim(), unit: f.get('unit'), price: num(f.get('price')), vat: num(f.get('vat')) };
+    const data = { ref: f.get('ref').trim(), desc: f.get('desc').trim(), unit: f.get('unit'), price: num(f.get('price')), vat: num(f.get('vat')) };
     const it = db.catalog.find(x => x.id === id);
     if (it) Object.assign(it, data); else db.catalog.push({ id: uid(), ...data });
     save(); m.close(); render();
@@ -388,36 +531,41 @@ function renderCompany() {
   const co = db.company, s = db.settings;
   return `
   <h1>Mon entreprise</h1>
+  <p class="muted">Ces informations sont recopiées dans chaque <b>nouveau</b> devis, où vous pouvez ensuite tout modifier.</p>
   <div class="editor" style="grid-template-columns:1fr 1fr">
     <div>
       <div class="card"><h2>Coordonnées</h2>
-        <div class="field"><label>Nom de l'entreprise</label><input data-c="name" value="${esc(co.name)}"></div>
+        <div class="field"><label>Nom de l'entreprise (en gras sur le devis)</label><input data-c="name" value="${esc(co.name)}"></div>
+        <div class="field"><label>Ligne complémentaire (dirigeant, forme juridique…)</label><input data-c="legalLine" value="${esc(co.legalLine)}" placeholder="Ex : PRÉNOM NOM – ENTREPRENEUR INDIVIDUEL (EI)"></div>
         <div class="field"><label>Adresse</label><textarea data-c="address">${esc(co.address)}</textarea></div>
         <div class="grid2">
-          <div class="field"><label>Email</label><input data-c="email" value="${esc(co.email)}"></div>
           <div class="field"><label>Téléphone</label><input data-c="phone" value="${esc(co.phone)}"></div>
+          <div class="field"><label>Email</label><input data-c="email" value="${esc(co.email)}"></div>
           <div class="field"><label>SIRET</label><input data-c="siret" value="${esc(co.siret)}"></div>
           <div class="field"><label>N° TVA intracommunautaire</label><input data-c="vatNumber" value="${esc(co.vatNumber)}"></div>
         </div>
-        <div class="field"><label>IBAN (affiché en bas du devis)</label><input data-c="iban" value="${esc(co.iban)}"></div>
-        <div class="field"><label>Mention de pied de page (assurance, forme juridique…)</label><textarea data-c="footer">${esc(co.footer)}</textarea></div>
+        <div class="field"><label>Coordonnées bancaires</label><textarea data-c="bank" placeholder="Coordonnées bancaires : …&#10;IBAN : …&#10;BIC/SWIFT : …">${esc(co.bank)}</textarea></div>
         <div class="field"><label><input type="checkbox" data-c="vatExempt" ${co.vatExempt ? 'checked' : ''} style="width:auto"> Non assujetti à la TVA (micro-entreprise, art. 293 B du CGI)</label></div>
       </div>
     </div>
     <div>
-      <div class="card"><h2>Logo</h2>
+      <div class="card"><h2>Logo &amp; couleur</h2>
         ${co.logo ? `<img class="logo-prev" src="${co.logo}" alt="">` : '<p class="muted">Aucun logo</p>'}
         <div class="row"><input type="file" id="logoFile" accept="image/*" style="max-width:260px">${co.logo ? '<button class="btn danger" data-act="rm-logo">Retirer</button>' : ''}</div>
+        <div class="field" style="margin-top:12px"><label>Couleur des titres</label><input type="color" data-c="accent" value="${esc(co.accent)}" style="width:80px;padding:2px;height:36px"></div>
       </div>
       <div class="card"><h2>Réglages des devis</h2>
         <div class="grid2">
-          <div class="field"><label>Préfixe de numérotation</label><input data-s="prefix" value="${esc(s.prefix)}"></div>
-          <div class="field"><label>Prochain numéro</label><input type="number" min="1" data-s="next" value="${s.next}"></div>
+          <div class="field"><label>Modèle de numérotation</label><input data-s="numberPattern" value="${esc(s.numberPattern)}"></div>
+          <div class="field"><label>Prochain numéro ({N})</label><input type="number" min="1" data-s="next" value="${s.next}"></div>
+        </div>
+        <p class="muted" style="margin-top:-4px;font-size:.8rem">Variables : {YYYY} année, {YY} année courte, {MM} mois, {N} compteur. Ex : <code>I-{YY}-{MM}-{N}</code></p>
+        <div class="grid2">
           <div class="field"><label>Validité par défaut (jours)</label><input type="number" min="1" data-s="validityDays" value="${s.validityDays}"></div>
-          <div class="field"><label>Acompte par défaut (%)</label><input type="number" min="0" max="100" data-s="defaultDeposit" value="${s.defaultDeposit}"></div>
           <div class="field"><label>TVA par défaut</label><select data-s="defaultVat">${VATS.map(v => `<option value="${v}" ${num(s.defaultVat) === v ? 'selected' : ''}>${String(v).replace('.', ',')} %</option>`).join('')}</select></div>
         </div>
-        <div class="field"><label>Conditions par défaut</label><textarea data-s="defaultConditions">${esc(s.defaultConditions)}</textarea></div>
+        <div class="field"><label>Échéancier par défaut (une ligne = « pourcentage | libellé »)</label><textarea data-s="defaultPayments" rows="4">${esc(s.defaultPayments)}</textarea></div>
+        <div class="field"><label>Mentions légales de pied de page ({entreprise} = votre nom)</label><textarea data-s="defaultFooter" rows="6">${esc(s.defaultFooter)}</textarea></div>
       </div>
     </div>
   </div>`;
@@ -426,26 +574,53 @@ function renderCompany() {
 /* ---------- Actions ---------- */
 function newQuote() {
   const date = today();
-  const q = {
-    id: uid(), number: nextNumber(), date, validUntil: addDays(date, num(db.settings.validityDays)),
-    clientId: '', title: '', status: 'brouillon',
-    lines: [{ desc: '', qty: 1, unit: 'u', price: 0, vat: db.settings.defaultVat }],
-    discount: 0, deposit: num(db.settings.defaultDeposit), notes: '', conditions: db.settings.defaultConditions
-  };
+  const q = normQuote({
+    id: uid(), number: makeNumber(), date, validUntil: addDays(date, num(db.settings.validityDays)),
+    clientId: '', title: '', status: 'brouillon', notes: '', discount: 0
+  });
+  db.settings.next = num(db.settings.next) + 1;
+  db.quotes.push(q); save(); go('editor', q.id);
+}
+
+function loadDemo() {
+  const co = db.company;
+  if (!co.name) Object.assign(co, { name: 'ENTREPRISE EXEMPLE', legalLine: 'JEAN MARTIN – ENTREPRENEUR INDIVIDUEL (EI)', address: '12 rue des Lilas\n59000 LILLE\nFRANCE',
+    phone: '+33 6 00 00 00 00', email: 'contact@exemple.fr', siret: '123 456 789 00012', vatExempt: true,
+    bank: 'Coordonnées bancaires : Ma Banque\nIBAN : FR76 0000 0000 0000 0000 0000 000\nBIC/SWIFT : XXXXFRPP' });
+  const cl = { id: uid(), name: 'M Paul DUPONT', address: '8 rue de la Gare\n59100 ROUBAIX', phone: '+33 6 11 22 33 44', email: '' };
+  db.clients.push(cl);
+  const q = normQuote({
+    id: uid(), number: makeNumber(), date: today(), validUntil: addDays(today(), 30), clientId: cl.id, clientText: clientBlock(cl),
+    title: 'TRAVAUX DE PLÂTRERIE LOGEMENT 8 RUE DE LA GARE', status: 'brouillon', notes: '', discount: 0,
+    lines: [
+      { t: 'item', ref: 'CLOI-1', desc: 'Cloison de distribution en plaques de plâtre BA13 sur ossature métallique', qty: 30, unit: 'm2', price: 16, vat: 0 },
+      { t: 'item', ref: 'DO', desc: 'Doublage sur optima', qty: 86, unit: 'm2', price: 14, vat: 0 },
+      { t: 'item', ref: 'PLAF-2', desc: 'Plafond auto portée BA13 sur rail/montant 48/70, isolation', qty: 83, unit: 'm2', price: 18, vat: 0 },
+      { t: 'subtotal', label: 'Sous Total' },
+      { t: 'spacer' },
+      { t: 'item', ref: 'BA-13', desc: 'Plaque de plâtre BA13', qty: 70, unit: 'pièce(s)', price: 8.79, vat: 0 },
+      { t: 'item', ref: 'R48', desc: 'Rail R48', qty: 30, unit: 'pièce(s)', price: 2.69, vat: 0 },
+      { t: 'item', ref: 'M48', desc: 'Montant M48', qty: 100, unit: 'pièce(s)', price: 2.24, vat: 0 },
+      { t: 'subtotal', label: 'Sous Total' }
+    ],
+    payments: [{ pct: 10, label: 'Acompte' }, { pct: 40, label: 'Début travaux' }, { pct: 30, label: 'Paiement intermédiaire' }, { pct: 20, label: 'Paiement solde' }]
+  });
   db.settings.next = num(db.settings.next) + 1;
   db.quotes.push(q); save(); go('editor', q.id);
 }
 
 const actions = {
   'new-quote': newQuote,
+  demo: loadDemo,
   'goto-company': () => go('company'),
   edit: t => go('editor', t.dataset.id),
   back: () => go('quotes'),
-  print: () => window.print(),
+  print() { fitDoc(); window.print(); },
+  'toggle-wide'() { wide = !wide; $('#editor').classList.toggle('wide', wide); fitDoc(); },
   dup(t) {
     const src = getQuote(t.dataset.id); if (!src) return;
     const q = JSON.parse(JSON.stringify(src));
-    q.id = uid(); q.number = nextNumber(); q.date = today(); q.status = 'brouillon';
+    q.id = uid(); q.number = makeNumber(); q.date = today(); q.status = 'brouillon';
     q.validUntil = addDays(q.date, num(db.settings.validityDays));
     db.settings.next = num(db.settings.next) + 1;
     db.quotes.push(q); save(); toast('Devis dupliqué'); go('editor', q.id);
@@ -454,29 +629,34 @@ const actions = {
     const q = getQuote(t.dataset.id);
     if (q && confirm(`Supprimer le devis ${q.number} ?`)) { db.quotes = db.quotes.filter(x => x !== q); save(); render(); }
   },
-  'add-line'() {
-    const q = getQuote(editingId);
-    q.lines.push({ desc: '', qty: 1, unit: 'u', price: 0, vat: db.settings.defaultVat });
-    save(); refreshLines();
-  },
+  'add-line'() { getQuote(editingId).lines.push(newItem()); save(); refreshLines(); },
+  'add-title'() { getQuote(editingId).lines.push({ t: 'title', desc: '' }); save(); refreshLines(); },
+  'add-subtotal'() { getQuote(editingId).lines.push({ t: 'subtotal', label: 'Sous Total' }); save(); refreshLines(); },
+  'add-spacer'() { getQuote(editingId).lines.push({ t: 'spacer' }); save(); refreshLines(); },
   'line-del'(t) {
-    const q = getQuote(editingId), i = +t.closest('tr').dataset.i;
-    q.lines.splice(i, 1);
-    if (!q.lines.length) q.lines.push({ desc: '', qty: 1, unit: 'u', price: 0, vat: db.settings.defaultVat });
+    const q = getQuote(editingId);
+    q.lines.splice(+t.closest('.line').dataset.i, 1);
+    if (!q.lines.length) q.lines.push(newItem());
     save(); refreshLines();
   },
-  'line-up'(t) { moveLine(+t.closest('tr').dataset.i, -1); },
-  'line-down'(t) { moveLine(+t.closest('tr').dataset.i, 1); },
+  'line-up'(t) { moveLine(+t.closest('.line').dataset.i, -1); },
+  'line-down'(t) { moveLine(+t.closest('.line').dataset.i, 1); },
+  'add-pay'() { getQuote(editingId).payments.push({ pct: 0, label: '' }); save(); refreshPayments(); },
+  'del-pay'(t) { getQuote(editingId).payments.splice(+t.closest('.pay').dataset.i, 1); save(); refreshPayments(); },
+  'reset-issuer'() { const q = getQuote(editingId); q.issuerText = issuerBlock(db.company); $('[data-f=issuerText]').value = q.issuerText; save(); refreshPreview(); autosize(); },
+  'reset-client'() { const q = getQuote(editingId); q.clientText = clientBlock(getClient(q.clientId)); $('[data-f=clientText]').value = q.clientText; save(); refreshPreview(); autosize(); },
   'new-client': () => clientModal(null, () => render()),
   'new-client-inline': () => clientModal(null, cl => {
-    getQuote(editingId).clientId = cl.id; save();
-    $('#clientSel').innerHTML = clientOptions(cl.id); refreshPreview();
+    const q = getQuote(editingId);
+    q.clientId = cl.id; q.clientText = clientBlock(cl); save();
+    $('#clientSel').innerHTML = clientOptions(cl.id); $('[data-f=clientText]').value = q.clientText;
+    refreshPreview(); autosize();
   }),
   'edit-client': t => clientModal(t.dataset.id, () => render()),
   'del-client'(t) {
     const c = getClient(t.dataset.id);
     const used = db.quotes.filter(q => q.clientId === c.id).length;
-    if (confirm(`Supprimer ${c.name} ?${used ? `\n${used} devis lui sont rattachés (ils resteront sans client).` : ''}`)) {
+    if (confirm(`Supprimer ${c.name} ?${used ? `\n${used} devis lui sont rattachés (ils conserveront le texte du client).` : ''}`)) {
       db.quotes.forEach(q => { if (q.clientId === c.id) q.clientId = ''; });
       db.clients = db.clients.filter(x => x !== c); save(); render();
     }
@@ -511,10 +691,13 @@ document.addEventListener('click', e => {
   if (nav) go(nav.dataset.view);
 });
 
+window.addEventListener('resize', fitDoc);
+
 document.addEventListener('input', e => {
   const t = e.target;
   if (t.id === 'search') { filter.q = t.value; const pos = t.selectionStart; render(); const s = $('#search'); s.focus(); s.setSelectionRange(pos, pos); return; }
   if (t.id === 'statusFilter') { filter.status = t.value; render(); return; }
+  if (t.tagName === 'TEXTAREA' && (t.dataset.l === 'desc' || t.classList.contains('auto'))) { t.style.height = 'auto'; t.style.height = Math.max(34, t.scrollHeight + 2) + 'px'; }
 
   if (view === 'editor') {
     const q = getQuote(editingId); if (!q) return;
@@ -522,10 +705,18 @@ document.addEventListener('input', e => {
       const f = t.dataset.f;
       q[f] = t.type === 'number' ? num(t.value) : t.value;
       if (f === 'date' && t.value) { q.validUntil = addDays(t.value, num(db.settings.validityDays)); const v = $('[data-f=validUntil]'); if (v) v.value = q.validUntil; }
+      if (f === 'clientId') { q.clientText = clientBlock(getClient(t.value)); const ct = $('[data-f=clientText]'); ct.value = q.clientText; autosize(); }
+      save(); refreshPreview();
+    } else if (t.dataset.o) {
+      q.opts[t.dataset.o] = t.type === 'checkbox' ? t.checked : t.value;
       save(); refreshPreview();
     } else if (t.dataset.l) {
-      const l = q.lines[t.closest('tr').dataset.i];
-      l[t.dataset.l] = t.type === 'number' ? num(t.value) : (t.dataset.l === 'vat' ? num(t.value) : t.value);
+      const l = q.lines[t.closest('.line').dataset.i], k = t.dataset.l;
+      l[k] = (t.type === 'number' || k === 'vat') ? num(t.value) : t.value;
+      save(); refreshPreview();
+    } else if (t.dataset.p) {
+      const p = q.payments[t.closest('.pay').dataset.i];
+      p[t.dataset.p] = t.dataset.p === 'pct' ? num(t.value) : t.value;
       save(); refreshPreview();
     }
   } else if (view === 'company') {
@@ -538,20 +729,20 @@ document.addEventListener('change', e => {
   const t = e.target;
   if (t.id === 'catalogPick' && t.value) {
     const it = db.catalog.find(c => c.id === t.value), q = getQuote(editingId);
-    const empty = q.lines.length === 1 && !q.lines[0].desc && !num(q.lines[0].price);
-    const line = { desc: it.desc, qty: 1, unit: it.unit, price: it.price, vat: it.vat };
-    if (empty) q.lines[0] = line; else q.lines.push(line);
+    const line = { t: 'item', ref: it.ref || '', desc: it.desc, qty: 1, unit: it.unit, price: it.price, vat: it.vat };
+    const first = q.lines[0];
+    if (q.lines.length === 1 && first.t === 'item' && !first.desc && !num(first.price)) q.lines[0] = line; else q.lines.push(line);
     save(); refreshLines(); t.value = '';
   }
   if (t.id === 'logoFile' && t.files[0]) {
     const file = t.files[0];
     const img = new Image(), url = URL.createObjectURL(file);
     img.onload = () => {
-      const max = 400, k = Math.min(1, max / Math.max(img.width, img.height));
+      const max = 500, k = Math.min(1, max / Math.max(img.width, img.height));
       const cv = document.createElement('canvas');
       cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k);
       cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
-      db.company.logo = cv.toDataURL(file.type === 'image/jpeg' ? 'image/jpeg' : 'image/png', 0.9);
+      db.company.logo = cv.toDataURL(file.type === 'image/jpeg' ? 'image/jpeg' : 'image/png', 0.92);
       URL.revokeObjectURL(url); save(); render();
     };
     img.onerror = () => toast('Image illisible');
@@ -564,16 +755,22 @@ document.addEventListener('change', e => {
         const d = JSON.parse(r.result);
         if (!d.quotes || !d.clients) throw new Error();
         if (!confirm('Remplacer toutes les données actuelles par cette sauvegarde ?')) return;
-        const base = defaults();
-        db = { ...base, ...d, company: { ...base.company, ...d.company }, settings: { ...base.settings, ...d.settings } };
+        db = normalize(d);
         save(); go('quotes'); toast('Sauvegarde importée');
       } catch (err) { alert('Fichier de sauvegarde invalide.'); }
     };
     r.readAsText(t.files[0]); t.value = '';
   }
-  // Changement de statut / TVA exonérée : rafraîchir l'écran si nécessaire
-  if (view === 'editor' && t.dataset.f === 'status') save();
 });
 
+function setTheme(t) {
+  document.documentElement.dataset.theme = t;
+  try { localStorage.setItem('sitedevis.theme', t); } catch (e) { /* ignore */ }
+  $('#themeBtn').textContent = t === 'light' ? '☀️' : '🌙';
+}
+setTheme(document.documentElement.dataset.theme || 'dark');
+$('#themeBtn').onclick = () => setTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light');
+
+document.head.insertAdjacentHTML('beforeend', '<style id="printStyle"></style>');
 document.body.insertAdjacentHTML('beforeend', `<datalist id="units">${UNITS.map(u => `<option value="${u}">`).join('')}</datalist>`);
 render();
