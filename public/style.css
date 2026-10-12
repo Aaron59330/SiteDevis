@@ -36,9 +36,9 @@ details summary { cursor: pointer; color: var(--text); font-weight: 500; }
 /* ===== Barre du haut ===== */
 .topbar { display: flex; align-items: center; gap: 24px; padding: 0 28px; height: 60px; position: sticky; top: 0; z-index: 10;
   background: color-mix(in srgb, var(--bg) 78%, transparent); backdrop-filter: blur(14px); border-bottom: 1px solid var(--line); }
-.brand { font-weight: 800; font-size: 1.1rem; display: flex; align-items: center; gap: 10px; }
+.brand { font-weight: 500; font-size: 1.1rem; display: flex; align-items: center; gap: 10px; }
 .brand .logo-mark { width: 30px; height: 30px; flex: none; display: block; }
-.brand .nm b { font-weight: 800; color: var(--accent, currentColor); }
+.brand .nm b { font-weight: 600; color: var(--accent, currentColor); }
 :root[data-theme="light"] .brand .nm b, :root[data-theme="light"] .brand .nm .dot { color: color-mix(in srgb, var(--accent, #000) 62%, #000); }
 .brand .nm { letter-spacing: -.02em; }
 .brand .nm .dot { font-style: normal; color: var(--accent, currentColor); }
