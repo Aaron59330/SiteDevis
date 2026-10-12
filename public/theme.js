@@ -1,6 +1,6 @@
 /* Préférences d'affichage appliquées avant le premier affichage (évite les clignotements) */
 (function () {
-  var DEF = { accent: '#e3a04b', mode: 'dark', bg: 'bronze', radius: 'normal', size: 'normal', density: 'comfortable', sound: 'on', sfx: 'soft', vol: 'mid' };
+  var DEF = { accent: '', mode: 'dark', bg: 'black', radius: 'normal', size: 'normal', density: 'comfortable', sound: 'on', sfx: 'soft', vol: 'mid' };
   function lum(h) { var n = parseInt(h.slice(1), 16), c = [n >> 16 & 255, n >> 8 & 255, n & 255].map(function (v) { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; }
   window.PREF_DEFAULTS = DEF;
   window.applyPrefs = function (p) {
@@ -20,6 +20,8 @@
     saved = JSON.parse(localStorage.getItem('sitedevis.prefs') || 'null');
     if (!saved) { var t = localStorage.getItem('sitedevis.theme'); if (t) saved = { mode: t }; }
   } catch (e) { /* ignore */ }
+  /* L'ancien thème par défaut (or + fond bronze) est remplacé par le noir et blanc de base */
+  if (saved && saved.accent === '#e3a04b' && saved.bg === 'bronze') { saved.accent = ''; saved.bg = 'black'; try { localStorage.setItem('sitedevis.prefs', JSON.stringify(saved)); } catch (e) { /* ignore */ } }
   window.applyPrefs(saved);
   if (window.matchMedia) matchMedia('(prefers-color-scheme: light)').addEventListener('change', function () { if (window.currentPrefs && window.currentPrefs.mode === 'auto') window.applyPrefs(window.currentPrefs); });
 })();
