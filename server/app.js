@@ -327,7 +327,7 @@ route('PATCH', '/api/me', 'user', ctx => {
   return ok({ user: publicUser(ctx.user) });
 });
 
-const PREF_ENUMS = { mode: ['dark', 'light', 'auto'], bg: ['black', 'graphite', 'navy', 'forest'], radius: ['sharp', 'normal', 'round'], size: ['normal', 'large', 'xl'], density: ['comfortable', 'compact'], sound: ['on', 'off'], sfx: ['soft', 'crystal', 'pop', 'retro'], vol: ['low', 'mid', 'high'] };
+const PREF_ENUMS = { mode: ['dark', 'light', 'auto'], bg: ['bronze', 'black', 'graphite', 'navy', 'forest'], radius: ['sharp', 'normal', 'round'], size: ['normal', 'large', 'xl'], density: ['comfortable', 'compact'], sound: ['on', 'off'], sfx: ['soft', 'crystal', 'pop', 'retro'], vol: ['low', 'mid', 'high'] };
 route('PATCH', '/api/me/prefs', 'user', ctx => {
   const b = ctx.body || {}, cur = { ...(ctx.user.prefs || {}) };
   if (b.accent !== undefined) { if (b.accent !== '' && !/^#[0-9a-fA-F]{6}$/.test(String(b.accent))) throw err(400, 'Couleur invalide.'); cur.accent = b.accent; }

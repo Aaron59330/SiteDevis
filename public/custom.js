@@ -1,8 +1,8 @@
 'use strict';
 /* Personnalisation de l'interface : couleur, mode, fond, formes, taille du texte, densité (par compte, sur tous les appareils). */
-const ACCENTS = [['', 'Neutre'], ['#3b82f6', 'Bleu'], ['#6366f1', 'Indigo'], ['#8b5cf6', 'Violet'], ['#ec4899', 'Rose'], ['#ef4444', 'Rouge'], ['#f97316', 'Orange'], ['#f59e0b', 'Ambre'], ['#22c55e', 'Vert'], ['#14b8a6', 'Turquoise'], ['#06b6d4', 'Cyan']];
+const ACCENTS = [['#e3a04b', 'Or'], ['', 'Neutre'], ['#3b82f6', 'Bleu'], ['#6366f1', 'Indigo'], ['#8b5cf6', 'Violet'], ['#ec4899', 'Rose'], ['#ef4444', 'Rouge'], ['#f97316', 'Orange'], ['#f59e0b', 'Ambre'], ['#22c55e', 'Vert'], ['#14b8a6', 'Turquoise'], ['#06b6d4', 'Cyan']];
 const DOC_COLORS = ['#26323f', '#1e3a5f', '#0f766e', '#166534', '#7c2d12', '#9f1239', '#4c1d95', '#111111'];
-const BGS = [['black', 'Noir', '#070707'], ['graphite', 'Anthracite', '#131417'], ['navy', 'Bleu nuit', '#0a1020'], ['forest', 'Vert forêt', '#0a120e']];
+const BGS = [['bronze', 'Bronze', '#0d0a07'], ['black', 'Noir', '#070707'], ['graphite', 'Anthracite', '#131417'], ['navy', 'Bleu nuit', '#0a1020'], ['forest', 'Vert forêt', '#0a120e']];
 let prefTimer;
 const curPrefs = () => window.currentPrefs || PREF_DEFAULTS;
 const prefsBody = p => ({ accent: p.accent || '', mode: p.mode, bg: p.bg, radius: p.radius, size: p.size, density: p.density, sound: p.sound, sfx: p.sfx, vol: p.vol });
