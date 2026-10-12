@@ -119,6 +119,11 @@ function renderAuth(mode, opts = {}) {
         <h2>Fonctionnalités</h2>
         <div class="docs-grid">${DOC_FEATURES.map(f => `<details class="docs-card" data-doc-item><summary><i class="ld-tile" aria-hidden="true">${f[0]}</i><div><b>${f[1]}</b><span>${f[2]}</span></div></summary><div class="docs-more">${f[3]}</div></details>`).join('')}</div>
       </section>
+      <section id="d-trades" class="docs-sec" data-doc>
+        <h2>Pour tous les métiers</h2>
+        <p class="muted" style="margin:0">Bâtiment, services, artisanat : des devis de départ prêts à adapter, avec des prix indicatifs.</p>
+        <div class="chips trades" data-doc-item>${(typeof TRADES !== 'undefined' ? TRADES : []).map(t => `<span>${t.name}</span>`).join('')}</div>
+      </section>
       <section id="d-faq" class="docs-sec" data-doc>
         <h2>Questions fréquentes</h2>
         <div class="docs-faq">${DOC_FAQ.map(f => `<details data-doc-item><summary>${f[0]}</summary><p>${f[1]}</p></details>`).join('')}</div>
@@ -140,6 +145,7 @@ const DOC_FEATURES = [
   [icon('download'), 'PDF en un clic', 'Téléchargement direct, sans passer par l\'impression', 'Un vrai fichier PDF, prêt à envoyer à votre client par email ou messagerie.'],
   [icon('inbox'), 'Import de devis existants', 'Un devis fait ailleurs ? Transférez le PDF', 'Toutes les pages sont lues et le devis est refait à l\'identique dans OptiDevis, que vous pouvez ensuite modifier et facturer.'],
   [icon('layers'), 'Catalogue, matériaux, fournisseurs', 'Vos prix, vos marges, vos références', 'Saisissez une référence fournisseur : le site cherche la fiche exacte et reprend le prix quand elle est trouvée. Marge par fournisseur, prix de vente calculé.'],
+  [icon('clipboard'), 'Modèles par métier', 'Couvreur, plaquiste, plombier, électricien… un devis de départ', 'Choisissez votre métier : un devis complet et réaliste est créé en un clic, avec ses lignes, ses prix indicatifs et ses conditions. Vous adaptez, et vous pouvez ajouter les prestations à votre catalogue.'],
   [icon('chart'), 'Statistiques', 'CA du mois, facturé, encaissé, impayé', 'Comparaison avec les mois précédents et courbe sur 12 mois, pour savoir où vous en êtes en un coup d\'œil.'],
   [icon('hardhat'), 'Chantiers', 'Regroupez devis et factures par chantier', 'Optionnel : suivez les heures et rattachez les documents à un chantier, avec un récapitulatif sur le document.'],
   [icon('tool'), 'Boîte à outils', 'Clients par SIRET, correcteur, calculs', 'Les informations de l\'entreprise de votre client se remplissent depuis son SIRET. Un correcteur d\'orthographe gratuit relit vos documents.']

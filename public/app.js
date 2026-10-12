@@ -8,7 +8,7 @@ const STATUS = { brouillon: 'Brouillon', envoye: 'Envoyé', accepte: 'Accepté',
 const INV_STATUS = { brouillon: 'Brouillon', envoye: 'Envoyée', payee: 'Payée', annulee: 'Annulée' };
 const isInv = q => q && q.kind === 'facture';
 const statusOf = q => (isInv(q) ? INV_STATUS : STATUS);
-const UNITS = ['u', 'pièce(s)', 'h', 'jour', 'forfait', 'm2', 'm²', 'ml', 'm', 'kg', 'mois'];
+const UNITS = ['u', 'pièce(s)', 'h', 'jour', 'forfait', 'm2', 'm²', 'm3', 'ml', 'm', 'kg', 'L', 'lot', 'mois', 'personne'];
 const VATS = [0, 5.5, 10, 20];
 const VAT_MENTION = 'TVA non applicable – article 293 B du Code général des impôts.';
 const DEFAULT_FOOTER =
@@ -250,7 +250,7 @@ function renderQuotes() {
   return `
   <div class="row between" style="margin-bottom:16px">
     <h1>Mes devis</h1>
-    <div class="row"><button class="btn" data-act="import-pdf" title="Importer un devis ou une facture (PDF ou photo)">Importer (PDF / photo)</button><button class="btn primary" data-act="new-quote">＋ Nouveau devis</button></div>
+    <div class="row"><button class="btn" data-act="import-pdf" title="Importer un devis ou une facture (PDF ou photo)">Importer (PDF / photo)</button><button class="btn" data-act="tpl-open" title="Devis de départ pour votre métier : couvreur, plaquiste, plombier…">Modèles par métier</button><button class="btn primary" data-act="new-quote">＋ Nouveau devis</button></div>
   </div>
   ${!db.company.name ? `<div class="card" style="border-color:var(--warn)">👋 Commencez par renseigner <a href="#" data-act="goto-company">votre entreprise</a> (logo, coordonnées, IBAN, mentions légales) : tout sera repris automatiquement sur vos devis. Vous pouvez aussi <a href="#" data-act="demo">charger un exemple</a> pour voir le résultat.</div>` : ''}
   <div class="stats">
