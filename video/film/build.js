@@ -4,7 +4,7 @@ const fs = require('fs'), path = require('path');
 const [src, out] = [process.argv[2], process.argv[3]];
 const { frames, cues, marks } = JSON.parse(fs.readFileSync(path.join(src, 'timeline.json'), 'utf8'));
 // durée visée par scène (secondes) : intro, puis chaque légende, puis l'outro
-const TARGET = { intro: 4.6, '01': 5, '02': 4.6, '03': 12.5, '04': 9.5, '05': 4.2, '06': 8, '07': 6, '08': 5, '09': 5.6, outro: 6 };
+const TARGET = { intro: 4.5, '01': 10, '02': 8, '03': 7.5, '04': 8.5, '05': 6, '06': 3.8, '07': 9, '08': 7.6, '09': 5, '10': 6, '11': 5, '12': 4.2, outro: 6.2 };
 const w0 = frames[0].wall, ts0 = frames[0].ts, end = frames[frames.length - 1].ts - ts0 + 0.5;
 const vt = w => w - w0;
 const bounds = [{ name: 'intro', t: 0 }, ...marks.map(m => ({ name: m.name === 'outro' ? 'outro' : m.name.slice(0, 2), t: vt(m.wall) }))];

@@ -1,6 +1,7 @@
 /* Film de présentation OptiDevis : on pilote le VRAI site avec Playwright et on filme l'écran (Page.screencast) image par image.
    Usage :  node film.js prep   -> prépare le compte de démonstration
             node film.js rec    -> enregistre dans OUT (frames + timeline.json)
+   Serveur : PORT=3101 DATA_DIR=… node server.js (services simulés).
    Variables : BASE (http://localhost:3101), OUT (dossier de sortie), EMAIL, PASS */
 const { chromium } = require('/opt/node-tools/node_modules/playwright');
 const fs = require('fs'), path = require('path');
@@ -12,7 +13,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 const launch = () => chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--autoplay-policy=no-user-gesture-required', '--hide-scrollbars'] });
 async function login(page) {
-  await page.goto(BASE + '/'); await page.waitForSelector('form[data-form=login]');
+  await page.goto(BASE + '/'); await page.waitForSelector('.ld-login'); await page.click('.ld-login'); await page.waitForSelector('form[data-form=login]');
   await page.fill('[name=email]', EMAIL); await page.fill('[name=password]', PASS); await page.click('form[data-form=login] button'); await page.waitForSelector('#topbar:not([hidden])');
 }
 
@@ -59,6 +60,7 @@ async function prep() {
     raw.settings.next = 4;
     db = normalize(raw); save();
   });
+  await page.evaluate(() => savePrefs(Object.assign({}, PREF_DEFAULTS)));
   await page.waitForTimeout(1500); await page.evaluate(() => push && push()); await page.waitForTimeout(1200);
   await b.close(); console.log('compte de démonstration prêt');
 }
@@ -76,7 +78,7 @@ async function rec() {
     fs.writeFileSync(path.join(OUT, 'f' + String(n).padStart(6, '0') + '.jpg'), Buffer.from(ev.data, 'base64'));
     cdp.send('Page.screencastFrameAck', { sessionId: ev.sessionId }).catch(() => {});
   });
-  const cues = { pop: [], click: [], type: [], whoosh: [], chime: [], cash: [], count: [], hit: [], riser: [] }; const wall = () => Date.now() / 1000;
+  const cues = { pop: [], click: [], type: [], whoosh: [], chime: [], cash: [], count: [], hit: [], riser: [], hover: [] }; const wall = () => Date.now() / 1000;
   const cue = (k, a, b2) => (k === 'type' || k === 'count' || k === 'riser' ? cues[k].push([a, b2]) : cues[k].push(wall()));
   let pos = { x: 700, y: 420 };
   const glide = async (x, y, ms = 650) => {
@@ -101,75 +103,88 @@ async function rec() {
   const zoom = (sel, sc, ms = 1100) => page.evaluate(([s, c, m]) => window.fxZoom(s, c, m), [sel, sc, ms]);
   const shot = n => process.env.DEBUG ? page.screenshot({ path: path.join(OUT, '_' + n + '.png') }) : null;
 
-  await page.goto(BASE + '/'); await page.waitForSelector('form[data-form=login]'); await sleep(600);
+  const hover = async (sel, ms = 520, wait = 260) => { const p = await box(sel); await glide(p.x, p.y, ms); cue('hover'); await sleep(wait); };
+  const scrollTo = (y, ms = 1200) => page.evaluate(([y]) => window.scrollTo({ top: y, behavior: 'smooth' }), [y]).then(() => sleep(ms));
+
+  await page.goto(BASE + '/'); await page.waitForSelector('.ld-login'); await sleep(800);
   await cdp.send('Page.startScreencast', { format: 'jpeg', quality: 92, maxWidth: 1920, maxHeight: 1080, everyNthFrame: 2 });
-  await page.evaluate(() => { window.fxProgress(75); window.fxCover('intro'); }); cue('hit'); cue('pop');
+  await page.evaluate(() => { window.fxProgress(92); window.fxCover('intro'); }); cue('hit'); cue('pop');
   await sleep(3600); await page.evaluate(() => window.fxCoverOut('intro')); await sleep(900);
 
-  /* 1 — connexion */
-  await caption('01 — Connexion', 'Votre espace, en un clic', 'Comptes sécurisés, vos données sont privées.');
-  await type('[name=email]', EMAIL, { delay: 45 }); await type('[name=password]', PASS, { delay: 55 });
-  await press('form[data-form=login] button', { after: 200 }); await page.waitForSelector('#topbar:not([hidden])'); await sleep(900); await shot('1-login');
+  /* 1 — page d'accueil et connexion */
+  await caption('01 — Bienvenue', 'Des devis qui font signer', 'Une page claire : fonctionnalités, métiers, questions fréquentes.');
+  await hover('.ld-links a:nth-child(1)'); await hover('.ld-links a:nth-child(2)'); await hover('.ld-links a:nth-child(3)', 520, 500);
+  await scrollTo(860, 1500); await scrollTo(1700, 1500); await scrollTo(0, 1300); await shot('1-accueil');
+  await press('.ld-login', { after: 700 });
+  await type('form[data-form=login] [name=email]', EMAIL, { delay: 40 }); await type('form[data-form=login] [name=password]', PASS, { delay: 50 });
+  await press('form[data-form=login] button', { after: 200 }); await page.waitForSelector('#topbar:not([hidden])'); await sleep(900);
 
-  /* 2 — liste des devis */
-  await caption('02 — Vos devis', 'Toute votre activité d’un coup d’œil', 'Statuts, montants, suivi. Facturez en un clic.');
-  await sleep(2200); await ring('.stats', 10); await sleep(1200); await shot('2-liste');
-  await press('[data-act=new-quote]', { after: 700 });
+  /* 2 — modèles par métier */
+  await caption('02 — Pour tous les métiers', 'Un devis de départ en un clic', 'Couvreur, plaquiste, plombier, électricien… 17 métiers prêts à adapter.');
+  await hover('#nav button:nth-child(2)'); await hover('#nav button:nth-child(1)'); await ring('.stats', 10); await sleep(900);
+  await press('[data-act=tpl-open]', { after: 900 });
+  await hover('.tpl-card[data-id=couvreur]', 420, 180); await hover('.tpl-card[data-id=electricien]', 420, 180); await hover('.tpl-card[data-id=peintre]', 420, 180); await hover('.tpl-card[data-id=plaquiste]', 420, 300);
+  await press('.tpl-card[data-id=plaquiste]', { after: 1300 }); await shot('2-modele');
+  await press('[data-act=tpl-use]', { after: 1100 });
 
   /* 3 — le devis */
-  await caption('03 — Le devis', 'Complet, modifiable, en direct', 'Votre document se construit pendant que vous saisissez.');
-  await type('[data-f=title]', 'RÉNOVATION APPARTEMENT DUPONT', { delay: 38 });
-  await press('#clientSel', { after: 200 }); await page.selectOption('#clientSel', { label: 'M Paul DUPONT' }); await sleep(900);
-  await press('[data-act=catalog-open]', { after: 900 });
-  await press('.cp-row:nth-of-type(1) .cp-add', { after: 700 }); await press('.cp-row:nth-of-type(2) .cp-add', { after: 700 });
-  await sleep(500); await shot('3-catalogue');
-  await press('[data-act=close-modal]', { after: 600 });
-  await type('[data-l=qty] >> nth=0', '30', { clear: true, delay: 110, after: 400 }); await type('[data-l=qty] >> nth=1', '60', { clear: true, delay: 110, after: 600 });
-  await zoom('#doc .totbox', 1.55, 1000); await ring('#doc .totbox', 10); await sleep(1900); await zoom(null, 1, 900); await sleep(800); await shot('3-devis');
-  await type('[data-f=notes]', 'Plafon et pienture 2 couche inclus.', { delay: 32, after: 600 });
+  await caption('03 — Le devis', 'Complet, modifiable, en direct', 'Le document se construit pendant que vous saisissez.');
+  await press('#clientSel', { after: 200 }); await page.selectOption('#clientSel', { label: 'M Paul DUPONT' }); await sleep(800);
+  await type('[data-l=qty] >> nth=0', '42', { clear: true, delay: 120, after: 400 }); await type('[data-l=qty] >> nth=1', '58', { clear: true, delay: 120, after: 500 });
+  await zoom('#doc .totbox', 1.5, 1000); await ring('#doc .totbox', 10); await sleep(1700); await zoom(null, 1, 900); await sleep(600); await shot('3-devis');
 
   /* 4 — une facture par paiement */
-  await caption('04 — Un paiement, une facture', 'Facturez chaque échéance', 'Acompte, intermédiaire, solde : une facture claire pour chaque paiement.');
+  await caption('04 — Un paiement, une facture', 'Facturez chaque échéance', 'Acompte, situation, solde : chaque facture est reliée au devis.');
   await page.evaluate(() => document.querySelector('#payBody').scrollIntoView({ behavior: 'smooth', block: 'center' })); await sleep(1100);
-  await type('#payBody .pay:nth-child(2) [data-p=pct]', '40', { clear: true, delay: 120, after: 300 });
-  await type('#payBody .pay:nth-child(2) [data-p=label]', 'paiement intermédiaire', { clear: true, delay: 45, after: 300 });
-  await press('[data-act=add-pay]', { after: 500 });
-  await type('#payBody .pay:nth-child(3) [data-p=pct]', '30', { clear: true, delay: 120, after: 300 });
-  await type('#payBody .pay:nth-child(3) [data-p=label]', 'à réception', { delay: 45, after: 700 });
-  await shot('4-echeancier');
+  await ring('#payBody', 10); await sleep(900);
   await press('#payBody .pay:nth-child(1) [data-act=pay-invoice]', { after: 1200 }); cue('chime');
-  await page.waitForSelector('#doc .dtitle'); await zoom('#doc .totbox', 1.5, 1000); await ring('#doc .totbox', 10); await sleep(2000); await zoom(null, 1, 900); cue('cash'); await sleep(900); await shot('4-facture');
+  await page.waitForSelector('#doc .dtitle'); await zoom('#doc .totbox', 1.45, 1000); await ring('#doc .totbox', 10); await sleep(1800); await zoom(null, 1, 900); cue('cash'); await sleep(700); await shot('4-facture');
 
-  /* 5 — PDF */
-  await caption('05 — PDF en un clic', 'Téléchargez, envoyez', 'Même mise en page à l’écran et sur le PDF.');
-  await press('[data-act=pdf]', { after: 1800 }); await shot('5-pdf'); await sleep(900);
+  /* 5 — envoi par email */
+  await caption('05 — Envoi par email', 'Directement chez votre client', 'Le PDF part en pièce jointe, la réponse arrive dans votre boîte.');
+  await press('[data-act=send-mail]', { after: 900 }); await ring('#mailForm', 10); await sleep(1200); await shot('5-mail');
+  await press('#mailGo', { after: 300 }); await page.waitForFunction(() => !document.getElementById('modal').open, null, { timeout: 15000 }); cue('chime'); await sleep(1300);
 
-  /* 6 — fautes */
-  await page.evaluate(() => go('quotes')); await sleep(600); await page.evaluate(() => { const q = db.quotes.find(q => q.number !== 'DEV-2026-001' && q.title.startsWith('RÉNOVATION')); go('editor', q.id); });
-  await page.waitForSelector('[data-act=ai-review]'); await sleep(600);
-  await caption('06 — Zéro faute', 'Vérifiez avant d’envoyer', 'Le correcteur propose, vous décidez : rien ne change sans votre accord.');
+  /* 6 — PDF */
+  await caption('06 — PDF en un clic', 'Téléchargez, imprimez, archivez', 'Même mise en page à l’écran et sur le PDF.');
+  await press('[data-act=pdf]', { after: 1800 }); await sleep(600);
+
+  /* 7 — photo d'un devis manuscrit */
+  await page.evaluate(() => go('quotes')); await sleep(700);
+  await caption('07 — Photo → devis', 'Un devis écrit à la main ? Photographiez-le', 'L’IA lit chaque ligne et recrée le devis : vous vérifiez, c’est prêt.');
+  await press('[data-act=import-pdf]', { after: 800 }); await press('[data-act=imp-photo]', { after: 700 });
+  await page.setInputFiles('#phPick', path.join(__dirname, 'devis-manuscrit.jpg')); await page.waitForSelector('.ph-item'); cue('pop'); await sleep(1200);
+  await press('#phGo', { after: 300 }); await page.waitForSelector('#impLines', { timeout: 20000 }); cue('chime'); await sleep(900);
+  await ring('#impLines', 10); await sleep(1700); await shot('7-photo');
+  await press('[data-act=imp-create]', { after: 1100 });
+
+  /* 8 — zéro faute */
+  await caption('08 — Zéro faute', 'Relisez avant d’envoyer', 'Le correcteur propose, vous décidez.');
+  await type('[data-f=notes]', 'Plafon et pienture 2 couche inclus.', { delay: 34, after: 500 });
   await press('[data-act=ai-review]', { after: 700 }); await page.evaluate(() => { const c = document.getElementById('aiConsent'); if (c) c.click(); });
-  await press('#aiGo', { after: 1500 }); await page.waitForSelector('#aiBody ins', { timeout: 15000 }).catch(() => {}); await sleep(900); await shot('6-fautes');
-  await ring('#aiBody .ai-item, #aiBody ins', 12); await sleep(1500);
-  await press('[data-act=ai-apply-all]', { after: 1200 }).catch(() => {}); await sleep(900);
-  await press('[data-act=close-modal]', { after: 500 }).catch(() => {});
+  await press('#aiGo', { after: 1300 }).catch(() => {}); await page.waitForSelector('#aiBody ins', { timeout: 15000 }).catch(() => {}); await sleep(800); await shot('8-fautes');
+  await ring('#aiBody .ai-item, #aiBody ins', 12); await sleep(1300);
+  await press('[data-act=ai-apply-all]', { after: 1000 }).catch(() => {}); await press('[data-act=close-modal]', { after: 500 }).catch(() => {});
 
-  /* 7 — statistiques */
-  await press('[data-view=stats]', { after: 900 }); await caption('07 — Statistiques', 'Pilotez votre chiffre d’affaires', 'Devis du mois, facturé, encaissé, impayés et comparatifs.');
-  await sleep(900); await ring('.stats', 10); await sleep(1700); await page.evaluate(() => document.querySelector('.chart').scrollIntoView({ behavior: 'smooth', block: 'center' })); await sleep(1200); await ring('.chart', 10); await sleep(1500); await shot('7-stats');
+  /* 9 — catalogue */
+  await press('[data-view=catalog]', { after: 900 });
+  await caption('09 — Catalogue', 'Vos prix, vos marges, vos matériaux', 'Prestations, ouvrages et matériaux classés par catégorie.');
+  await hover('.cchip:nth-child(2)', 450, 200); await hover('.cchip:nth-child(3)', 450, 200); await press('.cchip:nth-child(3)', { after: 900 }); await press('.cchip:nth-child(1)', { after: 900 }); await shot('9-catalogue');
 
-  /* 8 — chantiers */
-  await press('[data-view=sites]', { after: 1000 }); await caption('08 — Chantiers', 'Suivez vos chantiers', 'Lieu, dates, heures prévues et réalisées, devis et factures rattachés.');
-  await sleep(1300); await press('[data-act=open-site]', { after: 1200 }); await ring('.bar', 14); await sleep(1800); await shot('7-chantier');
+  /* 10 — statistiques */
+  await press('[data-view=stats]', { after: 900 }); await caption('10 — Statistiques', 'Pilotez votre chiffre d’affaires', 'Devis du mois, facturé, encaissé, impayés et comparatifs.');
+  await sleep(700); await ring('.stats', 10); await sleep(1500); await page.evaluate(() => document.querySelector('.chart').scrollIntoView({ behavior: 'smooth', block: 'center' })); await sleep(1100); await ring('.chart', 10); await sleep(1400); await shot('10-stats');
 
-  /* 8 — personnalisation */
-  await press('[data-view=custom]', { after: 900 }); await caption('09 — À vos couleurs', 'Votre interface, vos couleurs', 'Couleur, mode clair ou sombre, sons, tailles.');
-  await press('[data-act=pref][data-k=accent][data-v="#3b82f6"]', { after: 900 }); await press('[data-act=pref][data-k=accent][data-v="#8b5cf6"]', { after: 900 });
-  await press('[data-act=pref][data-k=mode][data-v=light]', { after: 1300 }); await press('[data-act=pref][data-k=mode][data-v=dark]', { after: 700 });
-  await press('[data-act=pref][data-k=accent][data-v="#e3a04b"]', { after: 1100 }); await shot('8-couleurs');
+  /* 11 — chantiers */
+  await press('[data-view=sites]', { after: 1000 }); await caption('11 — Chantiers', 'Suivez vos chantiers', 'Dates, heures prévues et réalisées, documents rattachés.');
+  await sleep(900); await press('[data-act=open-site]', { after: 1200 }); await sleep(1500); await shot('11-chantier');
+
+  /* 12 — personnalisation */
+  await press('[data-view=custom]', { after: 900 }); await caption('12 — À votre façon', 'Clair ou sombre, sons discrets', 'Réglez l’interface en un clic.');
+  await press('[data-act=pref][data-k=mode][data-v=light]', { after: 1300 }); await press('[data-act=pref][data-k=mode][data-v=dark]', { after: 900 }); await shot('12-perso');
 
   /* outro */
-  marks.push({ name: 'outro', wall: wall() }); await capOff(); await sleep(400); cue('riser', wall(), wall() + 1.3); await page.evaluate(() => window.fxCover('outro')); await sleep(1400); cue('hit'); cue('chime'); await sleep(3600);
+  marks.push({ name: 'outro', wall: wall() }); await capOff(); await sleep(400); cue('riser', wall(), wall() + 1.3); await page.evaluate(() => window.fxCover('outro')); await sleep(1400); cue('hit'); cue('chime'); await sleep(3800);
 
   await cdp.send('Page.stopScreencast'); await sleep(400); await b.close();
   fs.writeFileSync(path.join(OUT, 'timeline.json'), JSON.stringify({ frames, cues, marks }));

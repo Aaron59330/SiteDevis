@@ -138,7 +138,7 @@ for b in range(n_bars):
             add(music, t, kick(), 1.0)
             kick_times.append(t)
             if k % 2 == 1 and t >= 7.0:
-                add(music, t, clap(), 0.9)
+                add(music, t, clap(), 0.55)
             if k == 3 and t >= 7.0:
                 add(music, t + BEAT / 2, hat(True), 0.7)
 
@@ -277,6 +277,8 @@ for a, b in CUES['count']:
         t += 0.032
 for t in CUES['hit']:
     add(sfx, t, impact(), 0.85 if t > 1 else 0.5)
+for t in CUES.get('hover', []):
+    add(sfx, t, tick(3400), 0.35, pan=rng.uniform(-0.2, 0.2))
 for a, b in CUES['riser']:
     add(sfx, a, riser(b - a), 0.8)
 
