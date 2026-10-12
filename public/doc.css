@@ -1,0 +1,68 @@
+/* Devis et factures — mise en page calquée sur le modèle (police Nunito, tailles en pt, gris #eceff1).
+   Les mesures sont celles d'une page A4 : le même rendu à l'écran, à l'impression et en PDF. */
+@font-face { font-family: Nunito; font-style: normal; font-weight: 400; font-display: swap; src: url(/fonts/nunito-latin-400-normal.woff2) format("woff2"); }
+@font-face { font-family: Nunito; font-style: normal; font-weight: 600; font-display: swap; src: url(/fonts/nunito-latin-600-normal.woff2) format("woff2"); }
+@font-face { font-family: Nunito; font-style: normal; font-weight: 700; font-display: swap; src: url(/fonts/nunito-latin-700-normal.woff2) format("woff2"); }
+
+.doc { --accent: #263238; width: 595pt; max-width: none; min-height: 842pt; margin: 0 auto; padding: 11pt 11.5pt 20pt;
+  display: flex; flex-direction: column; background: #fff; color: #263238; font: 400 10.1pt/14.3pt Nunito, "Segoe UI", Arial, sans-serif; font-synthesis: none;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .35); }
+.doc b { font-weight: 700; }
+
+/* En-tête : logo + émetteur à gauche, titre + client à droite */
+.doc .head { display: flex; align-items: flex-start; }
+.doc .hl { flex: 0 0 252pt; }
+.doc .hr { flex: 1; padding-right: 12pt; }
+.doc .logo-box { margin-left: 8.5pt; }
+.doc .logo { max-height: 76pt; max-width: 150pt; display: block; }
+.doc .issuer, .doc .client { font-size: 11pt; line-height: 15.2pt; white-space: pre-line; }
+.doc .issuer { margin: 12pt 0 0 12.5pt; }
+.doc .issuer b, .doc .client b { font-weight: 700; }
+.doc .dtitle { margin: 15pt 0 0; font-size: 15.1pt; line-height: 20pt; font-weight: 700; text-transform: uppercase; text-align: right; color: var(--accent); white-space: pre-line; letter-spacing: 0; }
+.doc .client { margin: 10pt 0 0 88.5pt; }
+.doc .dnum { margin: 12pt 0 0 12.5pt; font-size: 13.4pt; line-height: 18pt; font-weight: 700; color: var(--accent); }
+.doc .ddate { margin: 8pt 0 0 12.5pt; font-size: 8.25pt; line-height: 11pt; font-weight: 700; }
+.doc .dmeta { display: flex; flex-wrap: wrap; gap: 2pt 14pt; margin: 4pt 0 0 12.5pt; font-size: 8.25pt; line-height: 11pt; color: #263238; }
+.doc .dmeta b { font-weight: 700; }
+
+/* Tableau */
+.doc table.items { width: 100%; margin: 5pt 0 24pt; border-collapse: collapse; table-layout: fixed; }
+.doc table.items thead { display: table-header-group; }
+.doc table.items th { background: #eceff1; color: #000; text-align: left; padding: 5pt 6.5pt; font-weight: 700; line-height: 14.3pt; }
+.doc table.items td { padding: 8pt 6.5pt 2.7pt; vertical-align: top; overflow-wrap: anywhere; }
+.doc td.desc { white-space: pre-line; }
+.doc .r { text-align: right; }
+.doc tr.item td { border-left: .75pt solid #eceff1; }
+.doc tr.item td.c-unit { border-left: 0; }
+.doc tr.item td:last-child { border-right: .75pt solid #eceff1; }
+.doc tbody tr.item:last-child td { border-bottom: .75pt solid #eceff1; padding-bottom: 5pt; }
+.doc tr.ttl td { font-weight: 700; padding-top: 12pt; color: var(--accent); }
+.doc tr.sub td { background: #eceff1; color: #000; font-weight: 700; padding: 5pt 6.5pt; }
+.doc tr.sub td:first-child { padding-left: 20%; }
+.doc tr.spc td { height: 20pt; padding: 0; }
+.doc tr { break-inside: avoid; }
+
+/* Bas de page : coordonnées bancaires et paiement à gauche, totaux à droite */
+.doc .fwrap { margin-top: auto; min-height: 180pt; box-sizing: border-box; display: flex; justify-content: space-between; align-items: flex-start; break-inside: avoid; }
+.doc .fleft { flex: 1; padding-left: 12.5pt; font-size: 8.25pt; line-height: 12pt; }
+.doc .fleft .bank { white-space: pre-line; font-size: 7.8pt; margin-bottom: 13.5pt; }
+.doc .fleft .agree { margin-bottom: 40pt; }
+.doc .pay-title { }
+.doc .pays { line-height: 11.7pt; }
+.doc .fright { flex: 0 0 197pt; margin: 31pt 3pt 0 0; }
+.doc .totbox { background: #eceff1; padding: 13pt 0 10pt; }
+.doc .tr { display: grid; grid-template-columns: 77pt 1fr; color: #000; font-weight: 700; font-size: 10.1pt; line-height: 13.5pt; }
+.doc .tr span:first-child { text-align: right; }
+.doc .tr span:last-child { text-align: right; padding-right: 13pt; }
+.doc .tr.grand { font-size: 14pt; line-height: 19pt; }
+.doc .fnotes { margin: 14pt 0 0 24pt; white-space: pre-line; font-size: 8.2pt; line-height: 11.5pt; }
+.doc .stamp { margin: 10pt 13pt 0; text-align: center; font-weight: 700; color: #0f7a4f; border: 1.5pt solid #0f7a4f; border-radius: 4pt; padding: 4pt; transform: rotate(-3deg); letter-spacing: .04em; text-transform: uppercase; font-size: 9pt; }
+
+/* Mentions légales : tout en bas du document */
+.doc .legal { margin-top: 0; padding-top: 7pt; border-top: .75pt solid #eceff1; white-space: pre-line; font-size: 4.9pt; line-height: 6.4pt; font-weight: 700; }
+
+@media print {
+  main, .editor, .preview-wrap { padding: 0 !important; margin: 0 !important; max-width: none !important; border: 0 !important; }
+  .doc { zoom: 1 !important; width: auto; min-height: 285mm; margin: 0; padding: 0; box-shadow: none; }
+  .doc table.items th, .doc tr.sub td, .doc .totbox { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

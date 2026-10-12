@@ -232,7 +232,7 @@ route('POST', '/api/pdf', 'user', async ctx => {
   if (typeof b.html !== 'string' || b.html.length < 50 || b.html.length > 5.5e6) throw err(400, 'Document invalide.');
   const name = String(b.filename || 'document').replace(/[^\w.\- ]+/g, '').trim().slice(0, 80) || 'document';
   let buf;
-  try { buf = await pdf.toPdf({ html: b.html, label: str(b.label, 80), date: str(b.date, 60) }); }
+  try { buf = await pdf.toPdf({ html: b.html, label: str(b.label, 80), date: str(b.date, 60), accent: str(b.accent, 7) }); }
   catch (e) { console.error('PDF :', e.message); throw err(502, 'Impossible de créer le PDF pour le moment.'); }
   return { pdfFile: buf, filename: name.replace(/\.pdf$/i, '') + '.pdf' };
 });

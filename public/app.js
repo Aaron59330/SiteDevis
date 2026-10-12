@@ -17,7 +17,7 @@ const DEFAULT_FOOTER =
   'Une indemnité forfaitaire de 40 € pour frais de recouvrement est due en cas de retard de paiement par un client professionnel, conformément à l\'article L441-10 du Code de commerce.';
 
 const defaults = () => ({
-  company: { name: '', legalLine: '', address: '', phone: '', email: '', siret: '', vatNumber: '', bank: '', logo: '', vatExempt: false, accent: '#26323f' },
+  company: { name: '', legalLine: '', address: '', phone: '', email: '', siret: '', vatNumber: '', bank: '', logo: '', vatExempt: false, accent: '#263238' },
   settings: { numberPattern: 'DEV-{YYYY}-{N}', next: 1, invoicePattern: 'FAC-{YYYY}-{N}', invoiceNext: 1, dueDays: 30, defaultVat: 20, validityDays: 30,
     defaultPayments: '30 | Acompte à la commande\n70 | Solde à la fin des travaux', useSites: false,
     defaultFooter: DEFAULT_FOOTER },
@@ -42,6 +42,7 @@ function normalize(raw) {
   if (s.prefix && !s.numberPattern) s.numberPattern = `${s.prefix}-{YYYY}-{N}`;
   const c = { ...(raw.company || {}) };
   if (!c.bank && c.iban) c.bank = 'IBAN : ' + c.iban;
+  if (!c.accent || c.accent === '#26323f') c.accent = '#263238';
   const out = { ...d, ...raw, company: { ...d.company, ...c }, settings: { ...d.settings, ...s } };
   out.clients = out.clients || []; out.catalog = out.catalog || []; out.suppliers = out.suppliers || []; out.sites = (out.sites || []).map(normSite);
   out.quotes = (out.quotes || []).map(q => normQuote(q, out));
@@ -200,22 +201,24 @@ function go(v, id = null) {
 function fitDoc() {
   const wrap = $('.preview-wrap'), doc = $('#doc');
   if (!wrap || !doc || wrap.clientWidth < 60) return;
-  doc.style.zoom = Math.min(1, (wrap.clientWidth - 4) / 794);
+  doc.style.zoom = Math.min(1, (wrap.clientWidth - 4) / 793.4);
 }
 function autosize() {
   document.querySelectorAll('textarea[data-l=desc], textarea.auto').forEach(t => { t.style.height = 'auto'; t.style.height = Math.max(34, t.scrollHeight + 2) + 'px'; });
 }
+/* Pages A4 : marges du modèle, en-tête (pages suivantes) et « Page n / N » en bas à droite */
+function pageCss(label, date) {
+  const s = x => '"' + String(x).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, ' ') + '"';
+  return `@page { size: A4; margin: 14mm 4mm 6.3mm;
+      @top-left { content: ${s(label)}; font: 600 8pt Nunito, sans-serif; color: #6b7488; }
+      @top-right { content: ${s(date)}; font: 600 8pt Nunito, sans-serif; color: #6b7488; }
+      @bottom-right { content: "Page " counter(page) " / " counter(pages); font: 700 7.3pt Nunito, sans-serif; color: #263238; vertical-align: bottom; padding: 0 0 2mm; } }
+    @page :first { margin-top: 4mm; @top-left { content: none; } @top-right { content: none; } }`;
+}
 function updatePrintStyle(clear) {
   const el = $('#printStyle');
   const q = !clear && getQuote(editingId);
-  const s = x => '"' + String(x).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, ' ') + '"';
-  el.textContent = q
-    ? `@page { size: A4; margin: 14mm 10mm 14mm;
-        @top-left { content: ${s(`${q.opts.docLabel} N° ${q.number}`)}; font: 9pt sans-serif; color: #6b7488; }
-        @top-right { content: ${s(flongdate(q.date))}; font: 9pt sans-serif; color: #6b7488; }
-        @bottom-right { content: "Page " counter(page) " / " counter(pages); font: bold 9pt sans-serif; } }
-       @page :first { @top-left { content: none; } @top-right { content: none; } }`
-    : '@page { size: A4; margin: 14mm 10mm; }';
+  el.textContent = q ? pageCss(`${q.opts.docLabel} N° ${q.number}`, flongdate(q.date)) : '@page { size: A4; margin: 4mm; }';
 }
 
 /* ---------- Liste des devis ---------- */
@@ -378,7 +381,7 @@ function renderEditor() {
         </div>
       </div>
     </div>
-    <div class="preview-wrap"><div class="doc" id="doc">${renderDoc(q)}</div></div>
+    <div class="preview-wrap"><div class="doc" id="doc" style="--accent:${esc(accentOf())}">${renderDoc(q)}</div></div>
   </div>`;
 }
 
@@ -421,19 +424,20 @@ function paymentsHtml(q) {
     <button class="btn small icon danger" data-act="del-pay" title="Supprimer">✕</button></div>`).join('');
 }
 
+const accentOf = () => (/^#[0-9a-f]{6}$/i.test(db.company.accent || '') ? db.company.accent : '#263238');
 function renderDoc(q) {
   const co = db.company, t = totals(q), o = q.opts;
   const rows = docLines(q);
-  const widths = { ref: 15, qty: 10, unit: 11, price: 12, vat: 7, amount: 14 };
+  const widths = { ref: 15.3, qty: 14.2, unit: 10.6, price: 15.2, vat: 7.5, amount: 12.4 };
   const cols = [o.showRef && 'ref', 'desc', 'qty', 'unit', 'price', o.showVat && 'vat', 'amount'].filter(Boolean);
   const used = cols.filter(c => c !== 'desc').reduce((s, c) => s + widths[c], 0);
   const N = cols.length;
   const head = { ref: 'Référence', desc: 'Désignation', qty: 'Quantité', unit: 'Unité', price: 'PU Vente', vat: 'TVA', amount: 'Montant' };
   const cell = (c, l) => ({
-    ref: `<td>${esc(l.ref)}</td>`, desc: `<td class="desc">${esc(l.desc)}</td>`,
-    qty: `<td class="r">${fmtNum.format(num(l.qty))}</td>`, unit: `<td>${esc(l.unit)}</td>`,
-    price: `<td class="r">${money(num(l.price))}</td>`,
-    vat: `<td class="r">${fmtNum.format(db.company.vatExempt ? 0 : num(l.vat))}</td>`, amount: `<td class="r">${money(l.total)}</td>`
+    ref: `<td class="c-ref">${esc(l.ref)}</td>`, desc: `<td class="desc c-desc">${esc(l.desc)}</td>`,
+    qty: `<td class="r c-qty">${fmtNum.format(num(l.qty))}</td>`, unit: `<td class="c-unit">${esc(l.unit)}</td>`,
+    price: `<td class="r c-price">${money(num(l.price))}</td>`,
+    vat: `<td class="r c-vat">${fmtNum.format(db.company.vatExempt ? 0 : num(l.vat))}</td>`, amount: `<td class="r c-amount">${money(l.total)}</td>`
   }[c]);
   const issuer = (q.issuerText || '').split('\n');
   const body = rows.map(l => {
@@ -445,51 +449,56 @@ function renderDoc(q) {
 
   const pays = q.payments.filter(p => num(p.pct) > 0);
   const payHtml = pays.length ? `<div class="pay-title">Conditions de paiement :</div>` + pays.map((p, i) =>
-    `<div>• ${fmtNum.format(num(p.pct))} % soit ${money(t.ttc * num(p.pct) / 100)}${p.label ? ' : ' + esc(p.label) : ''}${i === pays.length - 1 ? '.' : ','}</div>`).join('') : '';
+    `<div>• ${new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(num(p.pct))} % soit ${money(t.ttc * num(p.pct) / 100)}${p.label ? (/^\s*(à |\()/i.test(p.label) ? ' ' : ' : ') + esc(p.label.trim()) : ''}${i === pays.length - 1 ? '.' : ','}</div>`).join('') : '';
 
   const rates = Object.entries(t.byRate).sort((a, b) => a[0] - b[0]);
   const vatRows = (rates.length ? rates : [[0, 0]]).map(([r, v]) => `<div class="tr"><span>TVA ( ${String(r).replace('.', ',')} % )</span><span>${money(v)}</span></div>`).join('');
 
+  const lines = String(q.clientText || '').split('\n');
   return `
   <div class="head">
-    <div class="logo-box">${co.logo ? `<img class="logo" src="${co.logo}" alt="">` : ''}</div>
-    <h1 class="dtitle">${esc(q.title)}</h1>
-  </div>
-  <div class="parties">
-    <div class="issuer"><b>${esc(issuer[0] || '')}</b>${issuer.length > 1 ? '\n' + esc(issuer.slice(1).join('\n')) : ''}</div>
-    <div class="client">${(cl => `<b>${esc(cl[0] || '')}</b>${cl.length > 1 ? '\n' + esc(cl.slice(1).join('\n')) : ''}`)(String(q.clientText || '').split('\n'))}</div>
+    <div class="hl">
+      <div class="logo-box">${co.logo ? `<img class="logo" src="${co.logo}" alt="">` : ''}</div>
+      <div class="issuer"><b>${esc(issuer[0] || '')}</b>${issuer.length > 1 ? '\n' + esc(issuer.slice(1).join('\n')) : ''}</div>
+    </div>
+    <div class="hr">
+      <h1 class="dtitle">${esc(q.title)}</h1>
+      <div class="client"><b>${esc(lines[0] || '')}</b>${lines.length > 1 ? '\n' + esc(lines.slice(1).join('\n')) : ''}</div>
+    </div>
   </div>
   <div class="dnum">${esc(o.docLabel)} N° ${esc(q.number)}</div>
   <div class="ddate">Le ${flongdate(q.date)}${!isInv(q) && q.validUntil ? ` — valable jusqu'au ${fdate(q.validUntil)}` : ''}</div>
   ${isInv(q) ? `<div class="dmeta">${q.fromNumber ? `<span>Suite au devis N° ${esc(q.fromNumber)}</span>` : ''}${q.serviceDate ? `<span>Prestation réalisée le ${fdate(q.serviceDate)}</span>` : ''}${q.dueDate ? `<span><b>Échéance de paiement : ${fdate(q.dueDate)}</b></span>` : ''}</div>` : ''}
   ${siteDocLine(q)}
   <table class="items">
-    <colgroup>${cols.map(c => `<col style="width:${c === 'desc' ? 100 - used : widths[c]}%">`).join('')}</colgroup>
+    <colgroup>${cols.map(c => `<col style="width:${c === 'desc' ? (100 - used).toFixed(1) : widths[c]}%">`).join('')}</colgroup>
     <thead><tr>${cols.map(c => `<th class="${['qty', 'price', 'vat', 'amount'].includes(c) ? 'r' : ''}">${head[c]}</th>`).join('')}</tr></thead>
-    <tbody>${body}
-      <tr class="final"><td colspan="${N}"><div class="fwrap">
-        <div class="fleft">
-          ${q.notes ? `<div class="fnotes">${esc(q.notes)}</div>` : ''}
-          ${isInv(q) ? (q.payMethod ? `<div class="bank" style="margin-top:10px">Mode de règlement : ${esc(q.payMethod)}</div>` : '') : `<div class="agree">${esc(o.agreeLabel)}</div>`}
-          ${q.bank ? `<div class="bank">${esc(q.bank)}</div>` : ''}
-          <div class="pays">${payHtml}</div>
-        </div>
-        <div class="totbox">
-          ${t.discountAmt ? `<div class="tr"><span>Sous-total HT</span><span>${money(t.subtotal)}</span></div><div class="tr"><span>Remise (${fmtNum.format(num(q.discount))} %)</span><span>− ${money(t.discountAmt)}</span></div>` : ''}
-          <div class="tr b"><span>Total HT</span><span>${money(t.ht)}</span></div>
-          ${vatRows}
-          <div class="tr ${t.paid ? 'b' : 'grand'}"><span>Total TTC</span><span>${money(t.ttc)}</span></div>
-          ${t.paid ? `<div class="tr"><span>Déjà réglé</span><span>− ${money(t.paid)}</span></div><div class="tr grand"><span>Net à payer</span><span>${money(t.due)}</span></div>` : ''}
-          ${isInv(q) && q.status === 'payee' ? `<div class="stamp">Facture acquittée${q.paidAt ? ' le ' + fdate(q.paidAt) : ''}</div>` : ''}
-        </div>
-      </div></td></tr>
-    </tbody>
-    <tfoot><tr><td colspan="${N}" class="legal">${esc(q.footer)}</td></tr></tfoot>
-  </table>`;
+    <tbody>${body}</tbody>
+  </table>
+  <div class="fwrap">
+    <div class="fleft">
+      ${isInv(q) ? (q.payMethod ? `<div class="bank">Mode de règlement : ${esc(q.payMethod)}</div>` : '') : `<div class="agree">${esc(o.agreeLabel)}</div>`}
+      ${q.bank ? `<div class="bank">${esc(q.bank)}</div>` : ''}
+      <div class="pays">${payHtml}</div>
+    </div>
+    <div class="fright">
+      <div class="totbox">
+        ${t.discountAmt ? `<div class="tr"><span>Sous-total HT</span><span>${money(t.subtotal)}</span></div><div class="tr"><span>Remise (${fmtNum.format(num(q.discount))} %)</span><span>− ${money(t.discountAmt)}</span></div>` : ''}
+        <div class="tr"><span>Total HT</span><span>${money(t.ht)}</span></div>
+        ${vatRows}
+        <div class="tr ${t.paid ? '' : 'grand'}"><span>Total TTC</span><span>${money(t.ttc)}</span></div>
+        ${t.paid ? `<div class="tr"><span>Déjà réglé</span><span>− ${money(t.paid)}</span></div><div class="tr grand"><span>Net à payer</span><span>${money(t.due)}</span></div>` : ''}
+        ${isInv(q) && q.status === 'payee' ? `<div class="stamp">Facture acquittée${q.paidAt ? ' le ' + fdate(q.paidAt) : ''}</div>` : ''}
+      </div>
+      ${q.notes ? `<div class="fnotes">${esc(q.notes)}</div>` : ''}
+    </div>
+  </div>
+  <div class="legal">${esc(q.footer)}</div>`;
 }
 
 function refreshPreview() {
   const q = getQuote(editingId); if (!q) return;
+  $('#doc').style.setProperty('--accent', accentOf());
   $('#doc').innerHTML = renderDoc(q);
   const rows = docLines(q);
   document.querySelectorAll('#linesBody .line').forEach(el => {
@@ -803,7 +812,7 @@ const actions = {
     const old = t.innerHTML; t.disabled = true; t.textContent = 'Création du PDF…';
     try {
       const r = await fetch('/api/pdf', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'sitedevis' },
-        body: JSON.stringify({ html: $('#doc').innerHTML, label: `${q.opts.docLabel} N° ${q.number}`, date: flongdate(q.date), filename: `${q.opts.docLabel}-${q.number}` }) });
+        body: JSON.stringify({ html: $('#doc').innerHTML, accent: accentOf(), label: `${q.opts.docLabel} N° ${q.number}`, date: flongdate(q.date), filename: `${q.opts.docLabel}-${q.number}` }) });
       if (!r.ok) { let m = ''; try { m = (await r.json()).error; } catch (e) { /* ignore */ } throw new Error(m || 'Erreur ' + r.status); }
       const url = URL.createObjectURL(await r.blob()), a = document.createElement('a');
       a.href = url; a.download = `${q.opts.docLabel}-${q.number}.pdf`.replace(/[^\w.\- ]+/g, ''); document.body.appendChild(a); a.click(); a.remove();

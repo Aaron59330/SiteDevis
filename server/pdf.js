@@ -9,9 +9,9 @@ let playwright = null;
 try { playwright = require('playwright-core'); } catch (e) { /* module absent */ }
 
 const PUBLIC = path.join(__dirname, '..', 'public');
-const CSS_FILE = path.join(PUBLIC, 'style.css');
+const CSS_FILES = ['style.css', 'doc.css'].map(f => path.join(PUBLIC, f));
 /* Les polices du site sont intégrées au HTML (le rendu n'a pas accès au réseau) */
-const siteCss = () => fs.readFileSync(CSS_FILE, 'utf8').replace(/url\(\/(fonts\/[\w.\-]+)\)/g, (m, f) => {
+const siteCss = () => CSS_FILES.map(f => fs.readFileSync(f, 'utf8')).join('\n').replace(/url\(\/(fonts\/[\w.\-]+)\)/g, (m, f) => {
   try { return 'url(data:font/woff2;base64,' + fs.readFileSync(path.join(PUBLIC, f)).toString('base64') + ')'; } catch (e) { return m; }
 });
 let browser = null, launching = null, active = 0;
@@ -49,17 +49,17 @@ function clean(html) {
 }
 
 function pageCss(o) {
-  return `@page { size: A4; margin: 14mm 10mm 14mm;
-    @top-left { content: ${cssStr(o.label)}; font: 9pt sans-serif; color: #6b7488; }
-    @top-right { content: ${cssStr(o.date)}; font: 9pt sans-serif; color: #6b7488; }
-    @bottom-right { content: "Page " counter(page) " / " counter(pages); font: bold 9pt sans-serif; } }
-   @page :first { @top-left { content: none; } @top-right { content: none; } }`;
+  return `@page { size: A4; margin: 14mm 4mm 6.3mm;
+      @top-left { content: ${cssStr(o.label)}; font: 600 8pt Nunito, sans-serif; color: #6b7488; }
+      @top-right { content: ${cssStr(o.date)}; font: 600 8pt Nunito, sans-serif; color: #6b7488; }
+      @bottom-right { content: "Page " counter(page) " / " counter(pages); font: 700 7.3pt Nunito, sans-serif; color: #263238; vertical-align: bottom; padding: 0 0 2mm; } }
+    @page :first { margin-top: 4mm; @top-left { content: none; } @top-right { content: none; } }`;
 }
 
 async function render(o) {
   const doc = `<!doctype html><html lang="fr" data-theme="light"><head><meta charset="utf-8">
 <style>${siteCss()}</style><style>${pageCss(o)}</style></head>
-<body><main><div class="editor"><div class="preview-wrap"><div class="doc" id="doc">${clean(o.html)}</div></div></div></main></body></html>`;
+<body><main><div class="editor"><div class="preview-wrap"><div class="doc" id="doc" style="--accent:${/^#[0-9a-f]{6}$/i.test(o.accent || '') ? o.accent : '#263238'}">${clean(o.html)}</div></div></div></main></body></html>`;
   const b = await getBrowser();
   const ctx = await b.newContext({ javaScriptEnabled: false, serviceWorkers: 'block', acceptDownloads: false });
   try {
