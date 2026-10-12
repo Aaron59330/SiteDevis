@@ -270,13 +270,22 @@ route('GET', '/api/prices/search', 'user', async ctx => {
   const exactPages = cand.filter(c => exactOf(c)).slice(0, 2);
   const read = await Promise.all(exactPages.map(c => storefetchLookup(c.link, store, extra).catch(() => null)));
   exactPages.forEach((c, i) => { const rd = read[i]; if (rd && !offers.some(o => o.link === rd.link)) offers.unshift({ title: rd.title, store: rd.store, priceText: rd.priceText, price: rd.price, link: rd.link, thumbnail: rd.thumbnail || '', direct: true, sku: rd.sku, ean: rd.ean }); c.done = !!rd; });
+  const same = n => { const k = stores.key(n), t = store ? stores.key(store.name) : ''; return !!(t && k && (k.includes(t) || t.includes(k) || (stores.matchStore(n, '') || {}).name === store.name)); };
+  // fiche exacte trouvée mais prix illisible (page fermée aux lectures automatiques) : on cherche ce même produit, par son titre, chez le même magasin sur Google Shopping
+  const words = t => String(t).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[^a-z0-9]+/).filter(w => w.length >= 3);
+  await Promise.all(cand.filter(c => !c.done && !(c.price > 0) && exactOf(c)).slice(0, 1).map(async c => {
+    const name = c.title.replace(/\s*[|–-]\s*(Leroy Merlin|Castorama|Brico[\w ]*|Point\.?P|Cedeo|Gedimat|ManoMano).*$/i, '').replace(/\s*(\.{3}|…)\s*$/, '').trim();
+    const need = words(name); if (need.length < 3 || !key) return;
+    const jj = await serp({ engine: 'google_shopping', q: name + ' ' + store.name }).catch(() => null);
+    const hit = shoppingOffers(jj).filter(o => same(o.store)).map(o => { const w = new Set(words(o.title)); return { o, sc: need.filter(x => w.has(x)).length / need.length }; }).filter(x => x.sc >= 0.8).sort((x, y) => y.sc - x.sc || x.o.price - y.o.price)[0];
+    if (hit) { offers.unshift({ ...hit.o, link: c.link, verified: true }); c.done = true; }
+  }));
   for (const c of cand) {
     if (c.done) continue;
     if (c.price > 0) offers.unshift({ title: c.title, store: store.name, priceText: c.price.toFixed(2).replace('.', ',') + ' €', price: c.price, link: c.link, thumbnail: '', site: true });
     else pages.push({ title: c.title, link: c.link, exact: exactOf(c) });
   }
-  const same = n => { const k = stores.key(n), t = store ? stores.key(store.name) : ''; return !!(t && k && (k.includes(t) || t.includes(k) || (stores.matchStore(n, '') || {}).name === store.name)); };
-  offers.forEach(o => { o.mine = same(o.store); o.exact = exactOf(o) || (o.direct && isUrl); });
+  offers.forEach(o => { o.mine = same(o.store); o.exact = exactOf(o) || (o.direct && isUrl) || !!o.verified; });
   offers.sort((a, b) => (b.exact ? 1 : 0) - (a.exact ? 1 : 0) || (b.mine ? 1 : 0) - (a.mine ? 1 : 0) || a.price - b.price);
   pages.sort((a, b) => (b.exact ? 1 : 0) - (a.exact ? 1 : 0));
   return ok({ offers, pages, store: store ? { name: store.name, domain: store.domain } : null, exact: offers.some(o => o.exact) });

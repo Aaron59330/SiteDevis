@@ -649,7 +649,7 @@ function refSearch(f, refresh, editId) {
         <div class="muted" style="font-size:.82rem;margin-top:4px">Fournisseur conservé : <b>${esc(sp ? sp.name : '—')}</b>.${mine ? '' : ` Cette offre vient d'un autre magasin : le prix est donné à titre indicatif.`}</div>
         ${mine ? '' : `<div style="margin-top:6px"><button type="button" class="btn small" id="swSup">Utiliser ${esc(o.store)} comme fournisseur</button></div>`}
         ${g ? `<div style="margin-top:6px"><button type="button" class="btn small" id="perUnit">Convertir au ${esc(g.unit)} (contenu détecté : ${fmtNum.format(g.qty)} ${esc(g.unit)})</button></div>` : ''}
-        <div class="muted" style="font-size:.8rem;margin-top:6px">Autres offres trouvées :</div>${list(rank(E.ref.value))}</div>`;
+        ${rank(E.ref.value).filter(i => offers[i].exact).length > 1 ? `<div class="muted" style="font-size:.8rem;margin-top:6px">Autres offres pour cette référence :</div>${list(rank(E.ref.value).filter(i => offers[i].exact))}` : ''}</div>`;
     bind(g);
   };
   const run = async () => {
