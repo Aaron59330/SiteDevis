@@ -4,6 +4,7 @@ const store = require('./store');
 const mail = require('./mail');
 const ai = require('./ai');
 const pdf = require('./pdf');
+const spell = require('./spell');
 const { db } = store;
 
 /* ---------- Utilitaires ---------- */
@@ -198,7 +199,7 @@ async function handle(req, res, url) {
 /* ---------- Config publique ---------- */
 route('GET', '/api/config', 'none', () => ({
   siteName: db.settings.siteName, registrationOpen: db.settings.registrationOpen, trialDays: db.settings.trialDays,
-  mailConfigured: mail.configured(), pdf: pdf.available(), ai: ai.available() && db.settings.aiEnabled !== false, priceSearch: !!process.env.SERPAPI_KEY, stripe: !!stripeKey(), simulated: simulatedAllowed(),
+  mailConfigured: mail.configured(), pdf: pdf.available(), ai: db.settings.aiEnabled !== false, aiKind: ai.available() ? 'claude' : 'free', priceSearch: !!process.env.SERPAPI_KEY, stripe: !!stripeKey(), simulated: simulatedAllowed(),
   plans: db.plans.filter(p => p.active)
 }));
 
@@ -239,12 +240,12 @@ route('POST', '/api/pdf', 'user', async ctx => {
 
 /* ---------- Relecture IA des devis ---------- */
 route('POST', '/api/ai/review', 'user', async ctx => {
-  if (!ai.available() || db.settings.aiEnabled === false) throw err(503, 'L\'assistant IA n\'est pas activé.');
+  if (db.settings.aiEnabled === false) throw err(503, 'La relecture n\'est pas activée.');
   if (!access(ctx.user).active) throw err(402, 'Un abonnement actif est nécessaire.', { code: 'payment_required' });
   limit('ai:' + ctx.user.id, 15, 3600e3); limit('aiday:' + ctx.user.id, 60, 86400e3);
   if (!ctx.body || typeof ctx.body !== 'object' || !Array.isArray(ctx.body.lines)) throw err(400, 'Document invalide.');
   let r;
-  try { r = await ai.review(ctx.body); }
+  try { r = ai.available() ? await ai.review(ctx.body) : await spell.review(ctx.body); }
   catch (e) {
     if (e.status && e.status < 500 && e.status !== 429) throw err(e.status, e.message);
     console.error('IA :', e.status || '', e.message);

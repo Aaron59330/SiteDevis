@@ -45,10 +45,11 @@ function aiOpen() {
   const q = getQuote(editingId); if (!q) return;
   aiSt.qid = q.id; aiSt.res = null; aiSt.state = {}; aiSt.undo = {};
   let consent = false; try { consent = localStorage.getItem('sitedevis.aiConsent') === '1'; } catch (e) { /* ignore */ }
-  openModal(`<div class="modal-wide"><div class="row between"><h2 style="margin:0">Relecture par l'IA</h2><button class="btn small" data-act="close-modal">Fermer</button></div>
-    <div id="aiBody"><p class="muted" style="margin:10px 0">L'IA relit votre ${isInv(q) ? 'facture' : 'devis'} : elle repère les fautes d'orthographe, les formulations floues et les oublis, puis vous propose des corrections.
+  const free = session.config.aiKind === 'free';
+  openModal(`<div class="modal-wide"><div class="row between"><h2 style="margin:0">${free ? 'Vérification des fautes' : 'Relecture par l\'IA'}</h2><button class="btn small" data-act="close-modal">Fermer</button></div>
+    <div id="aiBody"><p class="muted" style="margin:10px 0">${free ? 'Le correcteur' : 'L\'IA'} relit votre ${isInv(q) ? 'facture' : 'devis'} : il repère les fautes d'orthographe et de grammaire, les oublis et les incohérences, puis vous propose des corrections.
       <b>Rien n'est modifié sans votre accord</b> : vous acceptez ou ignorez chaque suggestion.</p>
-      <div class="notice" style="margin:12px 0">Pour l'analyse, le contenu du document (titre, lignes, quantités, prix, notes, échéancier, mentions) est envoyé au service d'IA d'Anthropic. Vos coordonnées bancaires, l'adresse et les coordonnées de votre client ne sont pas transmises. Évitez d'écrire des informations sensibles dans les champs libres.</div>
+      <div class="notice" style="margin:12px 0">Pour l'analyse, le contenu du document (titre, lignes, quantités, prix, notes, échéancier, mentions) est envoyé ${free ? 'au correcteur gratuit LanguageTool (languagetool.org)' : 'au service d\'IA d\'Anthropic'}. Vos coordonnées bancaires, l'adresse et les coordonnées de votre client ne sont pas transmises. Évitez d'écrire des informations sensibles dans les champs libres.</div>
       ${consent ? '' : '<label class="check"><input type="checkbox" id="aiConsent"> J\'ai compris et j\'accepte l\'envoi du contenu du document pour analyse.</label>'}
       <div class="row" style="justify-content:flex-end"><button class="btn primary" data-act="ai-run" id="aiGo" ${consent ? '' : 'disabled'}>Lancer l'analyse</button></div></div></div>`);
   const cb = document.getElementById('aiConsent'); if (cb) cb.onchange = () => { document.getElementById('aiGo').disabled = !cb.checked; };
