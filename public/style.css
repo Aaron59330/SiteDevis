@@ -36,6 +36,7 @@ details summary { cursor: pointer; color: var(--text); font-weight: 500; }
 .brand .logo-mark { width: 30px; height: 30px; flex: none; display: block; }
 .brand .nm b { font-weight: 800; color: var(--accent, currentColor); }
 .brand .nm { letter-spacing: -.02em; }
+.brand .nm .dot { font-style: normal; color: var(--accent, currentColor); }
 #nav { display: flex; gap: 4px; }
 #nav button { background: none; border: 0; color: var(--muted); padding: 8px 14px; border-radius: 10px; cursor: pointer; font: inherit; font-weight: 500; transition: .15s; }
 #nav button:hover { color: var(--text); background: var(--card); }

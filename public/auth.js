@@ -186,5 +186,5 @@ document.addEventListener('click', e => {
 const LOGO_MARK = '<img class="logo-mark" src="/logo.svg" alt="" width="30" height="30">';
 function brandHtml(name) {
   const n = String(name || 'OptiDevis'), m = /^(opti)(devis)$/i.exec(n);
-  return LOGO_MARK + '<span class="nm">' + (m ? esc(m[1]) + '<b>' + esc(m[2]) + '</b>' : esc(n)) + '</span>';
+  return LOGO_MARK + '<span class="nm">' + (m ? esc(m[1]) + '<b>' + esc(m[2]) + '</b><i class="dot">.</i>' : esc(n)) + '</span>';
 }
