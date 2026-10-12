@@ -25,3 +25,7 @@ Au premier lancement, un **compte administrateur** est créé : son email et son
   `ALLOW_SIMULATED_PAYMENTS=false`, `STRIPE_SECRET_KEY`, `RESEND_API_KEY`, `MAIL_FROM`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`.
 - Le webhook Stripe est `POST /api/stripe/webhook` (`STRIPE_WEBHOOK_SECRET`). Le retour de paiement est aussi vérifié côté serveur.
 - Les données sont dans le dossier `data/` (à sauvegarder). Pour une forte volumétrie, remplacer `server/store.js` par une base PostgreSQL.
+
+## Vidéo de présentation (30 s)
+`video/mes-devis-30s.mp4` — motion design 1080p avec musique et effets sonores.
+Sources dans `video/` : `index.html` (animation pilotée image par image), `timeline.js` (repères sonores), `audio.py` (synthèse sonore, numpy), `render.js` (rendu des images avec Playwright). Montage : `ffmpeg -framerate 30 -i frames/f%04d.jpg -i audio.wav -c:v libx264 -pix_fmt yuv420p -c:a aac out.mp4`.
