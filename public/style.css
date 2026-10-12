@@ -568,3 +568,10 @@ html[data-density="compact"] .btn { padding: 6px 12px; }
 .bar.over i { background: var(--danger); }
 .kv { display: grid; grid-template-columns: 90px 1fr; gap: 8px 14px; margin: 0; }
 .kv dt { color: var(--muted); font-size: .85rem; } .kv dd { margin: 0; overflow-wrap: anywhere; }
+
+/* ===== Palette or et blanc : textes chauds, titres couleur principale ===== */
+:root[data-bg="bronze"]:not([data-theme="light"]) { --text: #f7ead4; --muted: #ad9672; --primary: #f7ead4; --primary-soft: rgba(227, 160, 75, .12); }
+:root[data-theme="light"] { --text: #1d150b; --muted: #7b6a54; --line: #e8e2d8; --input-line: #d9d0c2; --bg: #f7f5f1; --bg2: #efebe4; --card2: #f8f6f2; }
+#app h1:not(.doc *), #app h2:not(.doc *), #app .stat .n:not(.doc *) { color: var(--accent); }
+:root[data-theme="light"] #app h1:not(.doc *), :root[data-theme="light"] #app h2:not(.doc *), :root[data-theme="light"] #app .stat .n:not(.doc *) { color: color-mix(in srgb, var(--accent) 60%, #000); }
+#app a:not(.doc *):not(.btn) { text-decoration-color: color-mix(in srgb, var(--accent) 60%, transparent); }
