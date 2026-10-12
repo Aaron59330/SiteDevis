@@ -64,60 +64,74 @@ function renderAuth(mode, opts = {}) {
       <button class="btn" data-act="auth-go" data-mode="login">J'ai confirmé, me connecter</button>
     </div>`;
 
+  const landing = mode === 'login' || mode === 'register';
+  const open = landing && (mode === 'register' || !!opts.banner || !!opts.email || window.__authOpen);
+  if (!landing) {
+    $('#app').innerHTML = `<div class="auth solo"><section class="auth-card"><button class="theme-btn auth-theme" id="themeBtn" title="Mode clair / sombre">🌙</button><div class="brand big auth-brand-m" style="display:flex">${brandHtml(cfg.siteName)}</div>${card}</section></div>`;
+    syncThemeBtn(); return;
+  }
   $('#app').innerHTML = `
-  <div class="auth">
-    <section class="auth-hero docs">
-      <div class="orb o1"></div><div class="orb o2"></div>
-      <header class="docs-top rise" style="--d:0s">
+  <div class="landing">
+    <div class="ld-bg" aria-hidden="true"><div class="orb o1"></div><div class="orb o2"></div></div>
+    <header class="ld-nav">
+      <div class="ld-nav-in">
         <div class="brand big">${brandHtml(cfg.siteName)}</div>
-        <label class="docs-search"><span aria-hidden="true">⌕</span><input type="search" id="docsQ" placeholder="Rechercher : facture, PDF, catalogue, statistiques…" autocomplete="off" aria-label="Rechercher dans la présentation"><kbd>/</kbd></label>
-      </header>
-      <div class="docs-body">
-        <nav class="docs-nav rise" style="--d:.1s" aria-label="Sommaire">
-          <b>Sommaire</b>
-          <a href="#d-intro" class="on">Présentation</a><a href="#d-start">Démarrer en 3 étapes</a><a href="#d-features">Fonctionnalités</a><a href="#d-faq">Questions fréquentes</a>
-          <div class="docs-nav-cta"><button type="button" class="btn small" data-act="hero-open">▶ Vidéo (1 min)</button></div>
-        </nav>
-        <div class="docs-main">
-          <section id="d-intro" class="docs-sec">
-            <span class="eyebrow rise" style="--d:.08s">Devis &amp; factures pour artisans et indépendants</span>
-            <h1 class="rise" style="--d:.16s">Des devis qui <em>font signer</em>,<br>en quelques minutes.</h1>
-            <p class="hero-sub rise" style="--d:.24s">Créez un devis complet, facturez chaque paiement, téléchargez le PDF : tout est prêt à envoyer à votre client.</p>
-            <div class="hero-video rise" style="--d:.32s" id="heroVideoBox">
-              <video id="heroVideo" muted loop playsinline preload="metadata" poster="/media/optidevis-poster.jpg"></video>
-              <div class="hv-bar">
-                <button type="button" class="hv-btn" data-act="hero-play" id="hvPlay" aria-label="Lecture / pause">Pause</button>
-                <button type="button" class="hv-btn" data-act="hero-sound" id="hvSound" aria-label="Activer le son">Activer le son</button>
-                <button type="button" class="hv-btn" data-act="hero-full" aria-label="Plein écran">Plein écran</button>
-              </div>
-              <div class="hero-card"><div class="hc-row"><span>Cloison BA13</span><b>480,00 €</b></div><div class="hc-row"><span>Doublage</span><b>1 204,00 €</b></div><div class="hc-row tot"><span>Total TTC</span><b>1 684,00 €</b></div></div>
-            </div>
-          </section>
-          <section id="d-start" class="docs-sec" data-doc>
-            <h2>Démarrer en 3 étapes</h2>
-            <ol class="docs-steps">
-              <li data-doc-item><span>1</span><div><b>Créez votre compte</b><p>Nom, email, mot de passe : c'est tout. Ajoutez ensuite votre entreprise (SIRET, logo, mentions légales) une seule fois.</p></div></li>
-              <li data-doc-item><span>2</span><div><b>Faites votre premier devis</b><p>Choisissez un client, ajoutez vos lignes depuis votre catalogue ou en saisie libre, et suivez le total en direct.</p></div></li>
-              <li data-doc-item><span>3</span><div><b>Envoyez et facturez</b><p>Téléchargez le PDF, puis générez une facture par échéance de paiement, reliée au devis.</p></div></li>
-            </ol>
-          </section>
-          <section id="d-features" class="docs-sec" data-doc>
-            <h2>Fonctionnalités</h2>
-            <div class="docs-grid">${DOC_FEATURES.map(f => `<details class="docs-card" data-doc-item><summary><i aria-hidden="true">${f[0]}</i><div><b>${f[1]}</b><span>${f[2]}</span></div></summary><div class="docs-more">${f[3]}</div></details>`).join('')}</div>
-          </section>
-          <section id="d-faq" class="docs-sec" data-doc>
-            <h2>Questions fréquentes</h2>
-            <div class="docs-faq">${DOC_FAQ.map(f => `<details data-doc-item><summary>${f[0]}</summary><p>${f[1]}</p></details>`).join('')}</div>
-          </section>
-          <p class="docs-empty" id="docsEmpty" hidden>Aucun résultat. Essayez un autre mot, par exemple « facture » ou « PDF ».</p>
-          <footer class="docs-foot muted">Prêt ? Connectez-vous ou créez votre compte dans le cadre de droite.</footer>
-        </div>
+        <nav class="ld-links" aria-label="Sommaire"><a href="#d-start">Démarrer</a><a href="#d-features">Fonctionnalités</a><a href="#d-faq">Questions</a><a href="#" data-act="hero-open">Vidéo</a></nav>
+        <label class="docs-search"><span aria-hidden="true">⌕</span><input type="search" id="docsQ" placeholder="Rechercher : facture, PDF, catalogue…" autocomplete="off" aria-label="Rechercher dans la présentation"><kbd>/</kbd></label>
+        <button class="theme-btn" id="themeBtn" title="Mode clair / sombre">🌙</button>
+        <button type="button" class="ld-login" data-act="auth-open"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4.5 4.5-6 8-6s7 1.500 8 6"/></svg>Se connecter</button>
       </div>
-    </section>
-    <section class="auth-card"><button class="theme-btn auth-theme" id="themeBtn" title="Mode clair / sombre">🌙</button><div class="brand big auth-brand-m">${brandHtml(cfg.siteName)}</div>${card}</section>
+    </header>
+    <div class="ld-main">
+      <section id="d-intro" class="ld-hero">
+        <div class="ld-copy">
+          <span class="eyebrow rise" style="--d:.08s">Devis &amp; factures pour artisans et indépendants</span>
+          <h1 class="rise" style="--d:.16s">Des devis qui <em>font signer</em>,<br>en quelques minutes.</h1>
+          <p class="hero-sub rise" style="--d:.24s">Créez un devis complet, facturez chaque paiement, téléchargez le PDF : tout est prêt à envoyer à votre client.</p>
+          <div class="ld-cta rise" style="--d:.32s">
+            <button type="button" class="ld-btn main" data-act="auth-open">Se connecter<i aria-hidden="true">→</i></button>
+            ${cfg.registrationOpen ? `<button type="button" class="ld-btn ghost" data-act="auth-go" data-mode="register">Créer un compte</button>` : ''}
+          </div>
+          <div class="chips rise" style="--d:.4s"><span>PDF en un clic</span><span>Clients remplis par SIRET</span><span>Une facture par paiement</span><span>Catalogue &amp; matériaux</span></div>
+        </div>
+        <div class="ld-win rise" style="--d:.28s">
+          <div class="ld-win-bar"><i></i><i></i><i></i><span>Présentation ${name}</span></div>
+          <div class="hero-video" id="heroVideoBox">
+            <video id="heroVideo" muted loop playsinline preload="metadata" poster="/media/optidevis-poster.jpg"></video>
+            <div class="hv-bar">
+              <button type="button" class="hv-btn" data-act="hero-play" id="hvPlay" aria-label="Lecture / pause">Pause</button>
+              <button type="button" class="hv-btn" data-act="hero-sound" id="hvSound" aria-label="Activer le son">Activer le son</button>
+              <button type="button" class="hv-btn" data-act="hero-full" aria-label="Plein écran">Plein écran</button>
+            </div>
+            <div class="hero-card"><div class="hc-row"><span>Cloison BA13</span><b>480,00 €</b></div><div class="hc-row"><span>Doublage</span><b>1 204,00 €</b></div><div class="hc-row tot"><span>Total TTC</span><b>1 684,00 €</b></div></div>
+          </div>
+        </div>
+      </section>
+      <section id="d-start" class="docs-sec" data-doc>
+        <h2>Démarrer en 3 étapes</h2>
+        <ol class="docs-steps">
+          <li data-doc-item><span>1</span><div><b>Créez votre compte</b><p>Nom, email, mot de passe : c'est tout. Ajoutez ensuite votre entreprise (SIRET, logo, mentions légales) une seule fois.</p></div></li>
+          <li data-doc-item><span>2</span><div><b>Faites votre premier devis</b><p>Choisissez un client, ajoutez vos lignes depuis votre catalogue ou en saisie libre, et suivez le total en direct.</p></div></li>
+          <li data-doc-item><span>3</span><div><b>Envoyez et facturez</b><p>Téléchargez le PDF, puis générez une facture par échéance de paiement, reliée au devis.</p></div></li>
+        </ol>
+      </section>
+      <section id="d-features" class="docs-sec" data-doc>
+        <h2>Fonctionnalités</h2>
+        <div class="docs-grid">${DOC_FEATURES.map(f => `<details class="docs-card" data-doc-item><summary><i aria-hidden="true">${f[0]}</i><div><b>${f[1]}</b><span>${f[2]}</span></div></summary><div class="docs-more">${f[3]}</div></details>`).join('')}</div>
+      </section>
+      <section id="d-faq" class="docs-sec" data-doc>
+        <h2>Questions fréquentes</h2>
+        <div class="docs-faq">${DOC_FAQ.map(f => `<details data-doc-item><summary>${f[0]}</summary><p>${f[1]}</p></details>`).join('')}</div>
+      </section>
+      <p class="docs-empty" id="docsEmpty" hidden>Aucun résultat. Essayez un autre mot, par exemple « facture » ou « PDF ».</p>
+    </div>
+    <div class="ld-modal" id="authModal" ${open ? '' : 'hidden'} role="dialog" aria-modal="true" aria-label="Connexion">
+      <section class="auth-card ld-card"><button type="button" class="ld-x" data-act="auth-close" aria-label="Fermer">×</button><div class="brand big auth-brand-m" style="display:flex">${brandHtml(cfg.siteName)}</div>${card}</section>
+    </div>
   </div>`;
   syncThemeBtn();
   initHeroVideo(); initDocs();
+  if (open) setTimeout(() => { const f = document.querySelector('#authModal input:not([type=hidden])'); if (f) f.focus(); }, 30);
 }
 
 const DOC_FEATURES = [
@@ -139,22 +153,23 @@ const DOC_FAQ = [
 
 function initDocs() {
   const q = document.getElementById('docsQ'); if (!q) return;
-  const hero = document.querySelector('.auth-hero');
-  const secs = [...document.querySelectorAll('.docs-sec')], links = [...document.querySelectorAll('.docs-nav a')];
+  const links = [...document.querySelectorAll('.ld-links a[href^="#d-"]')];
   const norm = t => String(t).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
   q.addEventListener('input', () => {
     const k = norm(q.value.trim()); let shown = 0;
-    document.querySelectorAll('[data-doc-item]').forEach(el => { const ok = !k || norm(el.textContent).includes(k); el.hidden = !ok; if (ok) shown++; if (k && ok && el.tagName === 'DETAILS') el.open = true; if (!k && el.tagName === 'DETAILS') el.open = false; });
+    document.querySelectorAll('[data-doc-item]').forEach(el => { const ok = !k || norm(el.textContent).includes(k); el.hidden = !ok; if (ok) shown++; if (el.tagName === 'DETAILS') el.open = !!k && ok; });
     document.querySelectorAll('[data-doc]').forEach(sec => { sec.hidden = !!k && !sec.querySelector('[data-doc-item]:not([hidden])'); });
     document.getElementById('docsEmpty').hidden = !k || shown > 0;
+    if (k) { const f = document.querySelector('[data-doc]:not([hidden])'); if (f) f.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
   });
-  document.addEventListener('keydown', function onKey(e) { if (!document.getElementById('docsQ')) return document.removeEventListener('keydown', onKey); if (e.key === '/' && !/input|textarea|select/i.test(document.activeElement.tagName)) { e.preventDefault(); q.focus(); } });
-  links.forEach(a => a.addEventListener('click', e => { e.preventDefault(); links.forEach(x => x.classList.toggle('on', x === a)); const t = document.querySelector(a.getAttribute('href')); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); }));
-  hero.addEventListener('scroll', () => { if (hero.scrollTop + hero.clientHeight >= hero.scrollHeight - 6) links.forEach((x, i) => x.classList.toggle('on', i === links.length - 1)); }, { passive: true });
-  if ('IntersectionObserver' in window) {
-    const io = new IntersectionObserver(es => es.forEach(en => { if (en.isIntersecting && hero.scrollTop + hero.clientHeight < hero.scrollHeight - 6) links.forEach(a => a.classList.toggle('on', a.getAttribute('href') === '#' + en.target.id)); }), { root: hero, rootMargin: '-15% 0px -70% 0px' });
-    secs.forEach(x => io.observe(x));
-  }
+  const onKey = e => {
+    if (!document.getElementById('docsQ')) return document.removeEventListener('keydown', onKey);
+    if (e.key === '/' && !/input|textarea|select/i.test(document.activeElement.tagName)) { e.preventDefault(); q.focus(); }
+    if (e.key === 'Escape') { const m = document.getElementById('authModal'); if (m && !m.hidden) { m.hidden = true; window.__authOpen = false; } }
+  };
+  document.addEventListener('keydown', onKey);
+  const modal = document.getElementById('authModal'); if (modal) modal.addEventListener('mousedown', e => { if (e.target === modal) { modal.hidden = true; window.__authOpen = false; } });
+  links.forEach(a => a.addEventListener('click', e => { e.preventDefault(); const t = document.querySelector(a.getAttribute('href')); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); }));
 }
 
 function formMsg(form, text, good) {
@@ -203,7 +218,9 @@ document.addEventListener('submit', e => {
 });
 
 Object.assign(actions, {
-  'auth-go': t => renderAuth(t.dataset.mode),
+  'auth-go': t => { window.__authOpen = true; renderAuth(t.dataset.mode); },
+  'auth-open'() { const m = $('#authModal'); if (!m) return; window.__authOpen = true; m.hidden = false; const f = m.querySelector('input:not([type=hidden])'); if (f) f.focus(); },
+  'auth-close'() { const m = $('#authModal'); if (m) m.hidden = true; window.__authOpen = false; },
   async resend(t) {
     try { const r = await api('POST', '/api/auth/resend', { email: t.dataset.email }); renderAuth('verify', { email: t.dataset.email, devLink: r.devLink }); toast('Email renvoyé'); }
     catch (e) { toast(e.message); }
