@@ -361,8 +361,8 @@ function renderEditor() {
           <div class="field"><label>Mode de règlement</label><input data-f="payMethod" value="${esc(q.payMethod)}" placeholder="Virement bancaire"></div>
           <div class="field"><label>Payée le</label><input type="date" data-f="paidAt" value="${q.paidAt}"></div></div>
           ${q.stepId ? `<p class="muted" style="margin:-4px 0 12px;font-size:.82rem">Facture de l'échéance « ${esc(q.stepLabel || 'Paiement')} » du devis N° ${esc(q.fromNumber)} : le total ne reprend que cette échéance. Le récapitulatif des conditions de paiement indique celles déjà réglées.</p>` : ''}
-          <p class="muted" style="margin:-4px 0 12px;font-size:.82rem">Si un acompte a déjà été payé sur le devis, indiquez-le : la facture affichera « Déjà réglé » et le « Net à payer ».</p>` : `
-        <label>Conditions de paiement (échéancier)</label>
+          <p class="muted" style="margin:-4px 0 12px;font-size:.82rem">Si un acompte a déjà été payé sur le devis, indiquez-le : la facture affichera « Déjà réglé » et le « Net à payer ».</p>` : ''}
+        ${isInv(q) && q.stepId ? '' : `<label>Conditions de paiement (échéancier)</label>
         <div id="payBody">${paymentsHtml(q)}</div>
         <div class="row between" style="margin:6px 0 14px"><button class="btn small" data-act="add-pay">＋ Échéance</button><span id="paySum" class="muted"></span></div>`}
         <div class="field"><label>Coordonnées bancaires</label><textarea class="auto" data-f="bank" placeholder="Coordonnées bancaires : …&#10;IBAN : …&#10;BIC/SWIFT : …">${esc(q.bank)}</textarea></div>
@@ -426,7 +426,7 @@ function paymentsHtml(q) {
     <input type="number" step="any" min="0" max="100" data-p="pct" value="${p.pct}" style="width:80px" ${inv ? 'disabled' : ''}> <span>%</span>
     <input data-p="label" value="${esc(p.label)}" placeholder="Libellé (Acompte, Solde…)" ${inv ? 'disabled' : ''}>
     <b data-amount>${money(t.ttc * num(p.pct) / 100)}</b>
-    ${inv ? `<button class="btn small" data-act="open-step" data-id="${inv.id}" title="Ouvrir la facture de cette échéance">${esc(inv.number)}${inv.status === 'payee' ? ' · payée' : ''}</button>`
+ ${isInv(q) ? '' : inv ? `<button class="btn small" data-act="open-step" data-id="${inv.id}" title="Ouvrir la facture de cette échéance">${esc(inv.number)}${inv.status === 'payee' ? ' · payée' : ''}</button>`
       : `<button class="btn small" data-act="pay-invoice" title="Créer la facture de cette échéance">Facturer</button>`}
     <button class="btn small icon danger" data-act="del-pay" title="Supprimer">✕</button></div>`;
   }).join('');

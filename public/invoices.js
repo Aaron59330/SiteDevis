@@ -64,7 +64,7 @@ function createInvoice(src) {
   const inv = src ? JSON.parse(JSON.stringify(src)) : normQuote({ id: '', kind: 'facture', title: '', clientId: '', notes: '', discount: 0 });
   Object.assign(inv, {
     id: uid(), kind: 'facture', number: makeNumber('facture'), date, dueDate: addDays(date, num(db.settings.dueDays)),
-    serviceDate: '', validUntil: '', status: 'brouillon', payments: [], alreadyPaid: 0, payMethod: 'Virement bancaire', paidAt: '',
+    serviceDate: '', validUntil: '', status: 'brouillon', payments: src ? (src.payments || []).map(x => ({ id: uid(), pct: x.pct, label: x.label, invoiceId: '' })) : [], alreadyPaid: 0, payMethod: 'Virement bancaire', paidAt: '',
     fromQuoteId: src ? src.id : '', fromNumber: src ? src.number : ''
   });
   inv.opts = { ...inv.opts, docLabel: 'FACTURE', agreeLabel: '' };
@@ -98,6 +98,7 @@ function createStepInvoice(src, idx) {
     t: 'item', ref: '', desc: what + (rates.length > 1 ? ` (TVA ${String(r).replace('.', ',')} %)` : ''),
     qty: 1, unit: 'forfait', price: r2(num(t.htByRate[r]) * pct / 100), vat: r
   }));
+  inv.payments = [];
   inv.title = `Facture ${name}`;
   inv.discount = 0; inv.stepId = p.id; inv.stepLabel = p.label || '';
   p.invoiceId = inv.id;
