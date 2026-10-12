@@ -42,7 +42,7 @@ setInterval(() => { const t = Date.now(); for (const [k, a] of hits) if (!a.some
 
 const findUser = id => db.users.find(u => u.id === id);
 const findByEmail = e => db.users.find(u => u.email === String(e).toLowerCase());
-const publicUser = u => ({ id: u.id, name: u.name, email: u.email, role: u.role, verified: u.verified, createdAt: u.createdAt });
+const publicUser = u => ({ id: u.id, name: u.name, email: u.email, role: u.role, verified: u.verified, createdAt: u.createdAt, prefs: u.prefs || null });
 
 function access(u) {
   if (u.suspended) return { active: false, reason: 'suspended' };
@@ -325,6 +325,15 @@ route('PATCH', '/api/me', 'user', ctx => {
   if (name.length < 2) throw err(400, 'Indiquez votre nom.');
   ctx.user.name = name; store.save();
   return ok({ user: publicUser(ctx.user) });
+});
+
+const PREF_ENUMS = { mode: ['dark', 'light', 'auto'], bg: ['black', 'graphite', 'navy', 'forest'], radius: ['sharp', 'normal', 'round'], size: ['normal', 'large', 'xl'], density: ['comfortable', 'compact'] };
+route('PATCH', '/api/me/prefs', 'user', ctx => {
+  const b = ctx.body || {}, cur = { ...(ctx.user.prefs || {}) };
+  if (b.accent !== undefined) { if (b.accent !== '' && !/^#[0-9a-fA-F]{6}$/.test(String(b.accent))) throw err(400, 'Couleur invalide.'); cur.accent = b.accent; }
+  for (const [k, list] of Object.entries(PREF_ENUMS)) if (b[k] !== undefined) { if (!list.includes(b[k])) throw err(400, 'Réglage invalide.'); cur[k] = b[k]; }
+  ctx.user.prefs = cur; store.save();
+  return ok({ prefs: cur });
 });
 
 route('POST', '/api/me/password', 'user', ctx => {

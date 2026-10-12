@@ -78,7 +78,7 @@ function renderAuth(mode, opts = {}) {
     </section>
     <section class="auth-card"><button class="theme-btn auth-theme" id="themeBtn" title="Mode clair / sombre">🌙</button>${card}</section>
   </div>`;
-  setTheme(document.documentElement.dataset.theme || 'dark');
+  syncThemeBtn();
 }
 
 function formMsg(form, text, good) {
@@ -135,6 +135,7 @@ Object.assign(actions, {
   async logout() { try { await api('POST', '/api/auth/logout'); } catch (e) { /* ignore */ } location.href = '/'; },
   'user-menu': () => $('#userbox').classList.toggle('open'),
   'goto-billing': () => go('billing'),
+  'goto-custom': () => { $('#userbox').classList.remove('open'); go('custom'); },
   'goto-account': () => { $('#userbox').classList.remove('open'); go('account'); },
   'goto-admin': () => { $('#userbox').classList.remove('open'); go('admin'); }
 });
@@ -144,7 +145,7 @@ document.addEventListener('click', e => { if (!e.target.closest('#userbox')) $('
 function updateTopbar() {
   const u = session.user, a = session.access;
   if (!u) return;
-  const items = [['quotes', 'Devis'], ['invoices', 'Factures'], ['clients', 'Clients'], ['catalog', 'Catalogue'], ['tools', 'Boîte à outils', 'Outils'], ['company', 'Mon entreprise', 'Entreprise'], ['billing', 'Abonnement']];
+  const items = [['quotes', 'Devis'], ['invoices', 'Factures'], ['clients', 'Clients'], ['catalog', 'Catalogue'], ['tools', 'Boîte à outils', 'Outils'], ['company', 'Mon entreprise', 'Entreprise'], ['custom', 'Personnalisation', 'Style'], ['billing', 'Abonnement']];
   if (u.role === 'admin') items.push(['admin', 'Administration', 'Admin']);
   $('#nav').innerHTML = items.map(([v, l, s]) => `<button data-view="${v}"><span class="lg">${l}</span><span class="sh">${s || l}</span></button>`).join('');
   document.querySelectorAll('#nav button').forEach(b =>
@@ -157,7 +158,7 @@ function updateTopbar() {
   const initials = u.name.split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
   $('#userbox').innerHTML = `<button class="avatar" data-act="user-menu" title="${esc(u.email)}">${esc(initials)}</button>
     <div class="pop"><div class="pop-head"><b>${esc(u.name)}</b><span class="muted">${esc(u.email)}</span></div>
-      <button data-act="goto-account">Mon compte</button><button data-act="goto-billing">Abonnement &amp; factures</button>
+      <button data-act="goto-custom">Personnalisation</button><button data-act="goto-account">Mon compte</button><button data-act="goto-billing">Abonnement &amp; factures</button>
       ${u.role === 'admin' ? '<button data-act="goto-admin">Administration</button>' : ''}<button data-act="logout" class="danger">Déconnexion</button></div>`;
 }
 
@@ -167,7 +168,7 @@ function renderBottomNav(u) {
   const bn = $('#bottomnav'); if (!bn) return;
   bn.innerHTML = main.map(([v, l, ic]) => `<button data-view="${v}" class="${navFor() === v ? 'active' : ''}">${icon(ic)}<span>${l}</span></button>`).join('') +
     `<button data-act="more-menu">${icon('menu')}<span>Plus</span></button>`;
-  const more = [['tools', 'Boîte à outils'], ['company', 'Mon entreprise'], ['billing', 'Abonnement & factures'], ['account', 'Mon compte']];
+  const more = [['tools', 'Boîte à outils'], ['company', 'Mon entreprise'], ['custom', 'Personnalisation'], ['billing', 'Abonnement & factures'], ['account', 'Mon compte']];
   if (u.role === 'admin') more.push(['admin', 'Administration']);
   $('#moreSheet').innerHTML = `<div class="sheet-bg" data-act="more-menu"></div><div class="sheet"><div class="pop-head"><b>${esc(u.name)}</b><span class="muted">${esc(u.email)}</span></div>` +
     more.map(([v, l]) => `<button data-view="${v}">${l}</button>`).join('') + '<button data-act="logout" class="danger">Déconnexion</button></div>';

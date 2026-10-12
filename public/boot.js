@@ -2,6 +2,7 @@
 /* Démarrage : config → session → données du compte */
 async function startApp(me, params) {
   session.user = me.user; session.access = me.access;
+  initPrefs(me.user.prefs);
   document.body.classList.remove('auth-mode'); $('#topbar').hidden = false;
   let d = null, legacy = false;
   try { d = (await api('GET', '/api/data')).data; } catch (e) { toast(e.message); }

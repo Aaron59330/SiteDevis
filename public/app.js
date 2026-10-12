@@ -927,12 +927,9 @@ document.addEventListener('change', e => {
   }
 });
 
-function setTheme(t) {
-  document.documentElement.dataset.theme = t;
-  try { localStorage.setItem('sitedevis.theme', t); } catch (e) { /* ignore */ }
-  const b = document.getElementById('themeBtn'); if (b) b.textContent = t === 'light' ? '☀️' : '🌙';
-}
-setTheme(document.documentElement.dataset.theme || 'dark');
+function syncThemeBtn() { const b = document.getElementById('themeBtn'); if (b) b.textContent = document.documentElement.dataset.theme === 'light' ? '☀️' : '🌙'; }
+function setTheme(t) { savePrefs({ mode: t }); syncThemeBtn(); }
+syncThemeBtn();
 document.addEventListener('click', e => { if (e.target.closest('#themeBtn')) setTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light'); });
 
 document.head.insertAdjacentHTML('beforeend', '<style id="printStyle"></style>');
