@@ -266,3 +266,13 @@ body.auth-mode main { max-width: none; padding: 0; }
 .cp-calc { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
 .cp-qty { width: 90px !important; }
 .cp-tot { min-width: 100px; text-align: right; }
+/* ===== Catalogue complet ===== */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.cchip { background: var(--card2); border: 1px solid var(--line); color: var(--text); padding: 6px 14px; border-radius: 999px; cursor: pointer; font: inherit; font-size: .85rem; font-weight: 500; }
+.cchip i { font-style: normal; color: var(--muted); margin-left: 4px; }
+.cchip:hover { border-color: var(--text); } .cchip.on { background: var(--text); color: var(--on-primary); border-color: var(--text); } .cchip.on i { color: inherit; opacity: .6; }
+.star { background: none; border: 0; font-size: 1.2rem; cursor: pointer; color: var(--muted); } .star.on { color: #fbbf24; }
+.part { display: grid; grid-template-columns: 1fr 90px 50px 100px auto; gap: 8px; align-items: center; margin-bottom: 8px; }
+.part .p-tot { text-align: right; }
+.cp-sum { margin-top: 12px; padding: 12px 14px; border-radius: 10px; background: var(--card2); border: 1px solid var(--line); }
+#catTable td, #catTable th { white-space: nowrap; } #catTable td:nth-child(3) { white-space: normal; min-width: 280px; }

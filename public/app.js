@@ -176,7 +176,6 @@ function render() {
   if (view === 'quotes') app.innerHTML = renderQuotes();
   else if (view === 'editor') app.innerHTML = renderEditor();
   else if (view === 'clients') app.innerHTML = renderClients();
-  else if (view === 'catalog') app.innerHTML = renderCatalog();
   else if (view === 'company') app.innerHTML = renderCompany();
   else if (EXTRA[view]) app.innerHTML = EXTRA[view]();
   if (AFTER[view]) AFTER[view]();
@@ -687,47 +686,6 @@ function clientModal(id, afterSave) {
   };
 }
 
-/* ---------- Catalogue ---------- */
-function renderCatalog() {
-  return `
-  <div class="row between" style="margin-bottom:16px"><h1>Catalogue de prestations</h1><button class="btn primary" data-act="new-item">＋ Nouvelle prestation</button></div>
-  <p class="muted">Enregistrez vos prestations avec leur prix à l'unité (ex : <b>Pose de parquet — m² — 5,00 €</b>). Dans un devis, il suffit d'indiquer la quantité : le total se calcule tout seul. Vous pouvez aussi enregistrer une ligne d'un devis avec le bouton 💾.</p>
-  <div class="card">${db.catalog.length ? `<input id="catSearch" placeholder="🔍 Rechercher une prestation…" style="max-width:340px;margin-bottom:12px">
-  <table class="list" id="catTable">
-    <thead><tr><th>Réf.</th><th>Désignation</th><th>Unité</th><th class="right">Prix HT / unité</th><th>TVA</th><th></th></tr></thead>
-    <tbody>${db.catalog.map(c => `<tr><td>${esc(c.ref)}</td><td style="white-space:pre-line">${esc(c.desc)}</td><td>${esc(c.unit)}</td><td class="right">${money(c.price)} / ${esc(c.unit)}</td><td>${String(c.vat).replace('.', ',')} %</td>
-      <td class="right"><button class="btn small" data-act="edit-item" data-id="${c.id}">Modifier</button>
-      <button class="btn small danger" data-act="del-item" data-id="${c.id}">🗑</button></td></tr>`).join('')}</tbody></table>`
-    : `<div class="empty">Le catalogue est vide.</div>`}</div>`;
-}
-
-function itemModal(id, after) {
-  const c = db.catalog.find(x => x.id === id) || { ref: '', desc: '', unit: 'u', price: 0, vat: db.settings.defaultVat };
-  const m = $('#modal');
-  m.innerHTML = `<form method="dialog" id="itemForm">
-    <h2>${id ? 'Modifier la prestation' : 'Nouvelle prestation'}</h2>
-    <div class="grid2"><div class="field"><label>Référence</label><input name="ref" value="${esc(c.ref)}"></div><div></div></div>
-    <div class="field"><label>Désignation *</label><textarea name="desc" required>${esc(c.desc)}</textarea></div>
-    <div class="grid3">
-      <div class="field"><label>Unité</label><input name="unit" list="units" value="${esc(c.unit)}"></div>
-      <div class="field"><label id="priceLbl">Prix HT par ${esc(c.unit || 'unité')}</label><input name="price" type="number" step="any" min="0" value="${c.price}"></div>
-      <div class="field"><label>TVA</label><select name="vat">${VATS.map(v => `<option value="${v}" ${num(c.vat) === v ? 'selected' : ''}>${String(v).replace('.', ',')} %</option>`).join('')}</select></div>
-    </div>
-    <div class="row" style="justify-content:flex-end"><button type="button" class="btn" data-act="close-modal">Annuler</button><button class="btn primary">Enregistrer</button></div>
-  </form>`;
-  m.showModal();
-  $('#itemForm').onsubmit = e => {
-    e.preventDefault();
-    const f = new FormData(e.target);
-    const data = { ref: f.get('ref').trim(), desc: f.get('desc').trim(), unit: f.get('unit'), price: num(f.get('price')), vat: num(f.get('vat')) };
-    const it = db.catalog.find(x => x.id === id);
-    if (it) Object.assign(it, data); else db.catalog.push({ id: uid(), ...data });
-    save(); m.close(); if (after) after(); else render();
-  };
-  const unitIn = $('#itemForm').elements.unit;
-  unitIn.oninput = () => { $('#priceLbl').textContent = 'Prix HT par ' + (unitIn.value || 'unité'); };
-}
-
 /* ---------- Mon entreprise ---------- */
 function renderCompany() {
   const co = db.company, s = db.settings;
@@ -868,9 +826,6 @@ const actions = {
       db.clients = db.clients.filter(x => x !== c); save(); render();
     }
   },
-  'new-item': () => itemModal(null),
-  'edit-item': t => itemModal(t.dataset.id),
-  'del-item'(t) { if (confirm('Supprimer cette prestation ?')) { db.catalog = db.catalog.filter(x => x.id !== t.dataset.id); save(); render(); } },
   'close-modal': () => $('#modal').close(),
   'rm-logo'() { db.company.logo = ''; save(); render(); },
   export() {
@@ -935,13 +890,6 @@ document.addEventListener('input', e => {
 
 document.addEventListener('change', e => {
   const t = e.target;
-  if (t.id === 'catalogPick' && t.value) {
-    const it = db.catalog.find(c => c.id === t.value), q = getQuote(editingId);
-    const line = { t: 'item', ref: it.ref || '', desc: it.desc, qty: 1, unit: it.unit, price: it.price, vat: it.vat };
-    const first = q.lines[0];
-    if (q.lines.length === 1 && first.t === 'item' && !first.desc && !num(first.price)) q.lines[0] = line; else q.lines.push(line);
-    save(); refreshLines(); t.value = '';
-  }
   if (t.id === 'logoFile' && t.files[0]) {
     const file = t.files[0];
     const img = new Image(), url = URL.createObjectURL(file);
