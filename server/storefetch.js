@@ -61,22 +61,50 @@ function parseProduct(html, pageUrl) {
 }
 
 /* Modèles d'URL de recherche des principaux magasins (une référence exacte redirige en général vers la fiche) */
+// adresses de recherche du site du magasin, essayées dans l'ordre (la barre de recherche du magasin redirige souvent vers la fiche quand la référence est exacte)
 const SEARCH = {
-  'leroymerlin.fr': r => 'https://www.leroymerlin.fr/recherche/?q=' + r, 'castorama.fr': r => 'https://www.castorama.fr/search?term=' + r,
-  'bricodepot.fr': r => 'https://www.bricodepot.fr/catalogue/recherche/?q=' + r, 'pointp.fr': r => 'https://www.pointp.fr/recherche?q=' + r,
-  'cedeo.fr': r => 'https://www.cedeo.fr/recherche?q=' + r, 'gedimat.fr': r => 'https://www.gedimat.fr/catalogsearch/result/?q=' + r,
-  'bricomarche.com': r => 'https://www.bricomarche.com/recherche?q=' + r, 'manomano.fr': r => 'https://www.manomano.fr/recherche/' + r
+  'leroymerlin.fr': r => ['https://www.leroymerlin.fr/recherche/?q=' + r, 'https://www.leroymerlin.fr/search?term=' + r, 'https://www.leroymerlin.fr/produits/?q=' + r],
+  'castorama.fr': r => ['https://www.castorama.fr/search?term=' + r, 'https://www.castorama.fr/recherche?q=' + r],
+  'bricodepot.fr': r => ['https://www.bricodepot.fr/catalogue/recherche/?q=' + r, 'https://www.bricodepot.fr/recherche?q=' + r],
+  'pointp.fr': r => ['https://www.pointp.fr/recherche?q=' + r, 'https://www.pointp.fr/search?q=' + r],
+  'cedeo.fr': r => ['https://www.cedeo.fr/recherche?q=' + r],
+  'gedimat.fr': r => ['https://www.gedimat.fr/catalogsearch/result/?q=' + r],
+  'bricomarche.com': r => ['https://www.bricomarche.com/recherche?q=' + r],
+  'manomano.fr': r => ['https://www.manomano.fr/recherche/' + r]
 };
 
-/* Lit une fiche produit (adresse collée) ou cherche la référence sur le site du magasin ; renvoie null si la page n'est pas une fiche lisible */
+const nkey = x => String(x || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+/* Lit une fiche produit (adresse collée) ou cherche la référence dans la barre de recherche du magasin ; renvoie null si aucune fiche lisible */
 async function lookup_(refOrUrl, store, extraDomains) {
   const isUrl = /^https:\/\//i.test(refOrUrl);
-  const url = isUrl ? refOrUrl : (store && SEARCH[store.domain] ? SEARCH[store.domain](encodeURIComponent(refOrUrl)) : null);
-  if (!url) return null;
-  const { html, url: finalUrl } = await getHtml(url, [...extraDomains, store && store.domain]);
-  const p = parseProduct(html, finalUrl); if (!p) return null;
-  let host = ''; try { host = new URL(finalUrl).hostname.replace(/^www\./, ''); } catch (e) { /* ignore */ }
-  const known = stores.STORES.find(s => host === s[1] || host.endsWith('.' + s[1]));
-  return { ...p, store: known ? known[0] : (store ? store.name : host), priceText: p.price.toFixed(2).replace('.', ',') + ' €', thumbnail: p.image, direct: true };
+  const domains = [...extraDomains, store && store.domain];
+  const urls = isUrl ? [refOrUrl] : (store && SEARCH[store.domain] ? SEARCH[store.domain](encodeURIComponent(refOrUrl)) : []);
+  const rk = nkey(refOrUrl);
+  const seen = new Set();
+  const read = async (url, depth) => {
+    if (seen.has(url)) return null; seen.add(url);
+    let page; try { page = await getHtml(url, domains); } catch (e) { return null; }
+    const p = parseProduct(page.html, page.url);
+    if (p) return { p, finalUrl: page.url };
+    if (isUrl || depth > 0 || rk.length < 4) return null;
+    // page de résultats : on suit le premier lien de fiche dont l'adresse contient la référence
+    const base = (() => { try { return new URL(page.url); } catch (e) { return null; } })(); if (!base) return null;
+    const re = /href=["']([^"'#]+)["']/gi; let m;
+    while ((m = re.exec(page.html))) {
+      let u; try { u = new URL(m[1].replace(/&amp;/g, '&'), base); } catch (e) { continue; }
+      if (u.hostname !== base.hostname || !nkey(u.pathname).includes(rk) || seen.has(u.href)) continue;
+      const r = await read(u.href, depth + 1); if (r) return r;
+    }
+    return null;
+  };
+  for (const url of urls) {
+    const r = await read(url, 0); if (!r) continue;
+    const { p, finalUrl } = r;
+    let host = ''; try { host = new URL(finalUrl).hostname.replace(/^www\./, ''); } catch (e) { /* ignore */ }
+    const known = stores.STORES.find(s => host === s[1] || host.endsWith('.' + s[1]));
+    return { ...p, store: known ? known[0] : (store ? store.name : host), priceText: p.price.toFixed(2).replace('.', ',') + ' €', thumbnail: p.image, direct: true };
+  }
+  return null;
 }
 module.exports = { safeUrl, parseProduct, lookup: lookup_, inject, privateIp, SEARCH };
