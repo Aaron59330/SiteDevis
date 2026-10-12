@@ -27,6 +27,7 @@ Au premier lancement, un **compte administrateur** est créé : son email et son
 - **Relecture par l’IA** : bouton « Relire avec l’IA » dans l’éditeur ; corrige fautes et oublis, mais rien n’est modifié sans l’accord de l’utilisateur (suggestions acceptées ou ignorées une à une). Nécessite `ANTHROPIC_API_KEY` et `npm install`.
 - **Factures** : bouton « 🧾 Créer la facture » depuis un devis (lignes, client et mentions reprises), numérotation propre, échéance, acompte déjà réglé, suivi payée/en retard.
 - **Page de connexion** : accueil animé avec la vidéo de présentation (30 s, son activable). Vidéo source dans video/ (index.html, render.js, audio.py).
+- **Statistiques** : devis du mois, chiffre d’affaires facturé, encaissé et impayé, comparaison avec le mois précédent, la moyenne sur 3 mois et le même mois de l’an dernier, graphique sur 12 mois, factures en retard (affichage TTC ou HT).
 - **Devis** : multi-pages façon pro, sous-totaux, échéancier, clients particuliers/pros (remplissage par SIRET ou raison sociale), catalogue, téléchargement direct en PDF (Chromium installé par le script de déploiement ; sans lui, repli sur l’impression). Correction gratuite des fautes (LanguageTool, sans clé) ou relecture par IA Claude si une clé est configurée.
 
 ## Mise en production

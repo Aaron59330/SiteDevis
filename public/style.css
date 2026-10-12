@@ -580,3 +580,22 @@ html[data-density="compact"] .btn { padding: 6px 12px; }
 .auth-brand-m { display: none; margin-bottom: 22px; }
 @media (max-width: 900px) { .auth-brand-m { display: flex; } }
 .hero-video .hc-row { gap: 14px; }
+
+/* ===== Statistiques ===== */
+.stat .cmp { margin-top: 8px; min-height: 20px; } .stat .sub2 { margin-top: 6px; font-size: .78rem; color: var(--muted); line-height: 1.35; }
+.delta { font-size: .78rem; font-weight: 700; white-space: nowrap; } .delta i { font-style: normal; font-weight: 500; color: var(--muted); }
+.delta.good { color: var(--ok); } .delta.bad { color: var(--danger); } .delta.flat { color: var(--muted); }
+.seg2 { display: inline-flex; background: var(--input); border: 1px solid var(--line); border-radius: 10px; padding: 3px; }
+.seg2 button { border: 0; background: none; color: var(--muted); font: inherit; font-weight: 700; padding: 6px 14px; border-radius: 8px; cursor: pointer; } .seg2 button.on { background: var(--accent); color: var(--on-accent); }
+.monthnav { display: inline-flex; align-items: center; gap: 10px; } .monthnav b { min-width: 140px; text-align: center; text-transform: capitalize; }
+.big-n { font-size: 2.1rem; font-weight: 800; letter-spacing: -.02em; color: var(--accent); }
+.chart { width: 100%; height: auto; margin-top: 10px; }
+.chart .gl { stroke: var(--line); stroke-width: 1; } .chart .lab { fill: var(--muted); font-size: 11px; text-transform: capitalize; } .chart .lab.cur { fill: var(--text); font-weight: 700; }
+.chart .cbar.devis { fill: none; stroke: var(--muted); stroke-width: 1.5; } .chart .cbar.issued { fill: var(--accent); opacity: .75; } .chart .cbar.cashed { fill: var(--ok); opacity: .8; }
+.chart .cbar.cur { opacity: 1; }
+.legend { display: flex; gap: 14px; font-size: .8rem; color: var(--muted); } .legend .lg { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; }
+.lg.devis { border: 1.5px solid var(--muted); } .lg.issued { background: var(--accent); } .lg.cashed { background: var(--ok); }
+.cmp-t td, .cmp-t th { padding-left: 6px; padding-right: 6px; } .cmp-t td .delta { display: block; font-size: .72rem; }
+@media (max-width: 900px) { .monthnav b { min-width: 110px; } }
+#nav { flex: 1 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: none; } #nav::-webkit-scrollbar { display: none; }
+@media (max-width: 1500px) and (min-width: 901px) { #nav button { padding: 8px 9px; } #nav { gap: 0; } .topbar { gap: 14px; } }

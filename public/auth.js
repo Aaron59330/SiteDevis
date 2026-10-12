@@ -154,7 +154,7 @@ function updateTopbar() {
   const u = session.user, a = session.access;
   if (!u) return;
   const bd = $('#topbar .brand'); if (bd) bd.innerHTML = brandHtml(session.config.siteName);
-  const items = [['quotes', 'Devis'], ['invoices', 'Factures'], ['clients', 'Clients'], ['catalog', 'Catalogue'], ['tools', 'Boîte à outils', 'Outils'], ['company', 'Mon entreprise', 'Entreprise'], ['custom', 'Personnalisation', 'Style'], ['billing', 'Abonnement']];
+  const items = [['quotes', 'Devis'], ['invoices', 'Factures'], ['stats', 'Statistiques', 'Stats'], ['clients', 'Clients'], ['catalog', 'Catalogue'], ['tools', 'Boîte à outils', 'Outils'], ['company', 'Mon entreprise', 'Entreprise'], ['custom', 'Personnalisation', 'Style'], ['billing', 'Abonnement']];
   if (db.settings.useSites) items.splice(3, 0, ['sites', 'Chantiers']);
   if (u.role === 'admin') items.push(['admin', 'Administration', 'Admin']);
   $('#nav').innerHTML = items.map(([v, l, s]) => `<button data-view="${v}"><span class="lg">${l}</span><span class="sh">${s || l}</span></button>`).join('');
@@ -178,7 +178,7 @@ function renderBottomNav(u) {
   const bn = $('#bottomnav'); if (!bn) return;
   bn.innerHTML = main.map(([v, l, ic]) => `<button data-view="${v}" class="${navFor() === v ? 'active' : ''}">${icon(ic)}<span>${l}</span></button>`).join('') +
     `<button data-act="more-menu">${icon('menu')}<span>Plus</span></button>`;
-  const more = [['tools', 'Boîte à outils'], ['company', 'Mon entreprise'], ['custom', 'Personnalisation'], ['billing', 'Abonnement & factures'], ['account', 'Mon compte']];
+  const more = [['stats', 'Statistiques'], ['tools', 'Boîte à outils'], ['company', 'Mon entreprise'], ['custom', 'Personnalisation'], ['billing', 'Abonnement & factures'], ['account', 'Mon compte']];
   if (db.settings.useSites) more.unshift(['sites', 'Chantiers']);
   if (u.role === 'admin') more.push(['admin', 'Administration']);
   $('#moreSheet').innerHTML = `<div class="sheet-bg" data-act="more-menu"></div><div class="sheet"><div class="pop-head"><b>${esc(u.name)}</b><span class="muted">${esc(u.email)}</span></div>` +
