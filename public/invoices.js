@@ -104,3 +104,62 @@ document.addEventListener('input', e => {
   }, 200);
 });
 document.addEventListener('change', e => { if (e.target.id === 'invStatus') { invFilter.status = e.target.value; render(); } });
+
+/* ---------- Catalogue : sélecteur de prestations avec quantité et total automatique ---------- */
+function catalogPicker(search) {
+  const m = $('#modal');
+  m.innerHTML = `<div class="modal-wide">
+    <div class="row between"><h2 style="margin:0">Ajouter depuis le catalogue</h2><button class="btn small" data-act="close-modal">✕ Fermer</button></div>
+    <p class="muted" style="margin:6px 0 12px">Indiquez la quantité (m², heures…) : le total est calculé automatiquement. Les prestations s'ajoutent au devis sans fermer cette fenêtre.</p>
+    <div class="row" style="margin-bottom:12px"><input id="cpSearch" class="grow" placeholder="🔍 Rechercher (parquet, peinture…)" value="${esc(search || '')}" autofocus>
+      <button class="btn" data-act="cp-new">＋ Nouvelle prestation</button></div>
+    <div id="cpList"></div></div>`;
+  if (!m.open) m.showModal();
+  cpRender();
+}
+function cpRender() {
+  const q = ($('#cpSearch').value || '').toLowerCase();
+  const items = db.catalog.filter(c => `${c.ref} ${c.desc}`.toLowerCase().includes(q));
+  $('#cpList').innerHTML = items.length ? items.map(c => `<div class="cp-row" data-id="${c.id}">
+    <div class="cp-info"><b>${c.ref ? `<span class="tag">${esc(c.ref)}</span> ` : ''}${esc(c.desc)}</b><span class="muted">${money(c.price)} / ${esc(c.unit)}${db.company.vatExempt ? '' : ` · TVA ${String(c.vat).replace('.', ',')} %`}</span></div>
+    <div class="cp-calc"><input type="number" class="cp-qty" step="any" min="0" value="1"><span class="muted">${esc(c.unit)}</span><b class="cp-tot">= ${money(c.price)}</b>
+      <button class="btn small primary cp-add">＋ Ajouter</button></div></div>`).join('')
+    : `<div class="empty">${db.catalog.length ? 'Aucune prestation ne correspond.' : 'Votre catalogue est vide. Créez votre première prestation (ex : Pose de parquet, m², 5,00 €).'}</div>`;
+}
+function cpAdd(row) {
+  const c = db.catalog.find(x => x.id === row.dataset.id), q = getQuote(editingId);
+  if (!c || !q) return;
+  const qty = num(row.querySelector('.cp-qty').value) || 1;
+  const line = { t: 'item', ref: c.ref || '', desc: c.desc, qty, unit: c.unit, price: c.price, vat: c.vat };
+  const first = q.lines[0];
+  if (q.lines.length === 1 && first.t === 'item' && !first.desc && !num(first.price)) q.lines[0] = line; else q.lines.push(line);
+  save(); refreshLines();
+  const b = row.querySelector('.cp-add'); b.textContent = '✓ Ajouté'; setTimeout(() => { b.textContent = '＋ Ajouter'; }, 1200);
+  toast(`+ ${c.desc} : ${qty} ${c.unit} = ${money(qty * num(c.price))}`);
+}
+Object.assign(actions, {
+  'catalog-open': () => catalogPicker(),
+  'cp-new': () => itemModal(null, () => catalogPicker()),
+  'line-save'(t) {
+    const q = getQuote(editingId), l = q.lines[+t.closest('.line').dataset.i];
+    if (!l || !String(l.desc).trim()) return toast('Renseignez d\'abord la désignation');
+    const same = db.catalog.find(c => (l.ref && c.ref === l.ref) || c.desc.trim().toLowerCase() === String(l.desc).trim().toLowerCase());
+    const data = { ref: l.ref || '', desc: String(l.desc).trim(), unit: l.unit, price: num(l.price), vat: num(l.vat) };
+    if (same) { Object.assign(same, data); toast(`Prestation mise à jour dans le catalogue (${money(data.price)} / ${data.unit})`); }
+    else { db.catalog.push({ id: uid(), ...data }); toast(`Enregistré dans le catalogue : ${data.desc} (${money(data.price)} / ${data.unit})`); }
+    save();
+  }
+});
+document.addEventListener('input', e => {
+  if (e.target.id === 'cpSearch') cpRender();
+  if (e.target.classList.contains('cp-qty')) {
+    const row = e.target.closest('.cp-row'), c = db.catalog.find(x => x.id === row.dataset.id);
+    row.querySelector('.cp-tot').textContent = '= ' + money(num(e.target.value) * num(c.price));
+  }
+  if (e.target.id === 'catSearch') {
+    const q = e.target.value.toLowerCase();
+    document.querySelectorAll('#catTable tbody tr').forEach(tr => { tr.hidden = !tr.textContent.toLowerCase().includes(q); });
+  }
+});
+document.addEventListener('click', e => { const b = e.target.closest('.cp-add'); if (b) cpAdd(b.closest('.cp-row')); });
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.classList.contains('cp-qty')) { e.preventDefault(); cpAdd(e.target.closest('.cp-row')); } });

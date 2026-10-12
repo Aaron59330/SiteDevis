@@ -325,7 +325,7 @@ function renderEditor() {
 
       <div class="card">
         <div class="row between"><h2>Prestations</h2>
-          ${db.catalog.length ? `<select id="catalogPick" style="width:auto;max-width:260px"><option value="">+ Ajouter depuis le catalogue…</option>${db.catalog.map(c => `<option value="${c.id}">${esc(c.ref ? c.ref + ' – ' : '')}${esc(c.desc)} — ${money(c.price)}</option>`).join('')}</select>` : ''}
+          <button class="btn small" data-act="catalog-open">📚 Ajouter depuis le catalogue</button>
         </div>
         <div id="linesBody">${linesHtml(q)}</div>
         <div class="row" style="margin-top:10px">
@@ -382,6 +382,7 @@ function linesHtml(q) {
     const acts = `<div class="acts">
       <button class="btn small icon" data-act="line-up" ${i === 0 ? 'disabled' : ''} title="Monter">↑</button>
       <button class="btn small icon" data-act="line-down" ${i === n - 1 ? 'disabled' : ''} title="Descendre">↓</button>
+      ${l.t === 'item' ? '<button class="btn small icon" data-act="line-save" title="Enregistrer cette prestation dans le catalogue">💾</button>' : ''}
       <button class="btn small icon danger" data-act="line-del" title="Supprimer">✕</button></div>`;
     if (l.t === 'title') return `<div class="line kind" data-i="${i}"><span class="tag">Titre</span><input data-l="desc" value="${esc(l.desc)}" placeholder="Titre de section">${acts}</div>`;
     if (l.t === 'subtotal') return `<div class="line kind" data-i="${i}"><span class="tag">Sous-total</span><input data-l="label" value="${esc(l.label ?? 'Sous Total')}"><b data-sub style="white-space:nowrap">${money(rows[i].amount)}</b>${acts}</div>`;
@@ -690,16 +691,17 @@ function clientModal(id, afterSave) {
 function renderCatalog() {
   return `
   <div class="row between" style="margin-bottom:16px"><h1>Catalogue de prestations</h1><button class="btn primary" data-act="new-item">＋ Nouvelle prestation</button></div>
-  <p class="muted">Enregistrez vos prestations et fournitures habituelles pour les ajouter en un clic dans un devis.</p>
-  <div class="card">${db.catalog.length ? `<table class="list">
-    <thead><tr><th>Réf.</th><th>Désignation</th><th>Unité</th><th class="right">Prix HT</th><th>TVA</th><th></th></tr></thead>
-    <tbody>${db.catalog.map(c => `<tr><td>${esc(c.ref)}</td><td style="white-space:pre-line">${esc(c.desc)}</td><td>${esc(c.unit)}</td><td class="right">${money(c.price)}</td><td>${String(c.vat).replace('.', ',')} %</td>
+  <p class="muted">Enregistrez vos prestations avec leur prix à l'unité (ex : <b>Pose de parquet — m² — 5,00 €</b>). Dans un devis, il suffit d'indiquer la quantité : le total se calcule tout seul. Vous pouvez aussi enregistrer une ligne d'un devis avec le bouton 💾.</p>
+  <div class="card">${db.catalog.length ? `<input id="catSearch" placeholder="🔍 Rechercher une prestation…" style="max-width:340px;margin-bottom:12px">
+  <table class="list" id="catTable">
+    <thead><tr><th>Réf.</th><th>Désignation</th><th>Unité</th><th class="right">Prix HT / unité</th><th>TVA</th><th></th></tr></thead>
+    <tbody>${db.catalog.map(c => `<tr><td>${esc(c.ref)}</td><td style="white-space:pre-line">${esc(c.desc)}</td><td>${esc(c.unit)}</td><td class="right">${money(c.price)} / ${esc(c.unit)}</td><td>${String(c.vat).replace('.', ',')} %</td>
       <td class="right"><button class="btn small" data-act="edit-item" data-id="${c.id}">Modifier</button>
       <button class="btn small danger" data-act="del-item" data-id="${c.id}">🗑</button></td></tr>`).join('')}</tbody></table>`
     : `<div class="empty">Le catalogue est vide.</div>`}</div>`;
 }
 
-function itemModal(id) {
+function itemModal(id, after) {
   const c = db.catalog.find(x => x.id === id) || { ref: '', desc: '', unit: 'u', price: 0, vat: db.settings.defaultVat };
   const m = $('#modal');
   m.innerHTML = `<form method="dialog" id="itemForm">
@@ -708,7 +710,7 @@ function itemModal(id) {
     <div class="field"><label>Désignation *</label><textarea name="desc" required>${esc(c.desc)}</textarea></div>
     <div class="grid3">
       <div class="field"><label>Unité</label><input name="unit" list="units" value="${esc(c.unit)}"></div>
-      <div class="field"><label>Prix HT</label><input name="price" type="number" step="any" min="0" value="${c.price}"></div>
+      <div class="field"><label id="priceLbl">Prix HT par ${esc(c.unit || 'unité')}</label><input name="price" type="number" step="any" min="0" value="${c.price}"></div>
       <div class="field"><label>TVA</label><select name="vat">${VATS.map(v => `<option value="${v}" ${num(c.vat) === v ? 'selected' : ''}>${String(v).replace('.', ',')} %</option>`).join('')}</select></div>
     </div>
     <div class="row" style="justify-content:flex-end"><button type="button" class="btn" data-act="close-modal">Annuler</button><button class="btn primary">Enregistrer</button></div>
@@ -720,8 +722,10 @@ function itemModal(id) {
     const data = { ref: f.get('ref').trim(), desc: f.get('desc').trim(), unit: f.get('unit'), price: num(f.get('price')), vat: num(f.get('vat')) };
     const it = db.catalog.find(x => x.id === id);
     if (it) Object.assign(it, data); else db.catalog.push({ id: uid(), ...data });
-    save(); m.close(); render();
+    save(); m.close(); if (after) after(); else render();
   };
+  const unitIn = $('#itemForm').elements.unit;
+  unitIn.oninput = () => { $('#priceLbl').textContent = 'Prix HT par ' + (unitIn.value || 'unité'); };
 }
 
 /* ---------- Mon entreprise ---------- */
