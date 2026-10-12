@@ -8,7 +8,12 @@ const path = require('path');
 let playwright = null;
 try { playwright = require('playwright-core'); } catch (e) { /* module absent */ }
 
-const CSS_FILE = path.join(__dirname, '..', 'public', 'style.css');
+const PUBLIC = path.join(__dirname, '..', 'public');
+const CSS_FILE = path.join(PUBLIC, 'style.css');
+/* Les polices du site sont intégrées au HTML (le rendu n'a pas accès au réseau) */
+const siteCss = () => fs.readFileSync(CSS_FILE, 'utf8').replace(/url\(\/(fonts\/[\w.\-]+)\)/g, (m, f) => {
+  try { return 'url(data:font/woff2;base64,' + fs.readFileSync(path.join(PUBLIC, f)).toString('base64') + ')'; } catch (e) { return m; }
+});
 let browser = null, launching = null, active = 0;
 const waiting = [];
 const MAX_PARALLEL = 2;
@@ -53,7 +58,7 @@ function pageCss(o) {
 
 async function render(o) {
   const doc = `<!doctype html><html lang="fr" data-theme="light"><head><meta charset="utf-8">
-<style>${fs.readFileSync(CSS_FILE, 'utf8')}</style><style>${pageCss(o)}</style></head>
+<style>${siteCss()}</style><style>${pageCss(o)}</style></head>
 <body><main><div class="editor"><div class="preview-wrap"><div class="doc" id="doc">${clean(o.html)}</div></div></div></main></body></html>`;
   const b = await getBrowser();
   const ctx = await b.newContext({ javaScriptEnabled: false, serviceWorkers: 'block', acceptDownloads: false });

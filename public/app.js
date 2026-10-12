@@ -457,7 +457,7 @@ function renderDoc(q) {
   </div>
   <div class="parties">
     <div class="issuer"><b>${esc(issuer[0] || '')}</b>${issuer.length > 1 ? '\n' + esc(issuer.slice(1).join('\n')) : ''}</div>
-    <div class="client">${esc(q.clientText)}</div>
+    <div class="client">${(cl => `<b>${esc(cl[0] || '')}</b>${cl.length > 1 ? '\n' + esc(cl.slice(1).join('\n')) : ''}`)(String(q.clientText || '').split('\n'))}</div>
   </div>
   <div class="dnum">${esc(o.docLabel)} N° ${esc(q.number)}</div>
   <div class="ddate">Le ${flongdate(q.date)}${!isInv(q) && q.validUntil ? ` — valable jusqu'au ${fdate(q.validUntil)}` : ''}</div>
