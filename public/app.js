@@ -22,6 +22,7 @@ const defaults = () => ({
     defaultPayments: '30 | Acompte à la commande\n70 | Solde à la fin des travaux',
     defaultFooter: DEFAULT_FOOTER },
   clients: [],
+  suppliers: [],
   catalog: [],
   quotes: []
 });
@@ -40,7 +41,7 @@ function normalize(raw) {
   const c = { ...(raw.company || {}) };
   if (!c.bank && c.iban) c.bank = 'IBAN : ' + c.iban;
   const out = { ...d, ...raw, company: { ...d.company, ...c }, settings: { ...d.settings, ...s } };
-  out.clients = out.clients || []; out.catalog = out.catalog || [];
+  out.clients = out.clients || []; out.catalog = out.catalog || []; out.suppliers = out.suppliers || [];
   out.quotes = (out.quotes || []).map(q => normQuote(q, out));
   return out;
 }
@@ -284,6 +285,7 @@ function renderEditor() {
       ${isInv(q)
         ? `${q.fromQuoteId && getQuote(q.fromQuoteId) ? `<button class="btn" data-act="edit" data-id="${q.fromQuoteId}">← Voir le devis ${esc(q.fromNumber || '')}</button>` : ''}${q.status !== 'payee' ? '<button class="btn" data-act="mark-paid">✓ Marquer comme payée</button>' : ''}`
         : `<button class="btn" data-act="make-invoice" data-id="${q.id}">🧾 ${db.quotes.some(i => i.fromQuoteId === q.id) ? 'Créer une autre facture' : 'Créer la facture'}</button>`}
+      ${isInv(q) ? '' : '<button class="btn" data-act="purchase-list" title="Matériaux à commander, par fournisseur">🛒 Liste d\'achat</button>'}
       <button class="btn" data-act="dup" data-id="${q.id}">⧉ Dupliquer</button>
       <button class="btn primary" data-act="print" title="Dans la fenêtre d'impression : destination « Enregistrer au format PDF », décochez « En-têtes et pieds de page »">🖨 Imprimer / PDF</button>
     </div>
