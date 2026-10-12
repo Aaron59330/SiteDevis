@@ -39,7 +39,7 @@ fi
 say "Installation des paquets (Node.js, Caddy, pare-feu)"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
-apt-get install -y curl ca-certificates gnupg ufw rsync debian-keyring debian-archive-keyring apt-transport-https
+apt-get install -y curl ca-certificates gnupg ufw rsync poppler-utils debian-keyring debian-archive-keyring apt-transport-https
 if ! command -v node >/dev/null || [ "$(node -p 'process.versions.node.split(".")[0]')" -lt 18 ]; then
   curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
   apt-get install -y nodejs

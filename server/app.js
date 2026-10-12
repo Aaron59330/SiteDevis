@@ -5,6 +5,8 @@ const mail = require('./mail');
 const ai = require('./ai');
 const pdf = require('./pdf');
 const spell = require('./spell');
+const importer = require('./importer');
+let importFreeOk = false; importer.available().then(v => { importFreeOk = v; });
 const { db } = store;
 
 /* ---------- Utilitaires ---------- */
@@ -172,7 +174,7 @@ async function handle(req, res, url) {
       if (origin && new URL(origin).host !== req.headers.host) throw err(403, 'Origine refusée.');
     }
     if (req.method !== 'GET' && req.method !== 'HEAD') {
-      ctx.raw = await readBody(req, url.pathname === '/api/data' ? 12e6 : url.pathname === '/api/pdf' ? 6e6 : 1e6);
+      ctx.raw = await readBody(req, url.pathname === '/api/data' ? 12e6 : url.pathname === '/api/pdf' ? 6e6 : url.pathname === '/api/import/pdf' ? 12e6 : 1e6);
       if (r.auth !== 'webhook' && ctx.raw) { try { ctx.body = JSON.parse(ctx.raw); } catch (e) { throw err(400, 'JSON invalide.'); } }
     }
     if (r.auth !== 'none' && r.auth !== 'webhook') {
@@ -199,7 +201,7 @@ async function handle(req, res, url) {
 /* ---------- Config publique ---------- */
 route('GET', '/api/config', 'none', () => ({
   siteName: db.settings.siteName, registrationOpen: db.settings.registrationOpen, trialDays: db.settings.trialDays,
-  mailConfigured: mail.configured(), pdf: pdf.available(), ai: db.settings.aiEnabled !== false, aiKind: ai.available() ? 'claude' : 'free', priceSearch: !!process.env.SERPAPI_KEY, stripe: !!stripeKey(), simulated: simulatedAllowed(),
+  mailConfigured: mail.configured(), pdf: pdf.available(), importFree: importFreeOk, importAi: ai.available() && db.settings.aiEnabled !== false, ai: db.settings.aiEnabled !== false, aiKind: ai.available() ? 'claude' : 'free', priceSearch: !!process.env.SERPAPI_KEY, stripe: !!stripeKey(), simulated: simulatedAllowed(),
   plans: db.plans.filter(p => p.active)
 }));
 
@@ -236,6 +238,33 @@ route('POST', '/api/pdf', 'user', async ctx => {
   try { buf = await pdf.toPdf({ html: b.html, label: str(b.label, 80), date: str(b.date, 60), accent: str(b.accent, 7) }); }
   catch (e) { console.error('PDF :', e.message); throw err(502, 'Impossible de créer le PDF pour le moment.'); }
   return { pdfFile: buf, filename: name.replace(/\.pdf$/i, '') + '.pdf' };
+});
+
+/* ---------- Import d'un devis ou d'une facture PDF réalisé sur un autre site ---------- */
+route('POST', '/api/import/pdf', 'user', async ctx => {
+  if (!access(ctx.user).active) throw err(402, 'Un abonnement actif est nécessaire.', { code: 'payment_required' });
+  limit('imp:' + ctx.user.id, 12, 3600e3);
+  const data = ctx.body && ctx.body.data;
+  if (typeof data !== 'string' || data.length < 100 || data.length > 11.5e6) throw err(400, 'Fichier invalide.');
+  const buf = Buffer.from(data, 'base64');
+  if (buf.length < 100 || buf.length > 8.5e6 || buf.slice(0, 5).toString('latin1') !== '%PDF-') throw err(400, 'Ce fichier n\'est pas un PDF (8 Mo maximum).');
+  const useAi = ctx.body.method === 'ai' && ai.available() && db.settings.aiEnabled !== false;
+  try {
+    if (useAi) {
+      const r = importer.normalizeDoc(await ai.extractQuote(buf), 'ia');
+      db.settings.aiTotal = (db.settings.aiTotal || 0) + 1; store.save();
+      return ok(r);
+    }
+    if (!importFreeOk) throw err(501, 'La lecture de PDF n\'est pas disponible sur ce serveur.');
+    const text = await importer.pdfText(buf);
+    if (text.replace(/\s/g, '').length < 60) throw err(422, 'Ce PDF ne contient pas de texte lisible (document scanné ou image).');
+    const p = importer.parseText(text);
+    return ok(importer.normalizeDoc(p.doc, 'texte', p.warnings));
+  } catch (e) {
+    if (e.status && e.status < 500 && e.status !== 429) throw err(e.status, e.message);
+    console.error('Import PDF :', e.status || '', e.message);
+    throw err(502, e.status === 429 ? 'Le service IA est très sollicité, réessayez dans un instant.' : 'Impossible de lire ce PDF pour le moment.');
+  }
 });
 
 /* ---------- Relecture IA des devis ---------- */

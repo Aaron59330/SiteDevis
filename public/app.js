@@ -250,7 +250,7 @@ function renderQuotes() {
   return `
   <div class="row between" style="margin-bottom:16px">
     <h1>Mes devis</h1>
-    <button class="btn primary" data-act="new-quote">＋ Nouveau devis</button>
+    <div class="row"><button class="btn" data-act="import-pdf" title="Importer un devis ou une facture PDF fait ailleurs">Importer un PDF</button><button class="btn primary" data-act="new-quote">＋ Nouveau devis</button></div>
   </div>
   ${!db.company.name ? `<div class="card" style="border-color:var(--warn)">👋 Commencez par renseigner <a href="#" data-act="goto-company">votre entreprise</a> (logo, coordonnées, IBAN, mentions légales) : tout sera repris automatiquement sur vos devis. Vous pouvez aussi <a href="#" data-act="demo">charger un exemple</a> pour voir le résultat.</div>` : ''}
   <div class="stats">

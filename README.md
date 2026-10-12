@@ -28,6 +28,7 @@ Au premier lancement, un **compte administrateur** est créé : son email et son
 - **Factures** : bouton « 🧾 Créer la facture » depuis un devis (lignes, client et mentions reprises), numérotation propre, échéance, acompte déjà réglé, suivi payée/en retard.
 - **Page de connexion** : accueil animé avec la vidéo de présentation (1 min, son activable). La vidéo est tournée sur le vrai site : `node video/film/film.js prep` puis `rec`, `node video/film/build.js` et `python3 video/audio.py` (voir video/film).
 - **Statistiques** : devis du mois, chiffre d’affaires facturé, encaissé et impayé, comparaison avec le mois précédent, la moyenne sur 3 mois et le même mois de l’an dernier, graphique sur 12 mois, factures en retard (affichage TTC ou HT).
+- **Import de PDF** : un devis ou une facture fait sur un autre site peut être déposé en PDF ; il est relu (IA Claude si une clé est configurée, sinon lecture gratuite du texte avec pdftotext) puis recréé à l’identique après vérification : lignes, quantités, prix, client, échéancier, total comparé à celui du PDF.
 - **Devis** : multi-pages façon pro, sous-totaux, échéancier, clients particuliers/pros (remplissage par SIRET ou raison sociale), catalogue, téléchargement direct en PDF (Chromium installé par le script de déploiement ; sans lui, repli sur l’impression). Correction gratuite des fautes (LanguageTool, sans clé) ou relecture par IA Claude si une clé est configurée.
 
 ## Mise en production
