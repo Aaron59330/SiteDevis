@@ -61,6 +61,7 @@ function normQuote(q, base) {
   if (q.bank == null) q.bank = base.company.bank || '';
   if (!q.payments) q.payments = q.kind === 'facture' ? [] : q.deposit ? [{ pct: num(q.deposit), label: 'Acompte' }, { pct: 100 - num(q.deposit), label: 'Solde' }] : parsePayments(base.settings.defaultPayments);
   if (q.kind !== 'facture') q.payments.forEach(p => { p.id = p.id || uid(); p.invoiceId = p.invoiceId || ''; });
+  if (q.kind === 'facture') q.totalOverride = q.totalOverride === '' || q.totalOverride == null || !Number.isFinite(Number(q.totalOverride)) ? '' : Number(q.totalOverride);
   q.notes = q.notes || ''; q.discount = num(q.discount); q.status = q.status || 'brouillon';
   return q;
 }
@@ -169,10 +170,19 @@ function totals(q) {
     byRate[r] = (byRate[r] || 0) + l.total * ratio * r / 100;
     htByRate[r] = (htByRate[r] || 0) + l.total * ratio;
   });
-  const ht = subtotal - discountAmt;
-  const vat = Object.values(byRate).reduce((s, v) => s + v, 0);
-  const ttc = ht + vat, paid = isInv(q) ? num(q.alreadyPaid) : 0;
-  return { subtotal, discountAmt, ht, vat, byRate, htByRate, ttc, paid, due: ttc - paid };
+  let ht = subtotal - discountAmt;
+  let vat = Object.values(byRate).reduce((s, v) => s + v, 0);
+  let ttc = ht + vat;
+  /* Total saisi à la main (factures) : HT et TVA sont recalculés au prorata, pour garder les mêmes taux */
+  const ov = isInv(q) && q.totalOverride !== '' && q.totalOverride != null && Number.isFinite(Number(q.totalOverride)) ? Number(q.totalOverride) : null;
+  const auto = ttc;
+  if (ov != null) {
+    const k = ttc > 0 ? ov / ttc : 0;
+    if (ttc > 0) { ht *= k; vat *= k; for (const r in byRate) { byRate[r] *= k; htByRate[r] *= k; } } else { ht = ov; vat = 0; byRate[0] = 0; htByRate[0] = ov; }
+    ttc = ov;
+  }
+  const paid = isInv(q) ? num(q.alreadyPaid) : 0;
+  return { subtotal, discountAmt, ht, vat, byRate, htByRate, ttc, paid, due: ttc - paid, overridden: ov != null, auto };
 }
 
 /* ---------- Rendu principal ---------- */
@@ -360,6 +370,8 @@ function renderEditor() {
           <div class="field"><label>Déjà réglé / acompte versé (€ TTC)</label><input type="number" step="0.01" min="0" data-f="alreadyPaid" value="${q.alreadyPaid}"></div>
           <div class="field"><label>Mode de règlement</label><input data-f="payMethod" value="${esc(q.payMethod)}" placeholder="Virement bancaire"></div>
           <div class="field"><label>Payée le</label><input type="date" data-f="paidAt" value="${q.paidAt}"></div></div>
+          <div class="field"><label>Total TTC de la facture (modifiable)</label>
+            <div class="row" style="flex-wrap:nowrap"><input type="number" step="0.01" min="0" data-f="totalOverride" value="${q.totalOverride === '' ? '' : q.totalOverride}" placeholder="${(totals(q).auto).toFixed(2)}" style="max-width:200px"> <span class="muted" style="font-size:.85rem">€ — vide = calcul automatique (${money(totals(q).auto)}). HT et TVA s'ajustent au prorata.</span></div></div>
           ${q.stepId ? `<p class="muted" style="margin:-4px 0 12px;font-size:.82rem">Facture de l'échéance « ${esc(q.stepLabel || 'Paiement')} » du devis N° ${esc(q.fromNumber)} : le total ne reprend que cette échéance. Le récapitulatif des conditions de paiement indique celles déjà réglées.</p>` : ''}
           <p class="muted" style="margin:-4px 0 12px;font-size:.82rem">Si un acompte a déjà été payé sur le devis, indiquez-le : la facture affichera « Déjà réglé » et le « Net à payer ».</p>` : ''}
         ${isInv(q) && q.stepId ? '' : `<label>Conditions de paiement (échéancier)</label>
@@ -915,7 +927,7 @@ document.addEventListener('input', e => {
     const q = getQuote(editingId); if (!q) return;
     if (t.dataset.f) {
       const f = t.dataset.f;
-      q[f] = t.type === 'number' ? num(t.value) : t.value;
+      q[f] = f === 'totalOverride' ? (t.value === '' ? '' : num(t.value)) : t.type === 'number' ? num(t.value) : t.value;
       if (f === 'date' && t.value) { const k = isInv(q) ? 'dueDate' : 'validUntil'; q[k] = addDays(t.value, num(isInv(q) ? db.settings.dueDays : db.settings.validityDays)); const v = $(`[data-f=${k}]`); if (v) v.value = q[k]; }
       if (f === 'status' && isInv(q) && t.value === 'payee' && !q.paidAt) { q.paidAt = today(); const v = $('[data-f=paidAt]'); if (v) v.value = q.paidAt; }
       if (f === 'clientId') { q.clientText = clientBlock(getClient(t.value)); const ct = $('[data-f=clientText]'); ct.value = q.clientText; autosize(); }
