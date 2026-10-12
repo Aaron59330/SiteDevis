@@ -615,3 +615,51 @@ a.badge.info2 { text-decoration: none; cursor: pointer; }
 .offer-row { display: grid; grid-template-columns: 130px 1fr auto; gap: 10px; align-items: center; text-align: left; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--text); font: inherit; font-size: .85rem; cursor: pointer; }
 .offer-row:hover { border-color: var(--accent); } .offer-row.on { border-color: var(--accent); background: var(--primary-soft); }
 @media (max-width: 640px) { .offer-row { grid-template-columns: 1fr auto; } .offer-row .muted { display: none; } }
+
+/* ===== Accueil façon documentation : sommaire, recherche, fonctionnalités, FAQ ===== */
+.auth-hero.docs { height: 100vh; overflow-y: auto; justify-content: flex-start; align-items: stretch; gap: 0; padding: 0; scroll-behavior: smooth; }
+.auth:has(.docs) .auth-card { position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+.docs-top { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 18px; padding: 14px 32px; background: color-mix(in srgb, var(--bg) 82%, transparent); backdrop-filter: blur(14px); border-bottom: 1px solid var(--line); }
+.docs-top .brand { flex: none; }
+.docs-search { flex: 1; max-width: 460px; margin-left: auto; display: flex; align-items: center; gap: 8px; background: var(--input); border: 1px solid var(--line); border-radius: 10px; padding: 0 10px; color: var(--muted); }
+.docs-search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+.docs-search input { flex: 1; min-width: 0; border: 0; background: none; box-shadow: none; padding: 10px 0; font: inherit; color: var(--text); outline: 0; }
+.docs-search kbd { font: inherit; font-size: .72rem; border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; }
+.docs-body { display: grid; grid-template-columns: 168px minmax(0, 1fr); gap: 36px; padding: 28px 32px 56px; }
+.docs-nav { position: sticky; top: 84px; align-self: start; display: grid; gap: 2px; font-size: .88rem; }
+.docs-nav b { font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+.docs-nav a { color: var(--muted); text-decoration: none; padding: 6px 10px; border-left: 2px solid var(--line); transition: .2s; }
+.docs-nav a:hover { color: var(--text); }
+.docs-nav a.on { color: var(--accent); border-left-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.docs-nav-cta { margin-top: 14px; }
+.docs-main { display: grid; gap: 44px; min-width: 0; }
+.docs-sec { display: flex; flex-direction: column; gap: 16px; scroll-margin-top: 84px; align-items: flex-start; }
+.docs-sec[hidden], [data-doc-item][hidden] { display: none !important; }
+.docs-sec h2 { margin: 0; font-size: 1.35rem; letter-spacing: -.02em; }
+.docs-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; width: 100%; }
+.docs-steps li { display: flex; gap: 14px; align-items: flex-start; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
+.docs-steps li > span { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; background: var(--accent); color: var(--on-accent); }
+.docs-steps p, .docs-card .docs-more, .docs-faq p { margin: 4px 0 0; color: var(--muted); line-height: 1.5; font-size: .92rem; }
+.docs-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; width: 100%; align-items: start; }
+.docs-card, .docs-faq details { background: var(--card); border: 1px solid var(--line); border-radius: 14px; transition: border-color .2s, transform .2s; }
+.docs-card:hover, .docs-faq details:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); transform: translateY(-2px); }
+.docs-card summary, .docs-faq summary { list-style: none; cursor: pointer; display: flex; gap: 12px; padding: 14px 16px; align-items: flex-start; }
+.docs-card summary::-webkit-details-marker, .docs-faq summary::-webkit-details-marker { display: none; }
+.docs-card summary i { font-style: normal; font-size: 1.35rem; line-height: 1; }
+.docs-card summary b { display: block; }
+.docs-card summary span { display: block; color: var(--muted); font-size: .84rem; margin-top: 3px; line-height: 1.4; }
+.docs-card .docs-more { padding: 0 16px 14px 50px; margin: 0; }
+.docs-card[open], .docs-faq details[open] { border-color: var(--accent); }
+.docs-faq { display: grid; gap: 10px; width: 100%; }
+.docs-faq summary { font-weight: 700; justify-content: space-between; }
+.docs-faq summary::after { content: "+"; color: var(--accent); font-size: 1.2rem; line-height: 1; }
+.docs-faq details[open] summary::after { content: "–"; }
+.docs-faq p { padding: 0 16px 14px; margin: 0; }
+.docs-empty { text-align: center; color: var(--muted); }
+.docs-foot { text-align: center; font-size: .86rem; }
+@media (max-width: 1280px) { .docs-body { grid-template-columns: minmax(0, 1fr); } .docs-nav { display: none; } .docs-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 900px) { .auth-hero.docs { display: none; } .auth:has(.docs) .auth-card { position: static; height: auto; } }
+
+.docs-grid { grid-template-columns: minmax(0, 1fr); }
+.docs-main .auth-hero h1, .docs-sec h1 { font-size: clamp(1.8rem, 2.6vw, 2.5rem); max-width: 18em; }
+.docs-card .docs-more { padding-left: 52px; }

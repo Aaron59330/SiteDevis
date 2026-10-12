@@ -66,27 +66,95 @@ function renderAuth(mode, opts = {}) {
 
   $('#app').innerHTML = `
   <div class="auth">
-    <section class="auth-hero">
+    <section class="auth-hero docs">
       <div class="orb o1"></div><div class="orb o2"></div>
-      <div class="brand big rise" style="--d:.0s">${brandHtml(cfg.siteName)}</div>
-      <span class="eyebrow rise" style="--d:.08s">Devis &amp; factures pour artisans et indépendants</span>
-      <h1 class="rise" style="--d:.16s">Des devis qui <em>font signer</em>,<br>en quelques minutes.</h1>
-      <p class="hero-sub rise" style="--d:.24s">Créez un devis complet, facturez chaque paiement, téléchargez le PDF : tout est prêt à envoyer à votre client.</p>
-      <div class="hero-video rise" style="--d:.32s" id="heroVideoBox">
-        <video id="heroVideo" muted loop playsinline preload="metadata" poster="/media/optidevis-poster.jpg"></video>
-        <div class="hv-bar">
-          <button type="button" class="hv-btn" data-act="hero-play" id="hvPlay" aria-label="Lecture / pause">Pause</button>
-          <button type="button" class="hv-btn" data-act="hero-sound" id="hvSound" aria-label="Activer le son">Activer le son</button>
-          <button type="button" class="hv-btn" data-act="hero-full" aria-label="Plein écran">Plein écran</button>
+      <header class="docs-top rise" style="--d:0s">
+        <div class="brand big">${brandHtml(cfg.siteName)}</div>
+        <label class="docs-search"><span aria-hidden="true">⌕</span><input type="search" id="docsQ" placeholder="Rechercher : facture, PDF, catalogue, statistiques…" autocomplete="off" aria-label="Rechercher dans la présentation"><kbd>/</kbd></label>
+      </header>
+      <div class="docs-body">
+        <nav class="docs-nav rise" style="--d:.1s" aria-label="Sommaire">
+          <b>Sommaire</b>
+          <a href="#d-intro" class="on">Présentation</a><a href="#d-start">Démarrer en 3 étapes</a><a href="#d-features">Fonctionnalités</a><a href="#d-faq">Questions fréquentes</a>
+          <div class="docs-nav-cta"><button type="button" class="btn small" data-act="hero-open">▶ Vidéo (1 min)</button></div>
+        </nav>
+        <div class="docs-main">
+          <section id="d-intro" class="docs-sec">
+            <span class="eyebrow rise" style="--d:.08s">Devis &amp; factures pour artisans et indépendants</span>
+            <h1 class="rise" style="--d:.16s">Des devis qui <em>font signer</em>,<br>en quelques minutes.</h1>
+            <p class="hero-sub rise" style="--d:.24s">Créez un devis complet, facturez chaque paiement, téléchargez le PDF : tout est prêt à envoyer à votre client.</p>
+            <div class="hero-video rise" style="--d:.32s" id="heroVideoBox">
+              <video id="heroVideo" muted loop playsinline preload="metadata" poster="/media/optidevis-poster.jpg"></video>
+              <div class="hv-bar">
+                <button type="button" class="hv-btn" data-act="hero-play" id="hvPlay" aria-label="Lecture / pause">Pause</button>
+                <button type="button" class="hv-btn" data-act="hero-sound" id="hvSound" aria-label="Activer le son">Activer le son</button>
+                <button type="button" class="hv-btn" data-act="hero-full" aria-label="Plein écran">Plein écran</button>
+              </div>
+              <div class="hero-card"><div class="hc-row"><span>Cloison BA13</span><b>480,00 €</b></div><div class="hc-row"><span>Doublage</span><b>1 204,00 €</b></div><div class="hc-row tot"><span>Total TTC</span><b>1 684,00 €</b></div></div>
+            </div>
+          </section>
+          <section id="d-start" class="docs-sec" data-doc>
+            <h2>Démarrer en 3 étapes</h2>
+            <ol class="docs-steps">
+              <li data-doc-item><span>1</span><div><b>Créez votre compte</b><p>Nom, email, mot de passe : c'est tout. Ajoutez ensuite votre entreprise (SIRET, logo, mentions légales) une seule fois.</p></div></li>
+              <li data-doc-item><span>2</span><div><b>Faites votre premier devis</b><p>Choisissez un client, ajoutez vos lignes depuis votre catalogue ou en saisie libre, et suivez le total en direct.</p></div></li>
+              <li data-doc-item><span>3</span><div><b>Envoyez et facturez</b><p>Téléchargez le PDF, puis générez une facture par échéance de paiement, reliée au devis.</p></div></li>
+            </ol>
+          </section>
+          <section id="d-features" class="docs-sec" data-doc>
+            <h2>Fonctionnalités</h2>
+            <div class="docs-grid">${DOC_FEATURES.map(f => `<details class="docs-card" data-doc-item><summary><i aria-hidden="true">${f[0]}</i><div><b>${f[1]}</b><span>${f[2]}</span></div></summary><div class="docs-more">${f[3]}</div></details>`).join('')}</div>
+          </section>
+          <section id="d-faq" class="docs-sec" data-doc>
+            <h2>Questions fréquentes</h2>
+            <div class="docs-faq">${DOC_FAQ.map(f => `<details data-doc-item><summary>${f[0]}</summary><p>${f[1]}</p></details>`).join('')}</div>
+          </section>
+          <p class="docs-empty" id="docsEmpty" hidden>Aucun résultat. Essayez un autre mot, par exemple « facture » ou « PDF ».</p>
+          <footer class="docs-foot muted">Prêt ? Connectez-vous ou créez votre compte dans le cadre de droite.</footer>
         </div>
-        <div class="hero-card"><div class="hc-row"><span>Cloison BA13</span><b>480,00 €</b></div><div class="hc-row"><span>Doublage</span><b>1 204,00 €</b></div><div class="hc-row tot"><span>Total TTC</span><b>1 684,00 €</b></div></div>
       </div>
-      <div class="chips rise" style="--d:.4s"><span>PDF en un clic</span><span>Clients remplis par SIRET</span><span>Une facture par paiement</span><span>Catalogue &amp; matériaux</span></div>
     </section>
     <section class="auth-card"><button class="theme-btn auth-theme" id="themeBtn" title="Mode clair / sombre">🌙</button><div class="brand big auth-brand-m">${brandHtml(cfg.siteName)}</div>${card}</section>
   </div>`;
   syncThemeBtn();
-  initHeroVideo();
+  initHeroVideo(); initDocs();
+}
+
+const DOC_FEATURES = [
+  ['📄', 'Devis professionnels', 'Mise en page soignée, plusieurs pages, TVA multi-taux', 'Lignes libres ou issues du catalogue, remises, acomptes, conditions de paiement et signature. Le devis se met en page automatiquement sur plusieurs pages, avec votre logo et vos mentions légales.'],
+  ['🧾', 'Une facture par paiement', 'Chaque échéance a sa facture, reliée au devis', 'Acompte, situation, solde : chaque facture reprend le détail du devis, affiche le montant de l\'échéance et le « reste à payer ». Vous retrouvez toutes les factures liées depuis le devis.'],
+  ['⬇️', 'PDF en un clic', 'Téléchargement direct, sans passer par l\'impression', 'Un vrai fichier PDF, prêt à envoyer à votre client par email ou messagerie.'],
+  ['📥', 'Import de devis existants', 'Un devis fait ailleurs ? Transférez le PDF', 'Toutes les pages sont lues et le devis est refait à l\'identique dans OptiDevis, que vous pouvez ensuite modifier et facturer.'],
+  ['🧱', 'Catalogue, matériaux, fournisseurs', 'Vos prix, vos marges, vos références', 'Saisissez une référence fournisseur : le site cherche la fiche exacte et reprend le prix quand elle est trouvée. Marge par fournisseur, prix de vente calculé.'],
+  ['📊', 'Statistiques', 'CA du mois, facturé, encaissé, impayé', 'Comparaison avec les mois précédents et courbe sur 12 mois, pour savoir où vous en êtes en un coup d\'œil.'],
+  ['🏗️', 'Chantiers', 'Regroupez devis et factures par chantier', 'Optionnel : suivez les heures et rattachez les documents à un chantier, avec un récapitulatif sur le document.'],
+  ['🛠️', 'Boîte à outils', 'Clients par SIRET, correcteur, calculs', 'Les informations de l\'entreprise de votre client se remplissent depuis son SIRET. Un correcteur d\'orthographe gratuit relit vos documents.']
+];
+const DOC_FAQ = [
+  ['Mes clients ont-ils besoin d\'un compte ?', 'Non. Vous créez le document et vous leur envoyez le PDF : ils n\'ont rien à installer.'],
+  ['Puis-je modifier le total d\'une facture ?', 'Oui. Vous pouvez ajuster le total d\'une facture sans que le devis ni les autres documents changent.'],
+  ['Mes données sont-elles privées ?', 'Chaque compte a ses propres données, protégées par votre mot de passe. Les sauvegardes sont faites chaque jour.'],
+  ['Comment fonctionne l\'abonnement ?', 'Vous démarrez par un essai. Le paiement en ligne est sécurisé et vous pouvez l\'arrêter à tout moment depuis la page Abonnement.']
+];
+
+function initDocs() {
+  const q = document.getElementById('docsQ'); if (!q) return;
+  const hero = document.querySelector('.auth-hero');
+  const secs = [...document.querySelectorAll('.docs-sec')], links = [...document.querySelectorAll('.docs-nav a')];
+  const norm = t => String(t).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  q.addEventListener('input', () => {
+    const k = norm(q.value.trim()); let shown = 0;
+    document.querySelectorAll('[data-doc-item]').forEach(el => { const ok = !k || norm(el.textContent).includes(k); el.hidden = !ok; if (ok) shown++; if (k && ok && el.tagName === 'DETAILS') el.open = true; if (!k && el.tagName === 'DETAILS') el.open = false; });
+    document.querySelectorAll('[data-doc]').forEach(sec => { sec.hidden = !!k && !sec.querySelector('[data-doc-item]:not([hidden])'); });
+    document.getElementById('docsEmpty').hidden = !k || shown > 0;
+  });
+  document.addEventListener('keydown', function onKey(e) { if (!document.getElementById('docsQ')) return document.removeEventListener('keydown', onKey); if (e.key === '/' && !/input|textarea|select/i.test(document.activeElement.tagName)) { e.preventDefault(); q.focus(); } });
+  links.forEach(a => a.addEventListener('click', e => { e.preventDefault(); links.forEach(x => x.classList.toggle('on', x === a)); const t = document.querySelector(a.getAttribute('href')); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); }));
+  hero.addEventListener('scroll', () => { if (hero.scrollTop + hero.clientHeight >= hero.scrollHeight - 6) links.forEach((x, i) => x.classList.toggle('on', i === links.length - 1)); }, { passive: true });
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver(es => es.forEach(en => { if (en.isIntersecting && hero.scrollTop + hero.clientHeight < hero.scrollHeight - 6) links.forEach(a => a.classList.toggle('on', a.getAttribute('href') === '#' + en.target.id)); }), { root: hero, rootMargin: '-15% 0px -70% 0px' });
+    secs.forEach(x => io.observe(x));
+  }
 }
 
 function formMsg(form, text, good) {
