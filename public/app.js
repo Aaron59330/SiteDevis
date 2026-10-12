@@ -993,3 +993,9 @@ document.addEventListener('click', e => { if (e.target.closest('#themeBtn')) set
 
 document.head.insertAdjacentHTML('beforeend', '<style id="printStyle"></style>');
 document.body.insertAdjacentHTML('beforeend', `<datalist id="units">${UNITS.map(u => `<option value="${u}">`).join('')}</datalist>`);
+
+/* La molette ne modifie plus les nombres : sur un champ numérique actif, elle fait seulement défiler la page */
+document.addEventListener('wheel', e => {
+  const t = e.target;
+  if (t && t.tagName === 'INPUT' && t.type === 'number' && document.activeElement === t) t.blur();
+}, { passive: true, capture: true });

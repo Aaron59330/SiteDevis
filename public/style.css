@@ -535,3 +535,14 @@ html[data-density="compact"] .btn { padding: 6px 12px; }
 :root[data-theme="light"] #app h1:not(.doc *), :root[data-theme="light"] #app h2:not(.doc *), :root[data-theme="light"] #app .stat .n:not(.doc *) { color: color-mix(in srgb, var(--accent) 60%, #000); }
 #app a:not(.doc *):not(.btn) { text-decoration-color: color-mix(in srgb, var(--accent) 60%, transparent); }
 
+
+/* ===== Éditeur (ordinateur) : le formulaire de gauche défile seul, avec sa barre de défilement, comme l'aperçu ===== */
+@media (min-width: 1151px) {
+  .editor .form { position: sticky; top: 80px; max-height: calc(100vh - 100px); overflow-y: auto; overflow-x: hidden; padding: 0 8px 24px 0; overscroll-behavior: contain; }
+  .editor .form, .editor .preview-wrap { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--accent) 55%, var(--line)) transparent; }
+  .editor .form::-webkit-scrollbar, .editor .preview-wrap::-webkit-scrollbar { width: 10px; }
+  .editor .form::-webkit-scrollbar-track, .editor .preview-wrap::-webkit-scrollbar-track { background: transparent; }
+  .editor .form::-webkit-scrollbar-thumb, .editor .preview-wrap::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--accent) 55%, var(--line)); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+  .editor .form::-webkit-scrollbar-thumb:hover, .editor .preview-wrap::-webkit-scrollbar-thumb:hover { background: var(--accent); background-clip: padding-box; border: 2px solid transparent; }
+}
+@media print { .editor .form { display: none !important; } }
