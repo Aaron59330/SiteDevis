@@ -609,3 +609,9 @@ html[data-density="compact"] .btn { padding: 6px 12px; }
 .billbar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 999px; } .billbar .b1 { background: color-mix(in srgb, var(--accent) 60%, var(--line)); } .billbar .b2 { background: var(--ok); }
 tr.focus td { background: var(--primary-soft); }
 a.badge.info2 { text-decoration: none; cursor: pointer; }
+
+/* ===== Recherche web par référence ===== */
+.offers { display: grid; gap: 6px; margin-top: 8px; }
+.offer-row { display: grid; grid-template-columns: 130px 1fr auto; gap: 10px; align-items: center; text-align: left; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--text); font: inherit; font-size: .85rem; cursor: pointer; }
+.offer-row:hover { border-color: var(--accent); } .offer-row.on { border-color: var(--accent); background: var(--primary-soft); }
+@media (max-width: 640px) { .offer-row { grid-template-columns: 1fr auto; } .offer-row .muted { display: none; } }

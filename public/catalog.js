@@ -155,7 +155,8 @@ function matModal(id, after, presetSup) {
   const m = openModal(`<div class="modal-wide"><form id="matForm"><h2>${id ? 'Modifier le matériau' : 'Nouveau matériau'}</h2>
     <div class="grid2"><div class="field"><label>Fournisseur *</label><div class="row" style="flex-wrap:nowrap"><select name="supplierId" id="msup">${sups().map(s => `<option value="${s.id}" ${s.id === c.supplierId ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>
         <button type="button" class="btn" id="msupNew" title="Nouveau fournisseur">＋</button></div></div>
-      <div class="field"><label>Référence fournisseur</label><input name="ref" value="${esc(c.ref)}"></div></div>
+      <div class="field"><label>Référence fournisseur ou code EAN</label><div class="row" style="flex-wrap:nowrap"><input name="ref" id="mref" value="${esc(c.ref)}" placeholder="Ex : 1830140, P01302500, 3496250048324" autocomplete="off">${session.config.priceSearch ? '<button type="button" class="btn" id="refGo" title="Chercher cette référence sur le web et remplir la fiche">Chercher</button>' : ''}</div></div></div>
+    <div id="autoPanel"></div>
     <div class="field"><label>Désignation * (dimensions, diamètre, conditionnement…)</label><textarea name="desc" required rows="2" placeholder="Ex : Gouttière PVC demi-ronde Ø 80 mm — barre de 2 m">${esc(c.desc)}</textarea></div>
     <div class="grid3"><div class="field"><label>Catégorie de matériau</label><input name="cat" list="matcats" value="${esc(c.cat)}" placeholder="Ex : Zinguerie, Isolation…"><datalist id="matcats">${categories(true).map(x => `<option value="${esc(x)}">`).join('')}</datalist></div>
       <div class="field"><label>Unité de vente</label><input name="unit" list="units" value="${esc(c.unit)}"></div>
@@ -190,6 +191,7 @@ function matModal(id, after, presetSup) {
   $('#msupNew').onclick = () => supplierModal(null, sp => matModal(id, after, sp.id));
   refresh();
   priceFinder(f, refresh);
+  refSearch(f, refresh, id);
   f.onsubmit = e => {
     e.preventDefault();
     const g = k => E[k].value.trim();
@@ -601,3 +603,53 @@ document.addEventListener('change', e => {
 });
 document.addEventListener('click', e => { const b = e.target.closest('.cp-add'); if (b) cpAdd(b.closest('.cp-row')); });
 document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.classList.contains('cp-qty')) { e.preventDefault(); cpAdd(e.target.closest('.cp-row')); } });
+
+/* ---------- Recherche automatique par référence : magasin, prix, désignation, lien, fournisseur ---------- */
+function refSearch(f, refresh, editId) {
+  const E = f.elements, $$ = i => document.getElementById(i), btn = $$('refGo'), panel = $$('autoPanel');
+  if (!btn) { panel.innerHTML = session.config.priceSearch === false ? '' : ''; return; }
+  let offers = [], pick = -1;
+  const clean = (t, store) => String(t || '').replace(new RegExp('\\s*[-–|]\\s*' + String(store || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '.*$', 'i'), '').trim();
+  const rank = ref => {
+    const k = nrm(ref).replace(/[^a-z0-9]/g, '');
+    return offers.map((o, i) => ({ o, i, hit: k && nrm(o.title + ' ' + (o.link || '')).replace(/[^a-z0-9]/g, '').includes(k) ? 0 : 1 })).sort((a, b) => a.hit - b.hit || a.o.price - b.o.price).map(x => x.i);
+  };
+  const supplierFor = o => {
+    const k = nrm(o.store).replace(/[^a-z0-9]/g, ''); if (!k) return null;
+    let sp = sups().find(s => { const n = nrm(s.name).replace(/[^a-z0-9]/g, ''); return n && (n.includes(k) || k.includes(n)); });
+    if (!sp) { let site = ''; try { site = o.link ? new URL(o.link).origin : ''; } catch (e) { /* ignore */ } sp = { id: uid(), name: o.store, contact: '', phone: '', email: '', address: '', website: site, account: '', notes: 'Créé automatiquement par la recherche web', markup: 0 }; sups().push(sp); sups().sort((a, b) => a.name.localeCompare(b.name, 'fr')); }
+    const sel = $$('msup'); sel.innerHTML = sups().map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join(''); sel.value = sp.id; return sp;
+  };
+  const apply = (i, per) => {
+    const o = offers[i]; pick = i; const vat = num(E.vat.value), g = guessContent(o.title);
+    const ht = o.price / (1 + vat / 100), unit = per && g ? g.unit : (E.unit.value && E.unit.value !== 'pièce(s)' ? E.unit.value : 'pièce(s)'), cost = per && g ? ht / g.qty : ht;
+    if (!E.desc.value.trim() || E.desc.dataset.auto === '1') { E.desc.value = clean(o.title, o.store); E.desc.dataset.auto = '1'; }
+    E.cost.value = r4(cost); E.unit.value = unit; if (o.link) E.sourceUrl.value = o.link; E.priceDate.value = today();
+    const sp = supplierFor(o); if (sp && !E.markup.value) E.markup.value = '';
+    refresh(); show(g);
+  };
+  const show = g => {
+    const o = offers[pick], vat = num(E.vat.value), order = rank(E.ref.value);
+    panel.innerHTML = `<div class="notice ok" style="margin:6px 0 12px"><b>Rempli automatiquement</b> avec l'offre de <b>${esc(o.store)}</b> : ${money(o.price)} TTC (${money(o.price / (1 + vat / 100))} HT).
+        ${o.link ? `<a href="${esc(o.link)}" target="_blank" rel="noopener">voir la fiche ↗</a>` : ''}
+        ${g ? `<div style="margin-top:6px"><button type="button" class="btn small" id="perUnit">Convertir au ${esc(g.unit)} (contenu détecté : ${fmtNum.format(g.qty)} ${esc(g.unit)})</button></div>` : ''}
+        <div class="muted" style="font-size:.8rem;margin-top:6px">Vérifiez la désignation et l'unité. Autres offres trouvées :</div>
+        <div class="offers">${order.slice(0, 8).map(i => `<button type="button" class="offer-row ${i === pick ? 'on' : ''}" data-i="${i}"><span>${esc(offers[i].store)}</span><span class="muted">${esc(clean(offers[i].title, offers[i].store)).slice(0, 56)}</span><b>${money(offers[i].price)}</b></button>`).join('')}</div></div>`;
+    const pu = $$('perUnit'); if (pu) pu.onclick = () => { apply(pick, true); toast(`Prix converti au ${g.unit}`); };
+    panel.querySelectorAll('.offer-row').forEach(b => b.onclick = () => apply(+b.dataset.i));
+  };
+  const run = async () => {
+    const ref = E.ref.value.trim(); if (ref.length < 4) return toast('Saisissez une référence de 4 caractères ou plus');
+    const mine = db.catalog.find(c => isMat(c) && c.id !== editId && nrm(c.ref) === nrm(ref) && nrm(ref));
+    if (mine && !confirm(`Cette référence existe déjà dans votre catalogue (${mine.desc.slice(0, 60)}). Chercher quand même sur le web ?`)) return;
+    btn.disabled = true; btn.textContent = 'Recherche…'; panel.innerHTML = '<p class="muted" style="margin:6px 0">Recherche de cette référence chez les magasins…</p>';
+    try {
+      offers = (await api('GET', '/api/prices/search?q=' + encodeURIComponent(ref))).offers.filter(o => o.price > 0);
+      if (!offers.length) { panel.innerHTML = '<div class="notice bad" style="margin:6px 0 12px">Aucune offre trouvée pour cette référence. Essayez avec le code EAN ou la désignation, ou saisissez le prix à la main.</div>'; return; }
+      apply(rank(ref)[0]);
+    } catch (e) { panel.innerHTML = `<div class="notice bad" style="margin:6px 0 12px">${esc(e.message)}</div>`; } finally { btn.disabled = false; btn.textContent = 'Chercher'; }
+  };
+  btn.onclick = run;
+  E.ref.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); run(); } });
+  E.ref.addEventListener('change', () => { if (E.ref.value.trim().length >= 6 && !E.desc.value.trim() && !E.cost.value) run(); });
+}
