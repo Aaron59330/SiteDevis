@@ -48,6 +48,14 @@ async function prep() {
       q('DEV-2026-002', '2026-10-06', 'PEINTURE CAGE D’ESCALIER', 'c2', 'envoye', [['PEINT', 'Peinture 2 couches', 140, 'm²', 14]]),
       q('DEV-2026-003', '2026-10-09', 'POSE DE PARQUET SALON', 'c1', 'brouillon', [['PARQ', 'Pose de parquet', 32, 'm²', 5]])
     ];
+    const inv = (n, d, st, paid, cid, price) => ({ id: id(), kind: 'facture', number: n, date: d, dueDate: d, paidAt: paid, clientId: cid, title: 'Facture', status: st, lines: [{ t: 'item', ref: '', desc: 'Travaux', qty: 1, unit: 'forfait', price, vat: 0 }] });
+    const back = n => { const dt = new Date(); dt.setMonth(dt.getMonth() - n, 12); return dt.toISOString().slice(0, 10); };
+    [[1, 3200, 'payee'], [1, 1800, 'payee'], [2, 2600, 'payee'], [2, 900, 'envoye'], [3, 2100, 'payee'], [4, 3900, 'payee'], [4, 1200, 'payee'], [5, 1500, 'payee']].forEach(([n, p, st], i) => raw.quotes.push(inv('FAC-2026-0' + (10 + i), back(n), st, st === 'payee' ? back(n) : '', i % 2 ? 'c2' : 'c1', p)));
+    [[1, 5400, 'accepte'], [1, 2100, 'accepte'], [2, 3300, 'accepte'], [3, 2600, 'accepte'], [4, 5200, 'accepte'], [5, 1700, 'envoye']].forEach(([n, p, st], i) => raw.quotes.push(q('DEV-2026-0' + (20 + i), back(n), 'CHANTIER ' + (i + 1), i % 2 ? 'c2' : 'c1', st, [['', 'Travaux', 1, 'forfait', p]])));
+    const cur = (add) => { const dt = new Date(); dt.setDate(Math.max(1, dt.getDate() - add)); return dt.toISOString().slice(0, 10); };
+    raw.quotes.push(inv('FAC-2026-030', cur(3), 'payee', cur(1), 'c1', 4200), inv('FAC-2026-031', cur(2), 'envoye', '', 'c2', 2750), inv('FAC-2026-032', cur(1), 'payee', cur(0), 'c1', 1800));
+    raw.quotes.forEach(x => { if (x.number === 'DEV-2026-001') { x.siteId = 's1'; } if (x.number === 'FAC-2026-030' || x.number === 'FAC-2026-032') x.siteId = 's1'; });
+    raw.quotes.find(x => x.number === 'DEV-2026-001').date = cur(5);
     raw.settings.next = 4;
     db = normalize(raw); save();
   });
@@ -87,15 +95,15 @@ async function rec() {
     if (o.clear) { await page.keyboard.press('Control+A'); await page.keyboard.press('Delete'); }
     const a = wall(); await page.keyboard.type(text, { delay: o.delay || 62 }); cue('type', a, wall()); await sleep(o.after ?? 250); slow('type ' + sel, _t);
   };
-  const T0 = wall(); const caption = async (k, t, s) => { console.log(k, (wall() - T0).toFixed(1) + 's'); await page.evaluate(([k, t, s]) => window.fxCap(k, t, s), [k, t, s]); cue('pop'); cue('whoosh'); };
+  const marks = []; const T0 = wall(); const caption = async (k, t, s) => { marks.push({ name: k, wall: wall() }); console.log(k, (wall() - T0).toFixed(1) + 's'); await page.evaluate(([k, t, s]) => window.fxCap(k, t, s), [k, t, s]); cue('pop'); cue('whoosh'); };
   const capOff = () => page.evaluate(() => window.fxCapHide());
   const ring = (sel, pad) => page.evaluate(([s, p]) => window.fxRing(s, p), [sel, pad || 8]);
   const zoom = (sel, sc, ms = 1100) => page.evaluate(([s, c, m]) => window.fxZoom(s, c, m), [sel, sc, ms]);
   const shot = n => process.env.DEBUG ? page.screenshot({ path: path.join(OUT, '_' + n + '.png') }) : null;
 
   await page.goto(BASE + '/'); await page.waitForSelector('form[data-form=login]'); await sleep(600);
-  await cdp.send('Page.startScreencast', { format: 'jpeg', quality: 92, maxWidth: 1920, maxHeight: 1080, everyNthFrame: 1 });
-  await page.evaluate(() => { window.fxProgress(60); window.fxCover('intro'); }); cue('hit'); cue('pop');
+  await cdp.send('Page.startScreencast', { format: 'jpeg', quality: 92, maxWidth: 1920, maxHeight: 1080, everyNthFrame: 2 });
+  await page.evaluate(() => { window.fxProgress(75); window.fxCover('intro'); }); cue('hit'); cue('pop');
   await sleep(3600); await page.evaluate(() => window.fxCoverOut('intro')); await sleep(900);
 
   /* 1 — connexion */
@@ -110,7 +118,7 @@ async function rec() {
 
   /* 3 — le devis */
   await caption('03 — Le devis', 'Complet, modifiable, en direct', 'Votre document se construit pendant que vous saisissez.');
-  await type('[data-f=title]', 'RÉNOVATION APPARTEMENT 8 RUE DE LA GARE', { delay: 48 });
+  await type('[data-f=title]', 'RÉNOVATION APPARTEMENT DUPONT', { delay: 38 });
   await press('#clientSel', { after: 200 }); await page.selectOption('#clientSel', { label: 'M Paul DUPONT' }); await sleep(900);
   await press('[data-act=catalog-open]', { after: 900 });
   await press('.cp-row:nth-of-type(1) .cp-add', { after: 700 }); await press('.cp-row:nth-of-type(2) .cp-add', { after: 700 });
@@ -118,7 +126,7 @@ async function rec() {
   await press('[data-act=close-modal]', { after: 600 });
   await type('[data-l=qty] >> nth=0', '30', { clear: true, delay: 110, after: 400 }); await type('[data-l=qty] >> nth=1', '60', { clear: true, delay: 110, after: 600 });
   await zoom('#doc .totbox', 1.55, 1000); await ring('#doc .totbox', 10); await sleep(1900); await zoom(null, 1, 900); await sleep(800); await shot('3-devis');
-  await type('[data-f=notes]', 'Plafon et pienture 2 couche inclus. Evacuation des gravats comprise.', { delay: 38, after: 700 });
+  await type('[data-f=notes]', 'Plafon et pienture 2 couche inclus.', { delay: 32, after: 600 });
 
   /* 4 — une facture par paiement */
   await caption('04 — Un paiement, une facture', 'Facturez chaque échéance', 'Acompte, intermédiaire, solde : une facture claire pour chaque paiement.');
@@ -146,21 +154,25 @@ async function rec() {
   await press('[data-act=ai-apply-all]', { after: 1200 }).catch(() => {}); await sleep(900);
   await press('[data-act=close-modal]', { after: 500 }).catch(() => {});
 
-  /* 7 — chantiers */
-  await press('[data-view=sites]', { after: 1000 }); await caption('07 — Chantiers', 'Suivez vos chantiers', 'Lieu, dates, heures prévues et réalisées, devis et factures rattachés.');
+  /* 7 — statistiques */
+  await press('[data-view=stats]', { after: 900 }); await caption('07 — Statistiques', 'Pilotez votre chiffre d’affaires', 'Devis du mois, facturé, encaissé, impayés et comparatifs.');
+  await sleep(900); await ring('.stats', 10); await sleep(1700); await page.evaluate(() => document.querySelector('.chart').scrollIntoView({ behavior: 'smooth', block: 'center' })); await sleep(1200); await ring('.chart', 10); await sleep(1500); await shot('7-stats');
+
+  /* 8 — chantiers */
+  await press('[data-view=sites]', { after: 1000 }); await caption('08 — Chantiers', 'Suivez vos chantiers', 'Lieu, dates, heures prévues et réalisées, devis et factures rattachés.');
   await sleep(1300); await press('[data-act=open-site]', { after: 1200 }); await ring('.bar', 14); await sleep(1800); await shot('7-chantier');
 
   /* 8 — personnalisation */
-  await press('[data-view=custom]', { after: 900 }); await caption('08 — À vos couleurs', 'Votre interface, vos couleurs', 'Couleur, mode clair ou sombre, sons, tailles.');
+  await press('[data-view=custom]', { after: 900 }); await caption('09 — À vos couleurs', 'Votre interface, vos couleurs', 'Couleur, mode clair ou sombre, sons, tailles.');
   await press('[data-act=pref][data-k=accent][data-v="#3b82f6"]', { after: 900 }); await press('[data-act=pref][data-k=accent][data-v="#8b5cf6"]', { after: 900 });
   await press('[data-act=pref][data-k=mode][data-v=light]', { after: 1300 }); await press('[data-act=pref][data-k=mode][data-v=dark]', { after: 700 });
   await press('[data-act=pref][data-k=accent][data-v="#e3a04b"]', { after: 1100 }); await shot('8-couleurs');
 
   /* outro */
-  await capOff(); await sleep(400); cue('riser', wall(), wall() + 1.3); await page.evaluate(() => window.fxCover('outro')); await sleep(1400); cue('hit'); cue('chime'); await sleep(3600);
+  marks.push({ name: 'outro', wall: wall() }); await capOff(); await sleep(400); cue('riser', wall(), wall() + 1.3); await page.evaluate(() => window.fxCover('outro')); await sleep(1400); cue('hit'); cue('chime'); await sleep(3600);
 
   await cdp.send('Page.stopScreencast'); await sleep(400); await b.close();
-  fs.writeFileSync(path.join(OUT, 'timeline.json'), JSON.stringify({ frames, cues }));
+  fs.writeFileSync(path.join(OUT, 'timeline.json'), JSON.stringify({ frames, cues, marks }));
   console.log('frames', frames.length, 'durée', (frames[frames.length - 1].ts - frames[0].ts).toFixed(1), 's');
 }
 ({ prep, rec }[process.argv[2]] || (() => console.log('usage: node film.js prep|rec')))().catch(e => { console.error(e); process.exit(1); });

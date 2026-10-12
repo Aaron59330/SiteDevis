@@ -18,7 +18,7 @@ function renderAuth(mode, opts = {}) {
       <div class="form-err" hidden></div>
       <button class="btn primary block">Se connecter</button>
     </form>
-    <p class="auth-video-link"><a href="#" data-act="hero-open">Voir la vidéo de présentation (30 s)</a></p>
+    <p class="auth-video-link"><a href="#" data-act="hero-open">Voir la vidéo de présentation (1 min)</a></p>
     ${cfg.registrationOpen ? `<p class="auth-alt">Pas encore de compte ? <a href="#" data-act="auth-go" data-mode="register">Créer un compte</a></p>` : '<p class="auth-alt muted">Les inscriptions sont fermées.</p>'}`;
   else if (mode === 'register') card = `
     <h2>Créer un compte</h2><p class="muted">Un email de confirmation vous sera envoyé.</p>
@@ -198,7 +198,7 @@ function brandHtml(name) {
 }
 
 /* ---------- Vidéo de présentation de l'écran de connexion ---------- */
-const HERO_MP4 = '/media/optidevis-30s.mp4', HERO_WEBM = '/media/optidevis-30s.webm';
+const HERO_MP4 = '/media/optidevis-film.mp4', HERO_WEBM = '/media/optidevis-film.webm';
 const heroSources = () => `<source src="${HERO_MP4}" type="video/mp4"><source src="${HERO_WEBM}" type="video/webm">`;
 function loadHero(v) { if (v.dataset.ready) return; v.dataset.ready = '1'; v.innerHTML = heroSources(); v.load(); }
 function initHeroVideo() {

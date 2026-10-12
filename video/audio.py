@@ -119,11 +119,11 @@ kick_times = []
 for b in range(n_bars):
     root, notes = CHORDS[b % 4]
     t0 = b * BAR
-    if t0 < 28.4:
-        add(music, t0, pad([n for n in notes] + [notes[0] + 12], min(BAR + 0.5, 28.9 - t0)), 0.55 if t0 < 3 else 0.42)
+    if t0 < DUR - 1.6:
+        add(music, t0, pad([n for n in notes] + [notes[0] + 12], min(BAR + 0.5, DUR - 1.1 - t0)), 0.55 if t0 < 3 else 0.42)
     for k in range(8):  # croches
         t = t0 + k * BEAT / 2
-        if 3.0 <= t < 28.0:
+        if 3.0 <= t < DUR - 2.0:
             # arpégiateur
             pat = [0, 1, 2, 1, 0, 2, 1, 2]
             vol = 0.5 if t < 12 else 0.7
@@ -134,7 +134,7 @@ for b in range(n_bars):
                 add(music, t, bass(root - 12, 0.4), 0.9 if k % 2 == 0 else 0.6)
     for k in range(4):
         t = t0 + k * BEAT
-        if 3.0 <= t < 28.0:
+        if 3.0 <= t < DUR - 2.0:
             add(music, t, kick(), 1.0)
             kick_times.append(t)
             if k % 2 == 1 and t >= 7.0:
@@ -282,7 +282,7 @@ for a, b in CUES['riser']:
 
 # accord final long
 fin = pad([57, 64, 69, 72, 76], 2.2)
-add(music, 28.4, fin, 0.9)
+add(music, DUR - 1.6, fin, 0.9)
 
 mix = music * 0.85 + reverb(sfx, 0.25) * 1.0
 # fondu final
