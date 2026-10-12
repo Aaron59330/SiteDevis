@@ -33,13 +33,13 @@ async function gemini(imgs) {
       body: JSON.stringify({ systemInstruction: { parts: [{ text: ai.IMPORT_SYSTEM + ai.PHOTO_EXTRA + '\n\n' + SHAPE }] }, contents: [{ role: 'user', parts }], generationConfig: { responseMimeType: 'application/json', temperature: 0.1 } }),
       signal: AbortSignal.timeout(90000)
     });
-  } catch (e) { const er = new Error('Service de lecture injoignable.'); er.status = 502; throw er; }
-  if (r.status === 429) { const er = new Error('Le service gratuit de lecture est saturé (limite atteinte). Réessayez dans une minute.'); er.status = 429; throw er; }
-  if (!r.ok) { console.error('Gemini', r.status, (await r.text()).slice(0, 200)); const er = new Error('Le service de lecture a refusé la requête.'); er.status = 502; throw er; }
+  } catch (e) { const er = new Error('Service de lecture injoignable.'); er.status = 502; er.expose = true; throw er; }
+  if (r.status === 429) { const er = new Error('Le service gratuit de lecture est saturé (limite atteinte). Réessayez dans une minute.'); er.status = 429; er.expose = true; throw er; }
+  if (!r.ok) { const body = (await r.text()).slice(0, 300); console.error('Gemini', r.status, body); const er = new Error(r.status === 400 || r.status === 403 ? 'Clé Gemini refusée ou invalide (erreur ' + r.status + '). Vérifiez GEMINI_API_KEY.' : r.status === 404 ? 'Modèle Gemini introuvable : définissez GEMINI_MODEL dans /etc/sitedevis.env.' : 'Le service de lecture a refusé la requête (erreur ' + r.status + ').'); er.status = 502; er.expose = true; throw er; }
   const j = await r.json();
   const txt = (((j.candidates || [])[0] || {}).content || {}).parts;
   const out = Array.isArray(txt) ? txt.map(p => p.text || '').join('') : '';
-  try { return JSON.parse(out.replace(/^```(?:json)?\s*|\s*```$/g, '')); } catch (e) { const er = new Error('Réponse illisible, réessayez avec une photo plus nette.'); er.status = 502; throw er; }
+  try { return JSON.parse(out.replace(/^```(?:json)?\s*|\s*```$/g, '')); } catch (e) { const er = new Error('Réponse illisible, réessayez avec une photo plus nette.'); er.status = 502; er.expose = true; throw er; }
 }
 
 function ocr(buf, mime) {

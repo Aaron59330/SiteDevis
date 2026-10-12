@@ -387,8 +387,8 @@ route('POST', '/api/import/photo', 'user', async ctx => {
     if (!r.doc.lines.some(l => l.type === 'item')) throw err(422, 'Aucune ligne de devis n\'a été reconnue sur cette photo. Cadrez bien la page entière, avec une bonne lumière, et réessayez.');
     return ok(r);
   } catch (e) {
-    if (e.status && e.status < 500 && e.status !== 429) throw err(e.status, e.message);
     console.error('Import photo :', e.status || '', e.message);
+    if (e.expose || (e.status && e.status < 500 && e.status !== 429)) throw err(e.status || 502, e.message);
     throw err(502, e.status === 429 ? 'Le service IA est très sollicité, réessayez dans un instant.' : 'Impossible de lire cette photo pour le moment.');
   }
 });
