@@ -60,6 +60,7 @@ function normQuote(q, base) {
   if (q.footer == null) q.footer = makeFooter(base);
   if (q.bank == null) q.bank = base.company.bank || '';
   if (!q.payments) q.payments = q.kind === 'facture' ? [] : q.deposit ? [{ pct: num(q.deposit), label: 'Acompte' }, { pct: 100 - num(q.deposit), label: 'Solde' }] : parsePayments(base.settings.defaultPayments);
+  if (q.kind !== 'facture') q.payments.forEach(p => { p.id = p.id || uid(); p.invoiceId = p.invoiceId || ''; });
   q.notes = q.notes || ''; q.discount = num(q.discount); q.status = q.status || 'brouillon';
   return q;
 }
@@ -162,15 +163,16 @@ function totals(q) {
   const subtotal = items.reduce((s, l) => s + l.total, 0);
   const discountAmt = subtotal * num(q.discount) / 100;
   const ratio = subtotal ? (subtotal - discountAmt) / subtotal : 1;
-  const byRate = {};
+  const byRate = {}, htByRate = {};
   items.forEach(l => {
     const r = exempt ? 0 : num(l.vat);
     byRate[r] = (byRate[r] || 0) + l.total * ratio * r / 100;
+    htByRate[r] = (htByRate[r] || 0) + l.total * ratio;
   });
   const ht = subtotal - discountAmt;
   const vat = Object.values(byRate).reduce((s, v) => s + v, 0);
   const ttc = ht + vat, paid = isInv(q) ? num(q.alreadyPaid) : 0;
-  return { subtotal, discountAmt, ht, vat, byRate, ttc, paid, due: ttc - paid };
+  return { subtotal, discountAmt, ht, vat, byRate, htByRate, ttc, paid, due: ttc - paid };
 }
 
 /* ---------- Rendu principal ---------- */
@@ -358,6 +360,7 @@ function renderEditor() {
           <div class="field"><label>Déjà réglé / acompte versé (€ TTC)</label><input type="number" step="0.01" min="0" data-f="alreadyPaid" value="${q.alreadyPaid}"></div>
           <div class="field"><label>Mode de règlement</label><input data-f="payMethod" value="${esc(q.payMethod)}" placeholder="Virement bancaire"></div>
           <div class="field"><label>Payée le</label><input type="date" data-f="paidAt" value="${q.paidAt}"></div></div>
+          ${q.stepId ? `<p class="muted" style="margin:-4px 0 12px;font-size:.82rem">Facture de l'échéance « ${esc(q.stepLabel || 'Paiement')} » du devis N° ${esc(q.fromNumber)} : le total ne reprend que cette échéance. Le récapitulatif des conditions de paiement indique celles déjà réglées.</p>` : ''}
           <p class="muted" style="margin:-4px 0 12px;font-size:.82rem">Si un acompte a déjà été payé sur le devis, indiquez-le : la facture affichera « Déjà réglé » et le « Net à payer ».</p>` : `
         <label>Conditions de paiement (échéancier)</label>
         <div id="payBody">${paymentsHtml(q)}</div>
@@ -417,11 +420,16 @@ function linesHtml(q) {
 
 function paymentsHtml(q) {
   const t = totals(q);
-  return q.payments.map((p, i) => `<div class="pay" data-i="${i}">
-    <input type="number" step="any" min="0" max="100" data-p="pct" value="${p.pct}" style="width:80px"> <span>%</span>
-    <input data-p="label" value="${esc(p.label)}" placeholder="Libellé (Acompte, Solde…)">
+  return q.payments.map((p, i) => {
+    const inv = p.invoiceId ? getQuote(p.invoiceId) : null;
+    return `<div class="pay" data-i="${i}">
+    <input type="number" step="any" min="0" max="100" data-p="pct" value="${p.pct}" style="width:80px" ${inv ? 'disabled' : ''}> <span>%</span>
+    <input data-p="label" value="${esc(p.label)}" placeholder="Libellé (Acompte, Solde…)" ${inv ? 'disabled' : ''}>
     <b data-amount>${money(t.ttc * num(p.pct) / 100)}</b>
-    <button class="btn small icon danger" data-act="del-pay" title="Supprimer">✕</button></div>`).join('');
+    ${inv ? `<button class="btn small" data-act="open-step" data-id="${inv.id}" title="Ouvrir la facture de cette échéance">${esc(inv.number)}${inv.status === 'payee' ? ' · payée' : ''}</button>`
+      : `<button class="btn small" data-act="pay-invoice" title="Créer la facture de cette échéance">Facturer</button>`}
+    <button class="btn small icon danger" data-act="del-pay" title="Supprimer">✕</button></div>`;
+  }).join('');
 }
 
 const accentOf = () => (/^#[0-9a-f]{6}$/i.test(db.company.accent || '') ? db.company.accent : '#263238');
@@ -448,8 +456,8 @@ function renderDoc(q) {
   }).join('') || `<tr><td colspan="${N}" class="r" style="text-align:center;color:#999">Aucune prestation</td></tr>`;
 
   const pays = q.payments.filter(p => num(p.pct) > 0);
-  const payHtml = pays.length ? `<div class="pay-title">Conditions de paiement :</div>` + pays.map((p, i) =>
-    `<div>• ${new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(num(p.pct))} % soit ${money(t.ttc * num(p.pct) / 100)}${p.label ? (/^\s*(à |\()/i.test(p.label) ? ' ' : ' : ') + esc(p.label.trim()) : ''}${i === pays.length - 1 ? '.' : ','}</div>`).join('') : '';
+  const payHtml = (isInv(q) && q.stepId && stepRecap(q)) || (pays.length ? `<div class="pay-title">Conditions de paiement :</div>` + pays.map((p, i) =>
+    `<div>• ${new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(num(p.pct))} % soit ${money(t.ttc * num(p.pct) / 100)}${p.label ? (/^\s*(à |\()/i.test(p.label) ? ' ' : ' : ') + esc(p.label.trim()) : ''}${i === pays.length - 1 ? '.' : ','}</div>`).join('') : '');
 
   const rates = Object.entries(t.byRate).sort((a, b) => a[0] - b[0]);
   const vatRows = (rates.length ? rates : [[0, 0]]).map(([r, v]) => `<div class="tr"><span>TVA ( ${String(r).replace('.', ',')} % )</span><span>${money(v)}</span></div>`).join('');
@@ -848,8 +856,8 @@ const actions = {
   },
   'line-up'(t) { moveLine(+t.closest('.line').dataset.i, -1); },
   'line-down'(t) { moveLine(+t.closest('.line').dataset.i, 1); },
-  'add-pay'() { getQuote(editingId).payments.push({ pct: 0, label: '' }); save(); refreshPayments(); },
-  'del-pay'(t) { getQuote(editingId).payments.splice(+t.closest('.pay').dataset.i, 1); save(); refreshPayments(); },
+  'add-pay'() { getQuote(editingId).payments.push({ id: uid(), invoiceId: '', pct: 0, label: '' }); save(); refreshPayments(); },
+  'del-pay'(t) { const q = getQuote(editingId), i = +t.closest('.pay').dataset.i; if (q.payments[i].invoiceId && getQuote(q.payments[i].invoiceId) && !confirm('Une facture existe pour cette échéance. La retirer de l\'échéancier ?')) return; q.payments.splice(i, 1); save(); refreshPayments(); },
   'reset-issuer'() { const q = getQuote(editingId); q.issuerText = issuerBlock(db.company); $('[data-f=issuerText]').value = q.issuerText; save(); refreshPreview(); autosize(); },
   'reset-client'() { const q = getQuote(editingId); q.clientText = clientBlock(getClient(q.clientId)); $('[data-f=clientText]').value = q.clientText; save(); refreshPreview(); autosize(); },
   'new-client': () => clientModal(null, () => render()),

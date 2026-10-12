@@ -73,7 +73,47 @@ function createInvoice(src) {
   return inv;
 }
 
+/* ---------- Une facture par échéance de paiement du devis ---------- */
+const shortDate = (iso, ref) => { if (!iso) return ''; const [y, m, d] = iso.split('-'); return `${d}/${m}${ref && ref.slice(0, 4) !== y ? '/' + y : ''}`; };
+
+/* Récapitulatif « Conditions de paiement » d'une facture d'échéance : les échéances déjà réglées sont notées « payé le … » */
+function stepRecap(inv) {
+  const src = getQuote(inv.fromQuoteId); if (!src || !inv.stepId) return null;
+  const t = totals(src), pays = src.payments.filter(p => num(p.pct) > 0);
+  if (!pays.length) return null;
+  return `<div class="pay-title">Conditions de paiement :</div>` + pays.map((p, i) => {
+    const pi = p.invoiceId ? getQuote(p.invoiceId) : null;
+    const paid = pi && pi.status === 'payee' ? `, payé le ${shortDate(pi.paidAt || '', inv.date)}`.replace(/ le $/, '') : '';
+    return `<div>• ${fmtNum.format(num(p.pct))} % soit ${money(t.ttc * num(p.pct) / 100)}${p.label ? ' : ' + esc(String(p.label).trim()) : ''}${paid}${i === pays.length - 1 ? ' .' : ''}</div>`;
+  }).join('');
+}
+
+function createStepInvoice(src, idx) {
+  const p = src.payments[idx], t = totals(src), pct = num(p.pct);
+  const inv = createInvoice(src);
+  const rates = Object.keys(t.htByRate).map(Number).sort((a, b) => a - b);
+  const what = `${(p.label || 'Paiement').trim()} — ${fmtNum.format(pct)} % du devis N° ${src.number}`;
+  inv.lines = (rates.length ? rates : [num(db.settings.defaultVat)]).map(r => ({
+    t: 'item', ref: '', desc: what + (rates.length > 1 ? ` (TVA ${String(r).replace('.', ',')} %)` : ''),
+    qty: 1, unit: 'forfait', price: r2(num(t.htByRate[r]) * pct / 100), vat: r
+  }));
+  inv.discount = 0; inv.stepId = p.id; inv.stepLabel = p.label || '';
+  p.invoiceId = inv.id;
+  if (src.status === 'brouillon' || src.status === 'envoye') src.status = 'accepte';
+  return inv;
+}
+
 Object.assign(actions, {
+  'open-step': t => go('editor', t.dataset.id),
+  'pay-invoice'(t) {
+    if (!requireAccess()) return;
+    const src = getQuote(editingId), i = +t.closest('.pay').dataset.i;
+    if (!src || isInv(src) || !src.payments[i]) return;
+    if (src.payments.reduce((s, x) => s + num(x.pct), 0) > 100.001 && !confirm('Le total des échéances dépasse 100 %. Créer quand même cette facture ?')) return;
+    const inv = createStepInvoice(src, i);
+    save(); toast(`Facture ${inv.number} créée pour l'échéance « ${src.payments[i].label || 'Paiement'} »`);
+    go('editor', inv.id);
+  },
   'goto-quotes': () => go('quotes'),
   'new-invoice'() { if (!requireAccess()) return; const inv = createInvoice(null); save(); go('editor', inv.id); },
   'make-invoice'(t) {
