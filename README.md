@@ -20,6 +20,7 @@ Au premier lancement, un **compte administrateur** est créé : son email et son
   (essai gratuit, inscriptions), journal d'activité.
 - **Matériaux & fournisseurs** : vos fournisseurs, leurs matériaux avec prix d’achat et marge ; dans un devis, choix du fournisseur, recherche (« gouttière 80 mm »), quantité → total automatique ; liste d’achat par fournisseur.
 - **Prix en ligne** : assistant dans la fiche matériau (liens de recherche Leroy Merlin, Castorama, Brico Dépôt, Point.P ; conversion TTC → HT par unité) et recherche automatique optionnelle via SerpApi (`SERPAPI_KEY`).
+- **Téléphone, tablette, ordinateur** : mise en page adaptée à chaque écran (barre de navigation en bas sur mobile, onglets Édition/Aperçu, tableaux en cartes) ; le site peut être ajouté à l’écran d’accueil comme une application.
 - **Boîte à outils** : guide « Bien faire un devis » (7 étapes, simulateur de prix, vérificateur de devis), conversion et compression d’images, photos en PDF, petits calculs (TVA, marge, surfaces) et astuces. Tout fonctionne dans le navigateur.
 - **Relecture par l’IA** : bouton « Relire avec l’IA » dans l’éditeur ; corrige fautes et oublis, mais rien n’est modifié sans l’accord de l’utilisateur (suggestions acceptées ou ignorées une à une). Nécessite `ANTHROPIC_API_KEY` et `npm install`.
 - **Factures** : bouton « 🧾 Créer la facture » depuis un devis (lignes, client et mentions reprises), numérotation propre, échéance, acompte déjà réglé, suivi payée/en retard.

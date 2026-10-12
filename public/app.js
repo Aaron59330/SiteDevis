@@ -31,6 +31,7 @@ let db = defaults();
 let view = 'quotes';
 let editingId = null;
 let wide = false;
+let pane = 'form';
 let filter = { q: '', status: '' };
 
 function normalize(raw) {
@@ -171,8 +172,9 @@ function totals(q) {
 
 /* ---------- Rendu principal ---------- */
 function render() {
-  document.querySelectorAll('#nav button').forEach(b =>
+  document.querySelectorAll('#nav button, #bottomnav button[data-view]').forEach(b =>
     b.classList.toggle('active', b.dataset.view === navFor()));
+  const ms = $('#moreSheet'); if (ms) ms.hidden = true;
   const app = $('#app');
   if (view === 'quotes') app.innerHTML = renderQuotes();
   else if (view === 'editor') app.innerHTML = renderEditor();
@@ -189,12 +191,13 @@ function navFor() {
 }
 function go(v, id = null) {
   if (v === 'editor' && !requireAccess()) return;
+  if (v === 'editor') pane = 'form';
   view = v; editingId = id; render();
 }
 
 function fitDoc() {
   const wrap = $('.preview-wrap'), doc = $('#doc');
-  if (!wrap || !doc) return;
+  if (!wrap || !doc || wrap.clientWidth < 60) return;
   doc.style.zoom = Math.min(1, (wrap.clientWidth - 4) / 794);
 }
 function autosize() {
@@ -282,7 +285,7 @@ function renderEditor() {
     <div class="row"><button class="btn" data-act="back">← Retour</button><h1 style="margin:0">${esc(q.opts.docLabel)} ${esc(q.number)}</h1></div>
     <div class="row">
       ${session.config.ai ? '<button class="btn" data-act="ai-review" title="Correction des fautes et suggestions, sans rien modifier sans votre accord">✨ Relire avec l\'IA</button>' : ''}
-      <button class="btn" data-act="toggle-wide">👁 Aperçu large / ✎ Édition</button>
+      <button class="btn hide-sm" data-act="toggle-wide">👁 Aperçu large / ✎ Édition</button>
       ${isInv(q)
         ? `${q.fromQuoteId && getQuote(q.fromQuoteId) ? `<button class="btn" data-act="edit" data-id="${q.fromQuoteId}">← Voir le devis ${esc(q.fromNumber || '')}</button>` : ''}${q.status !== 'payee' ? '<button class="btn" data-act="mark-paid">✓ Marquer comme payée</button>' : ''}`
         : `<button class="btn" data-act="make-invoice" data-id="${q.id}">🧾 ${db.quotes.some(i => i.fromQuoteId === q.id) ? 'Créer une autre facture' : 'Créer la facture'}</button>`}
@@ -291,7 +294,8 @@ function renderEditor() {
       <button class="btn primary" data-act="print" title="Dans la fenêtre d'impression : destination « Enregistrer au format PDF », décochez « En-têtes et pieds de page »">🖨 Imprimer / PDF</button>
     </div>
   </div>
-  <div class="editor ${wide ? 'wide' : ''}" id="editor">
+  <div class="pane-switch no-print"><button data-act="pane" data-pane="form" class="${pane === 'form' ? 'on' : ''}">Édition</button><button data-act="pane" data-pane="doc" class="${pane === 'doc' ? 'on' : ''}">Aperçu du document</button></div>
+  <div class="editor ${wide ? 'wide' : ''}" id="editor" data-pane="${pane}">
     <div class="form no-print">
       <div class="card">
         <h2>Informations</h2>
@@ -782,6 +786,7 @@ const actions = {
   edit: t => go('editor', t.dataset.id),
   back() { go(isInv(getQuote(editingId)) ? 'invoices' : 'quotes'); },
   print() { fitDoc(); window.print(); },
+  pane(t) { pane = t.dataset.pane; $('#editor').dataset.pane = pane; document.querySelectorAll('.pane-switch button').forEach(b => b.classList.toggle('on', b.dataset.pane === pane)); fitDoc(); window.scrollTo(0, 0); },
   'toggle-wide'() { wide = !wide; $('#editor').classList.toggle('wide', wide); fitDoc(); },
   dup(t) {
     if (!requireAccess()) return;

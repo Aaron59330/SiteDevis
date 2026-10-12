@@ -2,7 +2,12 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#070707">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon.svg">
 <title>Mes Devis</title>
 <link rel="stylesheet" href="style.css">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%268%27 fill=%27%23111%27/%3E%3Crect x=%278%27 y=%278%27 width=%2716%27 height=%2716%27 rx=%274%27 fill=%27%23f2f2f3%27/%3E%3C/svg%3E">
@@ -20,11 +25,14 @@
 
 <main id="app"></main>
 
+<nav id="bottomnav" class="bottomnav no-print"></nav>
+<div id="moreSheet" class="more-sheet no-print" hidden></div>
 <dialog id="modal"></dialog>
 <div id="toast" class="toast no-print"></div>
 <input type="file" id="fileImport" accept="application/json" hidden>
 
 <script src="icons.js"></script>
+<script src="responsive.js"></script>
 <script src="api.js"></script>
 <script src="app.js"></script>
 <script src="auth.js"></script>

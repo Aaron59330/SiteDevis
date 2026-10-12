@@ -144,18 +144,36 @@ document.addEventListener('click', e => { if (!e.target.closest('#userbox')) $('
 function updateTopbar() {
   const u = session.user, a = session.access;
   if (!u) return;
-  const items = [['quotes', 'Devis'], ['invoices', 'Factures'], ['clients', 'Clients'], ['catalog', 'Catalogue'], ['tools', 'Boîte à outils'], ['company', 'Mon entreprise'], ['billing', 'Abonnement']];
-  if (u.role === 'admin') items.push(['admin', '🛡 Administration']);
-  $('#nav').innerHTML = items.map(([v, l]) => `<button data-view="${v}">${l}</button>`).join('');
+  const items = [['quotes', 'Devis'], ['invoices', 'Factures'], ['clients', 'Clients'], ['catalog', 'Catalogue'], ['tools', 'Boîte à outils', 'Outils'], ['company', 'Mon entreprise', 'Entreprise'], ['billing', 'Abonnement']];
+  if (u.role === 'admin') items.push(['admin', 'Administration', 'Admin']);
+  $('#nav').innerHTML = items.map(([v, l, s]) => `<button data-view="${v}"><span class="lg">${l}</span><span class="sh">${s || l}</span></button>`).join('');
   document.querySelectorAll('#nav button').forEach(b =>
     b.classList.toggle('active', b.dataset.view === navFor()));
   const pill = $('#accessPill');
   if (u.role === 'admin') pill.innerHTML = '<span class="pill ok">Administrateur</span>';
-  else if (a.active) pill.innerHTML = `<span class="pill ok">${a.source === 'trial' ? 'Essai' : '✓ Actif'} jusqu'au ${new Date(a.until).toLocaleDateString('fr-FR')}</span>`;
+  else if (a.active) pill.innerHTML = `<span class="pill ok"><span class="lg">${a.source === 'trial' ? 'Essai' : '✓ Actif'} jusqu'au ${new Date(a.until).toLocaleDateString('fr-FR')}</span><span class="sh">${a.source === 'trial' ? 'Essai' : '✓ Actif'} · ${new Date(a.until).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' })}</span></span>`;
   else pill.innerHTML = '<button class="pill bad" data-act="goto-billing">Abonnement requis</button>';
+  renderBottomNav(u);
   const initials = u.name.split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
   $('#userbox').innerHTML = `<button class="avatar" data-act="user-menu" title="${esc(u.email)}">${esc(initials)}</button>
     <div class="pop"><div class="pop-head"><b>${esc(u.name)}</b><span class="muted">${esc(u.email)}</span></div>
       <button data-act="goto-account">Mon compte</button><button data-act="goto-billing">Abonnement &amp; factures</button>
       ${u.role === 'admin' ? '<button data-act="goto-admin">Administration</button>' : ''}<button data-act="logout" class="danger">Déconnexion</button></div>`;
 }
+
+/* ---------- Navigation mobile (barre du bas + menu « Plus ») ---------- */
+function renderBottomNav(u) {
+  const main = [['quotes', 'Devis', 'file'], ['invoices', 'Factures', 'clipboard'], ['clients', 'Clients', 'user'], ['catalog', 'Catalogue', 'book']];
+  const bn = $('#bottomnav'); if (!bn) return;
+  bn.innerHTML = main.map(([v, l, ic]) => `<button data-view="${v}" class="${navFor() === v ? 'active' : ''}">${icon(ic)}<span>${l}</span></button>`).join('') +
+    `<button data-act="more-menu">${icon('menu')}<span>Plus</span></button>`;
+  const more = [['tools', 'Boîte à outils'], ['company', 'Mon entreprise'], ['billing', 'Abonnement & factures'], ['account', 'Mon compte']];
+  if (u.role === 'admin') more.push(['admin', 'Administration']);
+  $('#moreSheet').innerHTML = `<div class="sheet-bg" data-act="more-menu"></div><div class="sheet"><div class="pop-head"><b>${esc(u.name)}</b><span class="muted">${esc(u.email)}</span></div>` +
+    more.map(([v, l]) => `<button data-view="${v}">${l}</button>`).join('') + '<button data-act="logout" class="danger">Déconnexion</button></div>';
+}
+actions['more-menu'] = () => { const s = $('#moreSheet'); s.hidden = !s.hidden; };
+document.addEventListener('click', e => {
+  const b = e.target.closest('#bottomnav button[data-view], #moreSheet button[data-view]');
+  if (b) { $('#moreSheet').hidden = true; go(b.dataset.view); }
+});
