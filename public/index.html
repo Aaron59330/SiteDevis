@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mes Devis</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%268%27 fill=%27%23111%27/%3E%3Crect x=%278%27 y=%278%27 width=%2716%27 height=%2716%27 rx=%274%27 fill=%27%23f2f2f3%27/%3E%3C/svg%3E">
+<script src="theme.js"></script>
+</head>
+<body class="auth-mode">
+<header class="topbar no-print" id="topbar" hidden>
+  <div class="brand">Mes Devis</div>
+  <nav id="nav"></nav>
+  <span id="saved" class="saved"></span>
+  <span id="accessPill"></span>
+  <button class="theme-btn" id="themeBtn" title="Mode clair / sombre">🌙</button>
+  <div id="userbox"></div>
+</header>
+
+<main id="app"></main>
+
+<dialog id="modal"></dialog>
+<div id="toast" class="toast no-print"></div>
+<input type="file" id="fileImport" accept="application/json" hidden>
+
+<script src="api.js"></script>
+<script src="app.js"></script>
+<script src="auth.js"></script>
+<script src="billing.js"></script>
+<script src="admin.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>

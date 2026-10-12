@@ -1,0 +1,8 @@
+{
+  "name": "sitedevis",
+  "version": "1.0.0",
+  "description": "Site de création de devis avec comptes, abonnements et administration",
+  "private": true,
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" }
+}

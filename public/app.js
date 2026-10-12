@@ -1,7 +1,9 @@
 'use strict';
 
 /* ---------- Données ---------- */
-const KEY = 'sitedevis.v1';
+const LEGACY_KEY = 'sitedevis.v1';
+const session = { user: null, access: { active: false }, config: {} };
+const EXTRA = {}, AFTER = {};
 const STATUS = { brouillon: 'Brouillon', envoye: 'Envoyé', accepte: 'Accepté', refuse: 'Refusé' };
 const UNITS = ['u', 'pièce(s)', 'h', 'jour', 'forfait', 'm2', 'm²', 'ml', 'm', 'kg', 'mois'];
 const VATS = [0, 5.5, 10, 20];
@@ -21,7 +23,7 @@ const defaults = () => ({
   quotes: []
 });
 
-let db = load();
+let db = defaults();
 let view = 'quotes';
 let editingId = null;
 let wide = false;
@@ -51,17 +53,33 @@ function normQuote(q, base) {
   q.notes = q.notes || ''; q.discount = num(q.discount); q.status = q.status || 'brouillon';
   return q;
 }
-function load() {
-  try { const raw = JSON.parse(localStorage.getItem(KEY)); if (raw) return normalize(raw); } catch (e) { /* ignore */ }
-  return defaults();
+let pushTimer, pushing = false, dirty = false, savedTimer;
+function setSaved(txt, fade) {
+  const el = document.getElementById('saved'); if (!el) return;
+  el.textContent = txt; clearTimeout(savedTimer);
+  if (fade) savedTimer = setTimeout(() => { el.textContent = ''; }, 1800);
 }
-let saveTimer;
 function save() {
-  try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { toast('Stockage plein : exportez une sauvegarde'); return; }
-  const el = document.getElementById('saved');
-  el.textContent = '✓ Enregistré automatiquement';
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => { el.textContent = ''; }, 1800);
+  if (!session.user) return;
+  dirty = true; setSaved('Enregistrement…');
+  clearTimeout(pushTimer); pushTimer = setTimeout(push, 500);
+}
+async function push() {
+  if (pushing) { pushTimer = setTimeout(push, 300); return; }
+  pushing = true; dirty = false;
+  try { await api('PUT', '/api/data', db); if (!dirty) setSaved('✓ Enregistré', true); }
+  catch (e) {
+    if (e.status === 402) { session.access = { active: false, reason: 'expired' }; updateTopbar(); toast('Abonnement requis pour enregistrer'); go('billing'); }
+    else if (e.status === 401) { location.reload(); }
+    else { setSaved('⚠ Non enregistré'); toast(e.message); }
+  } finally { pushing = false; }
+}
+window.addEventListener('beforeunload', e => { if (dirty || pushing) { e.preventDefault(); e.returnValue = ''; } });
+
+/* Accès : la création et la modification de devis nécessitent un abonnement actif */
+function requireAccess() {
+  if (session.access.active) return true;
+  toast('Abonnement requis pour créer des devis'); go('billing'); return false;
 }
 
 /* ---------- Utilitaires ---------- */
@@ -150,10 +168,15 @@ function render() {
   else if (view === 'clients') app.innerHTML = renderClients();
   else if (view === 'catalog') app.innerHTML = renderCatalog();
   else if (view === 'company') app.innerHTML = renderCompany();
+  else if (EXTRA[view]) app.innerHTML = EXTRA[view]();
+  if (AFTER[view]) AFTER[view]();
   if (view === 'editor') { fitDoc(); updatePrintStyle(); autosize(); } else updatePrintStyle(true);
   window.scrollTo(0, 0);
 }
-function go(v, id = null) { view = v; editingId = id; render(); }
+function go(v, id = null) {
+  if (v === 'editor' && !requireAccess()) return;
+  view = v; editingId = id; render();
+}
 
 function fitDoc() {
   const wrap = $('.preview-wrap'), doc = $('#doc');
@@ -755,14 +778,15 @@ function loadDemo() {
 }
 
 const actions = {
-  'new-quote': newQuote,
-  demo: loadDemo,
+  'new-quote'() { if (requireAccess()) newQuote(); },
+  demo() { if (requireAccess()) loadDemo(); },
   'goto-company': () => go('company'),
   edit: t => go('editor', t.dataset.id),
   back: () => go('quotes'),
   print() { fitDoc(); window.print(); },
   'toggle-wide'() { wide = !wide; $('#editor').classList.toggle('wide', wide); fitDoc(); },
   dup(t) {
+    if (!requireAccess()) return;
     const src = getQuote(t.dataset.id); if (!src) return;
     const q = JSON.parse(JSON.stringify(src));
     q.id = uid(); q.number = makeNumber(); q.date = today(); q.status = 'brouillon';
@@ -818,7 +842,7 @@ const actions = {
     a.download = `sauvegarde-devis-${today()}.json`;
     a.click(); URL.revokeObjectURL(a.href);
   },
-  import: () => $('#fileImport').click()
+  import() { if (requireAccess()) $('#fileImport').click(); }
 };
 
 function moveLine(i, d) {
@@ -911,11 +935,10 @@ document.addEventListener('change', e => {
 function setTheme(t) {
   document.documentElement.dataset.theme = t;
   try { localStorage.setItem('sitedevis.theme', t); } catch (e) { /* ignore */ }
-  $('#themeBtn').textContent = t === 'light' ? '☀️' : '🌙';
+  const b = document.getElementById('themeBtn'); if (b) b.textContent = t === 'light' ? '☀️' : '🌙';
 }
 setTheme(document.documentElement.dataset.theme || 'dark');
-$('#themeBtn').onclick = () => setTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light');
+document.addEventListener('click', e => { if (e.target.closest('#themeBtn')) setTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light'); });
 
 document.head.insertAdjacentHTML('beforeend', '<style id="printStyle"></style>');
 document.body.insertAdjacentHTML('beforeend', `<datalist id="units">${UNITS.map(u => `<option value="${u}">`).join('')}</datalist>`);
-render();

@@ -1,10 +1,27 @@
 # Mes Devis
 
-Site pour créer, suivre et imprimer des devis professionnels. Aucune installation : **double-cliquez sur `index.html`** (Chrome ou Edge recommandés).
+Site de création de devis professionnels avec **comptes utilisateurs, abonnement payant et espace administrateur**.
 
-- Mode sombre / clair (bouton en haut à droite)
-- Devis multi-pages : références, titres de section, sous-totaux, lignes vides, remise, TVA par ligne
-- Tous les textes sont modifiables : titre, blocs émetteur/client, IBAN, échéancier de paiement (%), mentions légales de pied de page
-- Logo, couleur, numérotation personnalisable (ex. `I-{YY}-{MM}-{N}`), clients, catalogue de prestations
-- Impression / PDF : dans la fenêtre d'impression, choisir « Enregistrer au format PDF » et décocher « En-têtes et pieds de page »
-- Données enregistrées dans le navigateur ; export/import de sauvegarde JSON
+## Essayer sur votre ordinateur
+1. Installez [Node.js](https://nodejs.org) (version 18 ou plus récente).
+2. **Windows** : double-cliquez sur `Lancer.bat` — **Mac/Linux** : double-cliquez sur `lancer.command` (ou `node server.js`).
+3. Le site s'ouvre sur <http://localhost:3000>.
+
+Au premier lancement, un **compte administrateur** est créé : son email et son mot de passe s'affichent dans la fenêtre du serveur
+(ou choisissez-les dans un fichier `.env`, voir `.env.example`).
+
+## Fonctionnalités
+- **Comptes** : inscription, confirmation par email, connexion, mot de passe oublié, changement de mot de passe, suppression du compte.
+- **Abonnement** : sans abonnement actif, impossible de créer ou modifier un devis. Offres modifiables par l'admin, reçus de paiement.
+- **Paiement** : Stripe (carte bancaire) si `STRIPE_SECRET_KEY` est renseigné, sinon paiement de **démonstration** (aucun débit).
+- **Emails** : envoyés via Resend si configuré, sinon visibles dans l'admin (onglet *Emails*) et affichés à l'écran en mode démo.
+- **Administration** (`🛡 Administration`) : tableau de bord (revenus, MRR, inscriptions), gestion des utilisateurs (suspendre, offrir/révoquer
+  un accès, rôle, réinitialisation de mot de passe, suppression), paiements (remboursement, paiement manuel, export CSV), offres, réglages
+  (essai gratuit, inscriptions), journal d'activité.
+- **Devis** : multi-pages façon pro, sous-totaux, échéancier, clients particuliers/pros (remplissage par SIRET ou raison sociale), catalogue, PDF.
+
+## Mise en production
+- Hébergez-le sur un serveur Node (Render, Railway, VPS…) derrière **HTTPS** et définissez : `APP_URL`, `COOKIE_SECURE=true`,
+  `ALLOW_SIMULATED_PAYMENTS=false`, `STRIPE_SECRET_KEY`, `RESEND_API_KEY`, `MAIL_FROM`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`.
+- Le webhook Stripe est `POST /api/stripe/webhook` (`STRIPE_WEBHOOK_SECRET`). Le retour de paiement est aussi vérifié côté serveur.
+- Les données sont dans le dossier `data/` (à sauvegarder). Pour une forte volumétrie, remplacer `server/store.js` par une base PostgreSQL.
