@@ -33,11 +33,40 @@ const NUMC = /^-?\d[\d\s ]*(?:[,.]\d+)?\s*(?:€|eur|euros?|%)?$/i;
 const isNum = c => NUMC.test(c.trim());
 const cellsOf = l => l.trim().split(/\s{2,}/).map(c => c.trim()).filter(Boolean);
 
+/* Ligne chiffrée d'un tableau : quantité, unité, prix unitaire, TVA, montant lus depuis la droite (espaces simples ou multiples) */
+function numericRow(line, hasVat) {
+  const tok = line.trim().split(/\s+/), items = []; let i = tok.length - 1, eur = false;
+  const isN = t => /^-?\d+(?:[,.]\d+)?$/.test(t);
+  while (i >= 0) {
+    const t = tok[i];
+    if (t === '€' || t === 'EUR' || t === '%') { eur = t !== '%'; i--; continue; }
+    const tm = /^(-?\d+(?:[,.]\d+)?)(€|%)$/.exec(t);
+    if (isN(t) || tm) {
+      let v = tm ? tm[1] : t, e = eur || (tm && tm[2] === '€'); i--;
+      if (i >= 0 && /^\d{1,3}$/.test(tok[i]) && /^\d{3}(?:[,.]\d+)?$/.test(v)) { v = tok[i] + v; i--; }
+      items.unshift({ v, eur: !!e }); eur = false; continue;
+    }
+    if (!eur && /^[^\d€%\s][^€%\s]{0,13}$/.test(t) && i >= 1 && isN(tok[i - 1]) && !items.some(x => x.u)) { items.unshift({ u: t }); i--; continue; }
+    if (!eur && /^(?:m[2²3³]?|ml|u|h|j|kg|l|ens\.?|forfait|lot|jour(?:s)?|pce|pièce\(s\)|piece\(s\))$/i.test(t) && i >= 1 && isN(tok[i - 1]) && !items.some(x => x.u)) { items.unshift({ u: t }); i--; continue; }
+    break;
+  }
+  const nums = items.filter(x => x.v != null); if (nums.length < 2) return null;
+  const raw = line.trim(), pos = []; { const re = /\S+/g; let m; while ((m = re.exec(raw))) pos.push(m.index); }
+  const lead = i + 1 < pos.length ? raw.slice(0, pos[i + 1]).trim() : raw;
+  const unit = (items.find(x => x.u) || {}).u || '';
+  let amount = toNum(nums[nums.length - 1].v), price = 0, vat = 0, qty = 0;
+  if (nums.length >= 4 || (hasVat && nums.length === 3 && nums[nums.length - 2].eur === false && nums[nums.length - 3].eur)) { vat = toNum(nums[nums.length - 2].v); price = toNum(nums[nums.length - 3].v); qty = nums.length >= 4 ? toNum(nums[nums.length - 4].v) : 0; }
+  else { price = toNum(nums[nums.length - 2].v); qty = nums.length >= 3 ? toNum(nums[nums.length - 3].v) : 0; }
+  if (!(qty > 0) && price > 0 && amount > 0) qty = Math.round(amount / price * 100) / 100;
+  return { lead, qty, unit, price, vat, amount };
+}
+
 function parseText(text) {
-  const lines = text.replace(/\f/g, '\n').split('\n').map(l => l.replace(/\s+$/, ''));
+  const lines = text.split('\n').map(l => l.replace(/\s+$/, ''));
   const warnings = []; const doc = { kind: 'devis', number: '', date: '', validUntil: '', dueDate: '', title: '', client: { type: 'particulier', name: '', address: '', siret: '', vatNumber: '', email: '', phone: '', contact: '' }, lines: [], discount: 0, payments: [], notes: '', bank: '', totalHt: 0, totalTtc: 0 };
   // en-tête du tableau
-  const hi = lines.findIndex(l => /d[ée]signation|description|libell[ée]/i.test(l) && /quantit|qt[ée]|qt[ée]\b/i.test(l));
+  const COLS = /quantit|qt[ée]|montant|prix|\bp\.?u\b|tva/i;
+  const hi = lines.findIndex(l => /d[ée]signation|description|libell[ée]/i.test(l) && COLS.test(l));
   const top = hi > 0 ? lines.slice(0, hi) : lines.slice(0, 30);
   // type, numéro, date
   const mk = /(devis|facture)\s*(?:n[°o]|num[ée]ro)?\s*:?\s*([A-Z0-9][\w\-\/.]*)/i.exec(top.join('\n')) || /(devis|facture)\b/i.exec(top.join('\n'));
@@ -71,36 +100,56 @@ function parseText(text) {
       doc.client.type = doc.client.siret ? 'pro' : 'particulier';
     }
   }
-  // tableau
+  // tableau (sur toutes les pages : en-tête répété, pieds de page, numéros de page)
   if (hi < 0) warnings.push('Tableau des prestations introuvable : ajoutez les lignes à la main.');
   else {
-    const header = lines[hi], hasVat = /tva/i.test(header);
-    let cur = null;
-    for (let i = hi + 1; i < lines.length; i++) {
-      const l = lines[i]; if (!l.trim()) continue;
-      if (/(total\s+h\.?t|net\s+[àa]\s+payer|conditions\s+de\s+paiement|coordonn[ée]es\s+bancaires|bon\s+pour\s+accord|iban\b|clause\s+de\s+r[ée]serve)/i.test(l)) break;
-      const c = cellsOf(l);
-      if (/^sous[\s-]*total/i.test(c[0]) && c.length >= 2 && isNum(c[c.length - 1])) { doc.lines.push({ type: 'subtotal', ref: '', desc: c[0], qty: 0, unit: '', price: 0, vat: 0 }); cur = null; continue; }
-      // cellules numériques à droite
-      let j = c.length; const tail = [];
-      while (j > 0) { const x = c[j - 1]; const qu = /^(\d[\d\s]*(?:[,.]\d+)?)\s+([^\d€%\s][^€%]{0,18})$/.exec(x); if (isNum(x)) { tail.unshift({ v: x }); j--; } else if (qu) { tail.unshift({ q: qu[1], u: qu[2] }); j--; break; } else if (/^[^\d€%\s][^€%]{0,13}$/.test(x) && j >= 2 && isNum(c[j - 2]) && tail.length) { tail.unshift({ u: x }); j--; }
-        else { const glued = /^(.*\S)\s+(\d[\d\s]*(?:[,.]\d+)?)\s+([^\d€%\s]\S{0,18})$/.exec(x) || (tail.length >= 2 ? /^(.*\S)\s+(\d+(?:[,.]\d+)?)()$/.exec(x) : null);
-          if (glued) { c[j - 1] = glued[1]; tail.unshift(glued[3] ? { q: glued[2], u: glued[3] } : { v: glued[2] }); break; } break; } }
-      const nums = tail.filter(t => t.v != null || t.q != null);
-      if (nums.length < 2) { // ligne de suite de la désignation
-        if (cur && c.length === 1) cur.desc += '\n' + c[0]; else if (cur && c.length <= 2 && !isNum(c[0])) cur.desc += '\n' + c.join(' ');
-        continue;
+    const hasVat = /tva/i.test(lines[hi]);
+    const END = /(total\s+h\.?t|net\s+[àa]\s+payer|conditions\s+de\s+paiement|coordonn[ée]es\s+bancaires|bon\s+pour\s+accord|^\s*iban\b)/i;
+    const FOOT = /(clause\s+de\s+r[ée]serve|p[ée]nalit[ée]s\s+de\s+retard|indemnit[ée]\s+forfaitaire|tva\s+non\s+applicable|fait\s+avec\b|^\s*page\s+\d+\s*(\/|sur)\s*\d+|mentions\s+l[ée]gales)/i;
+    const HEAD = /d[ée]signation|description|libell[ée]/i;
+    const pages = text.split('\f').map(p => p.split('\n').map(l => l.replace(/\s+$/, '')));
+    // page 1 : après la ligne d'en-tête ; pages suivantes : après l'en-tête répété s'il existe, sinon depuis le haut
+    const pageStart = lines.slice(0, hi).join('\n').split('\f').length - 1;
+    let ended = false;
+    for (let pg = pageStart; pg < pages.length && !ended; pg++) {
+      const L = pages[pg]; let start = 0;
+      const hl = L.findIndex(l => HEAD.test(l) && COLS.test(l));
+      if (pg === pageStart) { const first = L.findIndex(l => l === lines[hi]); start = first >= 0 ? first + 1 : (hl >= 0 ? hl + 1 : 0); } else if (hl >= 0) start = hl + 1;
+      // lignes du tableau de cette page, regroupées en blocs (séparés par des lignes vides)
+      const blocks = []; let blk = [];
+      for (let i = start; i < L.length; i++) {
+        const l = L[i];
+        if (END.test(l)) { ended = true; break; }
+        if (FOOT.test(l)) break;
+        if (!l.trim()) { if (blk.length) blocks.push(blk); blk = []; continue; }
+        if (pg > pageStart && hl < 0 && (/(devis|facture)\s*(?:n[°o])/i.test(l) || (cellsOf(l).length <= 2 && findDate(l) && !/\d{2,}[,.]\d{2}/.test(l)))) continue;
+        blk.push(l);
       }
-      const desc = c.slice(0, j); let ref = '', d = desc;
-      if (desc.length >= 2 && desc[0].length <= 16 && !/\s{2}/.test(desc[0])) { ref = desc[0]; d = desc.slice(1); }
-      const vals = tail.slice(); let amount = 0, price = 0, vat = 0, qty = 0, unit = '';
-      amount = toNum(vals.pop().v);
-      if (hasVat && vals.length >= 3 && vals[vals.length - 1].v != null && !/€/.test(vals[vals.length - 1].v)) vat = toNum(vals.pop().v);
-      const pr = vals.pop(); if (pr) price = toNum(pr.v);
-      const qt = vals.pop(); if (qt) { if (qt.q != null) { qty = toNum(qt.q); unit = qt.u.trim(); } else if (qt.v != null) { qty = toNum(qt.v); const un = vals.pop(); if (un && un.u) unit = un.u; } else if (qt.u) { unit = qt.u; const q2 = vals.pop(); if (q2) qty = toNum(q2.v); } }
-      if (!unit) { const un = tail.find(t => t.u && t.q == null); if (un) unit = un.u; }
-      if (!(qty > 0) && price > 0 && amount > 0) qty = Math.round(amount / price * 100) / 100;
-      cur = { type: 'item', ref, desc: d.join(' ').trim(), qty, unit, price, vat }; doc.lines.push(cur);
+      if (blk.length) blocks.push(blk);
+      let cur = null;
+      const addRow = (nr, extra) => {
+        const lead = cellsOf(nr.lead); let ref = '', d = lead;
+        if (lead.length >= 2 && lead[0].length <= 16) { ref = lead[0]; d = lead.slice(1); }
+        else if (lead.length === 1 && (extra.before.length + extra.after.length) && lead[0].length <= 12 && /[\d\-]/.test(lead[0])) { ref = lead[0]; d = []; }
+        const row = { type: 'item', ref, desc: [...extra.before, d.join(' '), ...extra.after].map(x => x.trim()).filter(Boolean).join('\n'), qty: nr.qty, unit: nr.unit, price: nr.price, vat: nr.vat };
+        doc.lines.push(row); cur = row;
+      };
+      for (const bl of blocks) {
+        const parsed = bl.map(l => (/^\s*sous[\s-]*total/i.test(l) && /\d/.test(l)) ? { sub: l.trim().split(/\s{2,}/)[0] } : numericRow(l, hasVat));
+        const idx = parsed.map((r, i) => (r && (r.sub || r.qty !== undefined) ? i : -1)).filter(i => i >= 0);
+        if (!idx.length) { if (cur) cur.desc += '\n' + bl.map(l => l.trim()).join('\n'); continue; }
+        if (idx.length === 1 && !parsed[idx[0]].sub) {            // un seul prix dans le bloc : le reste est la désignation (au-dessus et/ou en dessous)
+          addRow(parsed[idx[0]], { before: bl.slice(0, idx[0]).map(l => l.trim()), after: bl.slice(idx[0] + 1).map(l => l.trim()) });
+        } else {                                                   // plusieurs lignes chiffrées dans le bloc : une ligne = une prestation
+          let last = null;
+          bl.forEach((l, i) => {
+            const r = parsed[i];
+            if (r && r.sub) { doc.lines.push({ type: 'subtotal', ref: '', desc: r.sub, qty: 0, unit: '', price: 0, vat: 0 }); last = null; }
+            else if (r && r.qty !== undefined) { addRow(r, { before: [], after: [] }); last = cur; }
+            else if (last) last.desc += '\n' + l.trim();
+          });
+        }
+      }
     }
   }
   const tx = text.split('\n');
