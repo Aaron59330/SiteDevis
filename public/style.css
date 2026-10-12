@@ -50,7 +50,7 @@ main { max-width: 1500px; margin: 0 auto; padding: 28px; }
 .right { text-align: right; }
 
 /* ===== Boutons / champs ===== */
-button.btn, a.btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; border-radius: 8px; border: 1px solid var(--line); background: var(--card2); color: var(--text); font: inherit; font-size: .8rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; cursor: pointer; text-decoration: none; transition: .15s; }
+button.btn, a.btn, label.btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; border-radius: 8px; border: 1px solid var(--line); background: var(--card2); color: var(--text); font: inherit; font-size: .8rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; cursor: pointer; text-decoration: none; transition: .15s; }
 .btn:hover { border-color: var(--text); }
 .btn:disabled { opacity: .35; cursor: default; transform: none; border-color: var(--line); }
 .btn.primary { background: var(--text); border-color: var(--text); color: var(--on-primary); }
@@ -294,3 +294,17 @@ body.auth-mode main { max-width: none; padding: 0; }
 .theme-btn .ic { width: 1.1em; height: 1.1em; }
 .btn .ic { opacity: .9; }
 .card:has(> table.list) { overflow-x: auto; }
+
+/* ===== Boîte à outils ===== */
+.tool-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(460px, 1fr)); gap: 20px; align-items: start; }
+.tool-grid .card { margin: 0; }
+.grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.dropzone { border: 2px dashed var(--input-line); border-radius: 14px; padding: 26px; text-align: center; color: var(--muted); transition: .15s; }
+.dropzone.over { border-color: var(--text); background: var(--primary-soft); color: var(--text); }
+.frow { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; margin-top: 8px; background: var(--card2); }
+.fthumb { width: 48px; height: 48px; object-fit: cover; border-radius: 8px; background: #fff; }
+.cp-sum b { white-space: nowrap; }
+.tips { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+.tip { margin: 0; }
+input[type=range] { padding: 0; accent-color: var(--text); }
+@media (max-width: 900px) { .grid4 { grid-template-columns: 1fr 1fr; } .tool-grid { grid-template-columns: 1fr; } }

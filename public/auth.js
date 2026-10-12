@@ -144,7 +144,7 @@ document.addEventListener('click', e => { if (!e.target.closest('#userbox')) $('
 function updateTopbar() {
   const u = session.user, a = session.access;
   if (!u) return;
-  const items = [['quotes', 'Devis'], ['invoices', 'Factures'], ['clients', 'Clients'], ['catalog', 'Catalogue'], ['company', 'Mon entreprise'], ['billing', 'Abonnement']];
+  const items = [['quotes', 'Devis'], ['invoices', 'Factures'], ['clients', 'Clients'], ['catalog', 'Catalogue'], ['tools', 'Boîte à outils'], ['company', 'Mon entreprise'], ['billing', 'Abonnement']];
   if (u.role === 'admin') items.push(['admin', '🛡 Administration']);
   $('#nav').innerHTML = items.map(([v, l]) => `<button data-view="${v}">${l}</button>`).join('');
   document.querySelectorAll('#nav button').forEach(b =>
