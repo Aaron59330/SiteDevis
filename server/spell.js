@@ -7,6 +7,7 @@ let fetchImpl = (...a) => fetch(...a);
 const useFetch = f => { fetchImpl = f; };
 const URL = process.env.LANGUAGETOOL_URL || 'https://api.languagetool.org/v2/check';
 const SKIP_CATS = new Set(['STYLE', 'REDUNDANCY', 'PLAIN_ENGLISH', 'COLLOQUIALISMS', 'REGIONALISMS', 'SEMANTICS', 'WIKIPEDIA']);
+const plain = s => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 const digits = s => (String(s).match(/\d/g) || []).join('');
 
 /* Champs relus : titre, désignations, notes, libellés d'échéances, pied de page */
@@ -70,6 +71,9 @@ async function review(data) {
     for (const m of ms) {
       const old = text.substr(m.offset, m.length), rep = m.replacements[0].value;
       if (digits(old) !== digits(rep) || old === rep) continue;
+      /* Faux positifs courants (« bandes à joints », « à » → « a ») : un simple changement d'accent n'est retenu que pour une faute d'orthographe */
+      const cat = m.rule && m.rule.category && m.rule.category.id;
+      if (plain(old) === plain(rep) && cat !== 'TYPOS') continue;
       const a = m.offset - f.start;
       out = out.slice(0, a) + rep + out.slice(a + m.length); notes.unshift(`« ${old.trim() || old} » → « ${rep.trim() || rep} »`);
     }
