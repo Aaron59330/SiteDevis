@@ -127,15 +127,25 @@ const IMPORT_SCHEMA = {
     notes: { type: 'string' }, total_ht: { type: 'number' }, total_ttc: { type: 'number' }
   }
 };
-async function extractQuote(pdfBuffer) {
+const PHOTO_EXTRA = `
+
+Cas particulier : le document est fourni sous forme de PHOTO(S) ou de capture d'écran, souvent d'un devis écrit à la main, parfois de travers, flou ou mal éclairé. Plusieurs images sont les pages successives d'un même document.
+- Redresse mentalement la page et lis chaque ligne, même manuscrite. Les montants manuscrits sont fiables seulement si lisibles : ne devine jamais un chiffre illisible (mets 0 et signale-le).
+- Calcule les lignes avec ce qui est écrit : si le prix unitaire n'est pas écrit mais que le total de la ligne l'est avec la quantité, déduis le prix unitaire (total ÷ quantité).
+- Si la TVA n'est pas indiquée, mets 0 pour "vat_percent".
+- Dans "notes", liste en une phrase courte les passages illisibles, incertains ou déduits (ex. « Quantité de la ligne 3 illisible ; prix unitaire déduit de la ligne 5 »). Laisse "notes" vide si tout est clair.
+- Si l'image n'est pas un devis ni une facture, renvoie "lines" vide.`;
+async function extractQuote(input, opts = {}) {
+  const imgs = Array.isArray(input) ? input : null;
+  const content = imgs
+    ? [...imgs.map(i => ({ type: 'image', source: { type: 'base64', media_type: i.mime, data: i.buf.toString('base64') } })), { type: 'text', text: imgs.length > 1 ? 'Ces images sont les pages successives du document. Extrais son contenu.' : 'Extrais le contenu de ce document.' }]
+    : [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: input.toString('base64') } }, { type: 'text', text: 'Extrais le contenu de ce document.' }];
   const resp = await client().beta.messages.create({
     model: model(), max_tokens: 16000,
     betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default',
-    system: IMPORT_SYSTEM,
+    system: IMPORT_SYSTEM + (imgs ? PHOTO_EXTRA : ''),
     output_config: { format: { type: 'json_schema', schema: IMPORT_SCHEMA } },
-    messages: [{ role: 'user', content: [
-      { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdfBuffer.toString('base64') } },
-      { type: 'text', text: 'Extrais le contenu de ce document.' }] }]
+    messages: [{ role: 'user', content }]
   });
   if (resp.stop_reason === 'refusal') { const e = new Error('L\'IA n\'a pas pu lire ce document.'); e.status = 422; throw e; }
   if (resp.stop_reason === 'max_tokens') { const e = new Error('Le document est trop long pour être lu en une fois.'); e.status = 422; throw e; }

@@ -8,7 +8,8 @@ function importOpen() {
   const cfg = session.config, ai = !!cfg.importAi, free = !!cfg.importFree;
   imp.file = null; imp.doc = null;
   if (!ai && !free) return toast('L\'import de PDF n\'est pas disponible sur ce serveur.');
-  openModal(`<div class="modal-wide" id="impBox"><div class="row between"><h2 style="margin:0">Importer un devis ou une facture PDF</h2><button class="btn small" data-act="close-modal">Fermer</button></div>
+  openModal(`<div class="modal-wide" id="impBox"><div class="row between"><h2 style="margin:0">Importer un devis ou une facture</h2><button class="btn small" data-act="close-modal">Fermer</button></div>
+    <div class="seg2" style="margin:12px 0 4px"><button type="button" class="on" data-act="import-pdf">PDF</button><button type="button" data-act="imp-photo">Photo</button></div>
     <div id="impBody"><p class="muted" style="margin:10px 0">Vous avez un devis ou une facture fait sur un autre site ou un autre logiciel ? Déposez son PDF : OptiDevis le relit et le recrée à l'identique (lignes, quantités, prix, client, échéancier). Vous vérifiez et corrigez avant de le créer.</p>
       <label class="dropzone" id="impDrop"><input type="file" id="impFile" accept="application/pdf,.pdf" hidden><b>Choisir un fichier PDF</b><span class="muted">ou glissez-le ici (8 Mo maximum)</span><span id="impName" class="muted"></span></label>
       <div class="field" style="margin-top:14px"><label>Méthode de lecture</label>
@@ -102,7 +103,57 @@ function importCreate() {
   if (auto) bumpNumber(d.kind);
   db.quotes.push(q); save(); $('#modal').close(); toast(`${isI ? 'Facture' : 'Devis'} ${q.number} créé à partir du PDF`); go('editor', q.id);
 }
+/* ---- Import par photo : appareil photo du téléphone ou pellicule, lecture par IA ---- */
+const photos = [];
+async function shrink(file) {
+  let bmp; try { bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
+  catch (e) { bmp = await new Promise((ok, ko) => { const i = new Image(), u = URL.createObjectURL(file); i.onload = () => { URL.revokeObjectURL(u); ok(i); }; i.onerror = () => ko(new Error('Photo illisible')); i.src = u; }); }
+  const w = bmp.width || bmp.naturalWidth, h = bmp.height || bmp.naturalHeight, k = Math.min(1, 2200 / Math.max(w, h));
+  const c = document.createElement('canvas'); c.width = Math.round(w * k); c.height = Math.round(h * k); c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  const blob = await new Promise(ok => c.toBlob(ok, 'image/jpeg', .86));
+  if (!blob) throw new Error('Photo illisible');
+  return { data: b64(await blob.arrayBuffer()), url: URL.createObjectURL(blob), size: blob.size };
+}
+function photoThumbs() {
+  const el = $('#phList'); if (!el) return;
+  el.innerHTML = photos.map((p, i) => `<div class="ph-item"><img src="${p.url}" alt="Photo ${i + 1}"><button type="button" class="ph-x" data-act="ph-del" data-i="${i}" aria-label="Retirer">✕</button></div>`).join('');
+  const go = $('#phGo'); if (go) go.disabled = !photos.length;
+}
+function photoOpen() {
+  if (!session.config.importAi) { $('#impBody').innerHTML = `<div class="notice" style="margin:12px 0">La lecture de photos (devis écrit à la main ou imprimé) utilise l'IA. Elle n'est pas activée sur ce serveur : l'administrateur doit ajouter une clé IA. En attendant, importez un PDF.</div>`; return; }
+  photos.length = 0;
+  document.querySelectorAll('.seg2 [data-act]').forEach(b => b.classList.toggle('on', b.dataset.act === 'imp-photo'));
+  $('#impBody').innerHTML = `<p class="muted" style="margin:10px 0">Prenez en photo un devis, même écrit à la main, ou choisissez des photos dans la pellicule : l'IA lit chaque ligne et recrée le devis. Plusieurs photos = plusieurs pages du même document.</p>
+    <div class="row" style="gap:10px;flex-wrap:wrap">
+      <label class="btn primary" style="cursor:pointer">${icon('file')} Prendre une photo<input type="file" id="phCam" accept="image/*" capture="environment" hidden></label>
+      <label class="btn" style="cursor:pointer">${icon('upload')} Choisir dans la pellicule<input type="file" id="phPick" accept="image/*" multiple hidden></label>
+    </div>
+    <div id="phList" class="ph-list"></div>
+    <p class="muted" style="font-size:.82rem;margin:10px 0">Conseils : page entière dans le cadre, bonne lumière, texte net. Les photos sont envoyées au service d'IA d'Anthropic pour être lues, puis ne sont pas conservées par OptiDevis. Vérifiez toujours le résultat avant de créer le devis.</p>
+    <div class="form-err" id="impErr" hidden></div>
+    <div class="row" style="justify-content:flex-end"><button class="btn primary" id="phGo" data-act="ph-run" disabled>Lire la photo</button></div>`;
+  const add = async files => {
+    const err = $('#impErr'); err.hidden = true;
+    for (const f of [...files]) {
+      if (photos.length >= 6) { toast('6 photos maximum'); break; }
+      try { photos.push(await shrink(f)); } catch (e) { err.hidden = false; err.textContent = 'Cette photo n\'a pas pu être lue (format non pris en charge ?). Essayez une autre photo.'; }
+    }
+    photoThumbs();
+  };
+  $('#phCam').onchange = e => { add(e.target.files); e.target.value = ''; };
+  $('#phPick').onchange = e => { add(e.target.files); e.target.value = ''; };
+}
+async function photoRun() {
+  const err = $('#impErr'), btn = $('#phGo'); if (!photos.length) return;
+  btn.disabled = true; btn.textContent = 'Lecture en cours… (jusqu\'à 1 minute)'; err.hidden = true;
+  try {
+    const r = await api('POST', '/api/import/photo', { images: photos.map(p => ({ data: p.data })) });
+    imp.doc = r.doc; imp.source = r.source; imp.warnings = r.warnings || [];
+    importReview();
+  } catch (e) { err.hidden = false; err.textContent = e.message; btn.disabled = false; btn.textContent = 'Lire la photo'; }
+}
 Object.assign(actions, {
+  'imp-photo': photoOpen, 'ph-run': photoRun, 'ph-del'(t) { photos.splice(+t.dataset.i, 1); photoThumbs(); },
   'import-pdf': importOpen, 'imp-run': importRun, 'imp-create': importCreate, 'imp-back': importOpen,
   'imp-del-line'(t) { impRead(); imp.doc.lines.splice(+t.closest('tr').dataset.i, 1); const tb = document.querySelector('#impLines tbody'); tb.innerHTML = impLineRows(imp.doc); impCheck(); }
 });

@@ -177,7 +177,7 @@ async function handle(req, res, url) {
       if (origin && new URL(origin).host !== req.headers.host) throw err(403, 'Origine refusée.');
     }
     if (req.method !== 'GET' && req.method !== 'HEAD') {
-      ctx.raw = await readBody(req, url.pathname === '/api/data' ? 12e6 : url.pathname === '/api/pdf' ? 6e6 : url.pathname === '/api/import/pdf' ? 12e6 : 1e6);
+      ctx.raw = await readBody(req, url.pathname === '/api/data' ? 12e6 : url.pathname === '/api/pdf' ? 6e6 : url.pathname === '/api/import/pdf' ? 12e6 : url.pathname === '/api/import/photo' ? 22e6 : 1e6);
       if (r.auth !== 'webhook' && ctx.raw) { try { ctx.body = JSON.parse(ctx.raw); } catch (e) { throw err(400, 'JSON invalide.'); } }
     }
     if (r.auth !== 'none' && r.auth !== 'webhook') {
@@ -353,6 +353,38 @@ route('POST', '/api/import/pdf', 'user', async ctx => {
     if (e.status && e.status < 500 && e.status !== 429) throw err(e.status, e.message);
     console.error('Import PDF :', e.status || '', e.message);
     throw err(502, e.status === 429 ? 'Le service IA est très sollicité, réessayez dans un instant.' : 'Impossible de lire ce PDF pour le moment.');
+  }
+});
+
+/* ---------- Import d'un devis photographié (manuscrit ou imprimé) : lecture par IA ---------- */
+route('POST', '/api/import/photo', 'user', async ctx => {
+  if (!ai.available() || db.settings.aiEnabled === false) throw err(501, 'La lecture de photos demande l\'IA, qui n\'est pas activée sur ce serveur.', { code: 'no_ai' });
+  if (!access(ctx.user).active) throw err(402, 'Un abonnement actif est nécessaire.', { code: 'payment_required' });
+  limit('imp:' + ctx.user.id, 12, 3600e3); limit('aiday:' + ctx.user.id, 60, 86400e3);
+  const list = ctx.body && Array.isArray(ctx.body.images) ? ctx.body.images.slice(0, 6) : [];
+  if (!list.length) throw err(400, 'Ajoutez au moins une photo.');
+  const imgs = []; let total = 0;
+  for (const it of list) {
+    if (!it || typeof it.data !== 'string' || it.data.length < 100) throw err(400, 'Photo invalide.');
+    const buf = Buffer.from(it.data, 'base64'); total += buf.length;
+    const h = buf.slice(0, 12);
+    const mime = h[0] === 0xff && h[1] === 0xd8 ? 'image/jpeg' : h.slice(0, 4).toString('latin1') === '\x89PNG' ? 'image/png' : h.slice(0, 4).toString('latin1') === 'RIFF' && h.slice(8, 12).toString('latin1') === 'WEBP' ? 'image/webp' : '';
+    if (!mime) throw err(400, 'Format de photo non pris en charge (JPEG, PNG ou WebP).');
+    if (buf.length > 5e6) throw err(400, 'Une photo est trop lourde (5 Mo maximum).');
+    imgs.push({ buf, mime });
+  }
+  if (total > 15e6) throw err(400, 'Photos trop lourdes au total.');
+  try {
+    const raw = await ai.extractQuote(imgs);
+    const r = importer.normalizeDoc(raw, 'ia');
+    if (!r.doc.lines.some(l => l.type === 'item')) throw err(422, 'Aucune ligne de devis n\'a été reconnue sur cette photo. Cadrez bien la page entière, avec une bonne lumière, et réessayez.');
+    if (raw && raw.notes) r.warnings = [...(r.warnings || []), 'À vérifier : ' + String(raw.notes).slice(0, 400)];
+    db.settings.aiTotal = (db.settings.aiTotal || 0) + 1; store.save();
+    return ok(r);
+  } catch (e) {
+    if (e.status && e.status < 500 && e.status !== 429) throw err(e.status, e.message);
+    console.error('Import photo :', e.status || '', e.message);
+    throw err(502, e.status === 429 ? 'Le service IA est très sollicité, réessayez dans un instant.' : 'Impossible de lire cette photo pour le moment.');
   }
 });
 

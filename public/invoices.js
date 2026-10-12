@@ -22,7 +22,7 @@ EXTRA.invoices = function renderInvoices() {
   return `
   <div class="row between" style="margin-bottom:16px">
     <h1>Factures</h1>
-    <div class="row"><button class="btn" data-act="goto-quotes">← Voir les devis</button><button class="btn" data-act="import-pdf">Importer un PDF</button><button class="btn primary" data-act="new-invoice">＋ Facture vierge</button></div>
+    <div class="row"><button class="btn" data-act="goto-quotes">← Voir les devis</button><button class="btn" data-act="import-pdf">Importer (PDF / photo)</button><button class="btn primary" data-act="new-invoice">＋ Facture vierge</button></div>
   </div>
   <div class="stats">
     <div class="stat"><div class="n">${all.length}</div><div class="l">Factures au total</div></div>
