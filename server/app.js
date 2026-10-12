@@ -237,10 +237,13 @@ route('GET', '/api/prices/search', 'user', async ctx => {
   const quoted = ref && /^[\w.\-\/ ]{4,40}$/.test(ref) ? '"' + ref + '"' : ref;
   // 1) lecture directe : adresse collée, ou recherche sur le site du magasin ; 2) Google Shopping ; 3) recherche limitée au site du magasin
   const direct = storefetchLookup(q, store, extra).catch(() => null);
-  const shop = isUrl ? Promise.resolve(null) : serp({ engine: 'google_shopping', q: (store ? quoted + ' ' + store.name : quoted) }).catch(() => null);
+  // adresse collée mais site fermé aux lectures automatiques : le nom du produit se lit dans l'adresse elle-même (« perceuse-a-percussion-ryobi-rpd1010k-…-69691482.html »)
+  const slugTitle = isUrl ? (() => { try { const seg = decodeURIComponent(new URL(q).pathname.split('/').filter(Boolean).pop() || '').replace(/\.html?$/i, ''); const w = seg.split(/[-_]+/).filter(x => x && !/^\d{6,}$/.test(x)); return w.length >= 2 ? w.join(' ') : ''; } catch (e) { return ''; } })() : '';
+  const shop = isUrl ? (slugTitle && key ? serp({ engine: 'google_shopping', q: slugTitle + (store ? ' ' + store.name : '') }).catch(() => null) : Promise.resolve(null)) : serp({ engine: 'google_shopping', q: (store ? quoted + ' ' + store.name : quoted) }).catch(() => null);
   const site = !isUrl && store && store.domain ? serp({ engine: 'google', q: 'site:' + store.domain + ' ' + quoted, num: '10' }).catch(() => null) : Promise.resolve(null);
   const [d, j, js] = await Promise.all([direct, shop, site]);
   const offers = shoppingOffers(j), pages = [];
+  if (isUrl && !d && slugTitle) pages.push({ title: slugTitle.charAt(0).toUpperCase() + slugTitle.slice(1), link: q, exact: true });
   if (d) offers.unshift({ title: d.title, store: d.store, priceText: d.priceText, price: d.price, link: d.link, thumbnail: d.thumbnail || '', direct: true, sku: d.sku, ean: d.ean });
   const cand = [];
   const addCand = j2 => {
