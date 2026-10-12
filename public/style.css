@@ -603,3 +603,9 @@ html[data-density="compact"] .btn { padding: 6px 12px; }
 .dropzone { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 28px 16px; border: 2px dashed var(--line); border-radius: 14px; cursor: pointer; text-align: center; transition: .15s; }
 .dropzone:hover, .dropzone.over { border-color: var(--accent); background: var(--primary-soft); }
 #impLines input, #impLines textarea { padding: 6px 8px; font-size: .85rem; } #impLines td { vertical-align: top; padding: 6px 4px; } #impLines input[data-k=qty], #impLines input[data-k=price], #impLines input[data-k=vat] { width: 76px; } #impLines input[data-k=unit] { width: 64px; } #impLines input[data-k=ref] { width: 74px; }
+
+/* ===== Suivi des factures d'un devis ===== */
+.billbar { position: relative; height: 10px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.billbar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 999px; } .billbar .b1 { background: color-mix(in srgb, var(--accent) 60%, var(--line)); } .billbar .b2 { background: var(--ok); }
+tr.focus td { background: var(--primary-soft); }
+a.badge.info2 { text-decoration: none; cursor: pointer; }

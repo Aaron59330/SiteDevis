@@ -276,7 +276,7 @@ function renderQuotes() {
           <td>${esc(c ? c.name : '—')}</td>
           <td>${esc(q.title)}</td>
           <td>${fdate(q.date)}</td>
-          <td><span class="badge ${q.status}">${STATUS[q.status]}</span>${db.quotes.some(i => i.fromQuoteId === q.id) ? ' <span class="badge info2" title="Une facture existe">🧾 Facturé</span>' : ''}</td>
+          <td><span class="badge ${q.status}">${STATUS[q.status]}</span>${linkedBadge(q)}</td>
           <td class="right"><b>${money(totals(q).ttc)}</b></td>
           <td class="right" style="white-space:nowrap">
             <button class="btn small" data-act="edit" data-id="${q.id}">Ouvrir</button>
@@ -307,6 +307,7 @@ function renderEditor() {
     <div class="row">
       ${session.config.ai ? `<button class="btn" data-act="ai-review" title="Correction des fautes et suggestions, sans rien modifier sans votre accord">✨ ${session.config.aiKind === 'free' ? 'Vérifier les fautes' : 'Relire avec l\'IA'}</button>` : ''}
       <button class="btn hide-sm" data-act="toggle-wide">👁 Aperçu large / ✎ Édition</button>
+      ${linkedBtn(q)}
       ${isInv(q)
         ? `${q.fromQuoteId && getQuote(q.fromQuoteId) ? `<button class="btn" data-act="edit" data-id="${q.fromQuoteId}">← Voir le devis ${esc(q.fromNumber || '')}</button>` : ''}${q.status !== 'payee' ? '<button class="btn" data-act="mark-paid">✓ Marquer comme payée</button>' : ''}`
         : `<button class="btn" data-act="make-invoice" data-id="${q.id}">🧾 ${(i => i >= 0 ? 'Facturer : ' + (q.payments[i].label || 'échéance ' + (i + 1)) : db.quotes.some(f => f.fromQuoteId === q.id) ? 'Créer une autre facture' : 'Créer la facture')(nextStep(q))}</button>`}
