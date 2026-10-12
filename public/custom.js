@@ -5,7 +5,7 @@ const DOC_COLORS = ['#26323f', '#1e3a5f', '#0f766e', '#166534', '#7c2d12', '#9f1
 const BGS = [['black', 'Noir', '#070707'], ['bronze', 'Bronze', '#0d0a07'], ['graphite', 'Anthracite', '#131417'], ['navy', 'Bleu nuit', '#0a1020'], ['forest', 'Vert forêt', '#0a120e']];
 let prefTimer;
 const curPrefs = () => window.currentPrefs || PREF_DEFAULTS;
-const prefsBody = p => ({ accent: p.accent || '', mode: p.mode, bg: p.bg, radius: p.radius, size: p.size, density: p.density, sound: p.sound, sfx: p.sfx, vol: p.vol });
+const prefsBody = p => ({ accent: p.accent || '', mode: p.mode, bg: p.bg, radius: p.radius, size: p.size, density: p.density, sound: p.sound, hover: p.hover, sfx: p.sfx, vol: p.vol });
 function hexLum(h) { const n = parseInt(h.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255].map((v, i) => { v /= 255; v = v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); return v * [0.2126, 0.7152, 0.0722][i]; }).reduce((a, b) => a + b, 0); }
 
 function savePrefs(patch) {
@@ -56,9 +56,11 @@ EXTRA.custom = function renderCustom() {
     <div class="card"><h2>Sons de l'interface</h2>
       <p class="muted" style="margin-top:0">Petits sons discrets au clic, à l'ouverture d'une fenêtre, à la validation ou en cas d'erreur.</p>
       <div class="optrow" style="margin-bottom:14px">${optBtn('sound', 'on', 'Activés')}${optBtn('sound', 'off', 'Coupés')}</div>
+      <label>Survol de la souris</label><div class="optrow" style="margin-bottom:6px">${optBtn('hover', 'on', 'Activé')}${optBtn('hover', 'off', 'Désactivé')}</div>
+      <p class="muted" style="margin:0 0 14px;font-size:.82rem">Un tic très léger quand la souris passe sur un onglet, une catégorie ou un bouton. Sans effet sur téléphone et tablette.</p>
       <label>Style</label><div class="optrow" style="margin-bottom:14px">${optBtn('sfx', 'soft', 'Doux')}${optBtn('sfx', 'crystal', 'Cristal')}${optBtn('sfx', 'pop', 'Bulle')}${optBtn('sfx', 'retro', 'Rétro')}</div>
       <label>Volume</label><div class="optrow" style="margin-bottom:14px">${optBtn('vol', 'low', 'Faible')}${optBtn('vol', 'mid', 'Moyen')}${optBtn('vol', 'high', 'Fort')}</div>
-      <label>Écouter</label><div class="optrow">${[['tap', 'Clic'], ['toggle', 'Case'], ['open', 'Ouverture'], ['success', 'Succès'], ['error', 'Erreur'], ['delete', 'Suppression']].map(([k, n]) => `<button class="opt" type="button" data-act="sound-test" data-s="${k}">${n}</button>`).join('')}</div></div>
+      <label>Écouter</label><div class="optrow">${[['hover', 'Survol'], ['tap', 'Clic'], ['toggle', 'Case'], ['open', 'Ouverture'], ['success', 'Succès'], ['error', 'Erreur'], ['delete', 'Suppression']].map(([k, n]) => `<button class="opt" type="button" data-act="sound-test" data-s="${k}">${n}</button>`).join('')}</div></div>
 
     <div class="card" style="grid-column:1 / -1"><h2>Aperçu</h2>
       <div class="preview-box"><div class="row">
@@ -89,7 +91,7 @@ function markPrefs() {
 Object.assign(actions, {
   pref(t) {
     savePrefs({ [t.dataset.k]: t.dataset.v });
-    if (['sound', 'sfx', 'vol'].includes(t.dataset.k)) setTimeout(() => window.playSound && playSound('success'), 120);
+    if (['sound', 'sfx', 'vol', 'hover'].includes(t.dataset.k)) setTimeout(() => window.playSound && playSound('success'), 120);
   },
   'sound-test'(t) { setTimeout(() => playSound(t.dataset.s, true), 60); },
   'pref-reset'() { savePrefs(Object.assign({}, PREF_DEFAULTS)); toast('Apparence réinitialisée'); },

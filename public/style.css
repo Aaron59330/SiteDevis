@@ -728,3 +728,40 @@ a.badge.info2 { text-decoration: none; cursor: pointer; }
 .tpl-card .ld-tile { width: 40px; height: 40px; } .tpl-card .ic { width: 20px; height: 20px; }
 
 .chips.trades { max-width: none; }
+
+/* ===== Navigation et filtres : petite barre de soulignement animée, sans arrondi ===== */
+:root { --bar: var(--accent); }
+#nav button, .tabs button, .cchip, .seg2 button, .ld-links a { position: relative; border-radius: 0; background: none; box-shadow: none; }
+#nav button::after, .tabs button::after, .cchip::after, .seg2 button::after, .ld-links a::after { content: ""; position: absolute; left: 14px; right: 14px; bottom: 2px; height: 2px; background: var(--bar); transform: scaleX(0); transform-origin: left center; transition: transform .26s cubic-bezier(.2, .7, .2, 1); border-radius: 0; pointer-events: none; }
+#nav button:hover::after, .tabs button:hover::after, .cchip:hover::after, .seg2 button:hover::after, .ld-links a:hover::after,
+#nav button.active::after, .tabs button.on::after, .cchip.on::after, .seg2 button.on::after { transform: scaleX(1); }
+#nav button, .tabs button, .ld-links a { transition: color .2s; }
+#nav button:hover { background: none; color: var(--text); } #nav button.active { background: none; box-shadow: none; color: var(--text); font-weight: 600; }
+.tabs button { border-bottom-color: transparent !important; } .tabs button.on { border-color: transparent; }
+.tabs button::after { left: 0; right: 0; bottom: -1px; height: 2px; }
+.cchip { border: 0; background: none; padding: 7px 12px; color: var(--muted); transition: color .2s; }
+.cchip:hover { color: var(--text); border: 0; } .cchip.on { background: none; color: var(--text); font-weight: 700; border: 0; }
+.cchip.on i { color: var(--muted); opacity: 1; }
+.cchip::after { left: 12px; right: 12px; bottom: 0; }
+.chips:has(.cchip) { gap: 2px 6px; border-bottom: 1px solid var(--line); }
+.seg2 { background: none; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding: 0; gap: 4px; }
+.seg2 button { padding: 9px 16px; transition: color .2s; } .seg2 button:hover { color: var(--text); } .seg2 button.on { background: none; color: var(--text); }
+.seg2 button::after { left: 0; right: 0; bottom: -1px; }
+.ld-links a { padding: 6px 0; } .ld-links a::after { left: 0; right: 0; bottom: 0; }
+
+/* ===== Petits effets au survol ===== */
+button.btn, a.btn, label.btn { transition: transform .15s ease, border-color .15s, background-color .15s, color .15s, box-shadow .2s, filter .15s; }
+button.btn:hover:not(:disabled), a.btn:hover, label.btn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px -8px color-mix(in srgb, var(--accent) 55%, transparent); }
+button.btn:active:not(:disabled), a.btn:active, label.btn:active { transform: translateY(0); box-shadow: none; }
+.btn.primary:hover:not(:disabled) { filter: brightness(1.08); }
+.btn.danger:hover:not(:disabled) { border-color: var(--danger); box-shadow: 0 6px 16px -8px var(--danger); }
+.stat, .card, .tpl-card, .docs-card { transition: border-color .2s, transform .2s, box-shadow .25s; }
+.stat:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); transform: translateY(-2px); }
+table.list tbody tr td { transition: background-color .15s; }
+.star { transition: transform .15s; } .star:hover { transform: scale(1.18); }
+.avatar, .theme-btn, .ld-login { transition: border-color .15s, transform .15s; } .avatar:hover, .theme-btn:hover { transform: translateY(-1px); }
+a:not(.btn) { text-underline-offset: 3px; transition: color .15s, text-decoration-color .15s; }
+@media (hover: none) { button.btn:hover:not(:disabled), a.btn:hover, label.btn:hover, .stat:hover { transform: none; box-shadow: none; } }
+@media (prefers-reduced-motion: reduce) { #nav button::after, .tabs button::after, .cchip::after, .seg2 button::after, .ld-links a::after { transition: none; } button.btn, a.btn, label.btn, .stat { transition: none; transform: none !important; } }
+/* barre du haut sur mobile (menu du bas) */
+@media (max-width: 900px) { .bottomnav button { position: relative; } .bottomnav button::before { content: ""; position: absolute; top: 0; left: 28%; right: 28%; height: 2px; background: var(--bar); transform: scaleX(0); transition: transform .25s; } .bottomnav button.active::before { transform: scaleX(1); } }
