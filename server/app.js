@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const store = require('./store');
 const mail = require('./mail');
 const ai = require('./ai');
+const pdf = require('./pdf');
 const { db } = store;
 
 /* ---------- Utilitaires ---------- */
@@ -170,7 +171,7 @@ async function handle(req, res, url) {
       if (origin && new URL(origin).host !== req.headers.host) throw err(403, 'Origine refusée.');
     }
     if (req.method !== 'GET' && req.method !== 'HEAD') {
-      ctx.raw = await readBody(req, url.pathname === '/api/data' ? 12e6 : 1e6);
+      ctx.raw = await readBody(req, url.pathname === '/api/data' ? 12e6 : url.pathname === '/api/pdf' ? 6e6 : 1e6);
       if (r.auth !== 'webhook' && ctx.raw) { try { ctx.body = JSON.parse(ctx.raw); } catch (e) { throw err(400, 'JSON invalide.'); } }
     }
     if (r.auth !== 'none' && r.auth !== 'webhook') {
@@ -179,6 +180,7 @@ async function handle(req, res, url) {
       if (r.auth === 'admin' && ctx.user.role !== 'admin') throw err(403, 'Accès réservé aux administrateurs.');
     }
     const out = await r.fn(ctx);
+    if (out && Buffer.isBuffer(out.pdfFile)) return send(200, { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="${out.filename}"`, 'Cache-Control': 'no-store' }, out.pdfFile);
     const h = { 'Cache-Control': 'no-store' };
     if (ctx.setCookie) h['Set-Cookie'] = ctx.setCookie;
     if (out && out.redirect) return send(302, { ...h, Location: out.redirect }, '');
@@ -187,6 +189,7 @@ async function handle(req, res, url) {
   } catch (e) {
     const status = e instanceof HttpError ? e.status : 500;
     if (status === 500) console.error(e);
+    if (res.headersSent) return res.end();
     send(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' },
       JSON.stringify({ error: status === 500 ? 'Erreur interne du serveur.' : e.message, ...(e.extra || {}) }));
   }
@@ -195,7 +198,7 @@ async function handle(req, res, url) {
 /* ---------- Config publique ---------- */
 route('GET', '/api/config', 'none', () => ({
   siteName: db.settings.siteName, registrationOpen: db.settings.registrationOpen, trialDays: db.settings.trialDays,
-  mailConfigured: mail.configured(), ai: ai.available() && db.settings.aiEnabled !== false, priceSearch: !!process.env.SERPAPI_KEY, stripe: !!stripeKey(), simulated: simulatedAllowed(),
+  mailConfigured: mail.configured(), pdf: pdf.available(), ai: ai.available() && db.settings.aiEnabled !== false, priceSearch: !!process.env.SERPAPI_KEY, stripe: !!stripeKey(), simulated: simulatedAllowed(),
   plans: db.plans.filter(p => p.active)
 }));
 
@@ -218,6 +221,20 @@ route('GET', '/api/prices/search', 'user', async ctx => {
   catch (e) { throw err(502, 'Service de prix injoignable.'); }
   if (!r.ok) throw err(502, 'Le service de prix a refusé la requête (' + r.status + ').');
   return ok({ offers: shoppingOffers(await r.json()) });
+});
+
+/* ---------- Téléchargement PDF du devis ou de la facture ---------- */
+route('POST', '/api/pdf', 'user', async ctx => {
+  if (!pdf.available()) throw err(501, 'Le téléchargement PDF n\'est pas disponible sur ce serveur.', { code: 'no_pdf' });
+  if (!access(ctx.user).active) throw err(402, 'Un abonnement actif est nécessaire.', { code: 'payment_required' });
+  limit('pdf:' + ctx.user.id, 40, 3600e3);
+  const b = ctx.body || {};
+  if (typeof b.html !== 'string' || b.html.length < 50 || b.html.length > 5.5e6) throw err(400, 'Document invalide.');
+  const name = String(b.filename || 'document').replace(/[^\w.\- ]+/g, '').trim().slice(0, 80) || 'document';
+  let buf;
+  try { buf = await pdf.toPdf({ html: b.html, label: str(b.label, 80), date: str(b.date, 60) }); }
+  catch (e) { console.error('PDF :', e.message); throw err(502, 'Impossible de créer le PDF pour le moment.'); }
+  return { pdfFile: buf, filename: name.replace(/\.pdf$/i, '') + '.pdf' };
 });
 
 /* ---------- Relecture IA des devis ---------- */

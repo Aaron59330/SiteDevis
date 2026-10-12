@@ -58,6 +58,16 @@ mkdir -p "$APP" "$DATA" /var/backups/sitedevis
 rsync -a --delete --exclude '.git' --exclude 'data' --exclude '.env' --exclude 'video' --exclude 'node_modules' "$SRC"/ "$APP"/
 chown -R root:root "$APP"
 (cd "$APP" && npm install --omit=dev --no-audit --no-fund)
+
+# Moteur PDF (Chromium) : sert au bouton « Télécharger le PDF ». Sans lui, le site propose l'impression du navigateur.
+say "Installation du moteur PDF (Chromium, quelques minutes la première fois)"
+BROWSERS=/opt/sitedevis-browsers
+apt-get install -y fonts-liberation fonts-inter >/dev/null 2>&1 || apt-get install -y fonts-liberation >/dev/null 2>&1 || true
+if (cd "$APP" && PLAYWRIGHT_BROWSERS_PATH=$BROWSERS npx --no-install playwright-core install --with-deps chromium); then
+  chmod -R a+rX "$BROWSERS"
+else
+  echo "ATTENTION : Chromium n'a pas pu être installé. Le téléchargement PDF direct sera remplacé par l'impression du navigateur."
+fi
 chown -R sitedevis:sitedevis "$DATA"
 chmod 700 "$DATA"
 
@@ -100,6 +110,8 @@ After=network.target
 User=sitedevis
 WorkingDirectory=$APP
 EnvironmentFile=$ENVF
+Environment=PLAYWRIGHT_BROWSERS_PATH=$BROWSERS
+Environment=HOME=$DATA
 ExecStart=/usr/bin/node server.js
 Restart=always
 RestartSec=3

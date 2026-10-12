@@ -293,7 +293,8 @@ function renderEditor() {
         : `<button class="btn" data-act="make-invoice" data-id="${q.id}">🧾 ${db.quotes.some(i => i.fromQuoteId === q.id) ? 'Créer une autre facture' : 'Créer la facture'}</button>`}
       ${isInv(q) ? '' : '<button class="btn" data-act="purchase-list" title="Matériaux à commander, par fournisseur">🛒 Liste d\'achat</button>'}
       <button class="btn" data-act="dup" data-id="${q.id}">⧉ Dupliquer</button>
-      <button class="btn primary" data-act="print" title="Dans la fenêtre d'impression : destination « Enregistrer au format PDF », décochez « En-têtes et pieds de page »">🖨 Imprimer / PDF</button>
+      <button class="btn primary" data-act="pdf" title="Télécharge le document en PDF, prêt à envoyer au client">⬇ Télécharger le PDF</button>
+      <button class="btn" data-act="print" title="Ouvre la fenêtre d'impression du navigateur">🖨 Imprimer</button>
     </div>
   </div>
   <div class="pane-switch no-print"><button data-act="pane" data-pane="form" class="${pane === 'form' ? 'on' : ''}">Édition</button><button data-act="pane" data-pane="doc" class="${pane === 'doc' ? 'on' : ''}">Aperçu du document</button></div>
@@ -796,6 +797,20 @@ const actions = {
   edit: t => go('editor', t.dataset.id),
   back() { go(isInv(getQuote(editingId)) ? 'invoices' : 'quotes'); },
   print() { fitDoc(); window.print(); },
+  async pdf(t) {
+    const q = getQuote(editingId); if (!q) return;
+    if (!session.config.pdf) { toast('Téléchargement direct indisponible : ouverture de l\'impression'); return actions.print(); }
+    const old = t.innerHTML; t.disabled = true; t.textContent = 'Création du PDF…';
+    try {
+      const r = await fetch('/api/pdf', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'sitedevis' },
+        body: JSON.stringify({ html: $('#doc').innerHTML, label: `${q.opts.docLabel} N° ${q.number}`, date: flongdate(q.date), filename: `${q.opts.docLabel}-${q.number}` }) });
+      if (!r.ok) { let m = ''; try { m = (await r.json()).error; } catch (e) { /* ignore */ } throw new Error(m || 'Erreur ' + r.status); }
+      const url = URL.createObjectURL(await r.blob()), a = document.createElement('a');
+      a.href = url; a.download = `${q.opts.docLabel}-${q.number}.pdf`.replace(/[^\w.\- ]+/g, ''); document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000); toast('PDF téléchargé');
+    } catch (e) { toast('PDF impossible : ' + e.message); }
+    t.disabled = false; t.innerHTML = old;
+  },
   pane(t) { pane = t.dataset.pane; $('#editor').dataset.pane = pane; document.querySelectorAll('.pane-switch button').forEach(b => b.classList.toggle('on', b.dataset.pane === pane)); fitDoc(); window.scrollTo(0, 0); },
   'toggle-wide'() { wide = !wide; $('#editor').classList.toggle('wide', wide); fitDoc(); },
   dup(t) {
