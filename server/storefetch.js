@@ -84,8 +84,9 @@ async function lookup_(refOrUrl, store, extraDomains) {
   const seen = new Set();
   const read = async (url, depth) => {
     if (seen.has(url)) return null; seen.add(url);
-    let page; try { page = await getHtml(url, domains); } catch (e) { return null; }
+    let page; try { page = await getHtml(url, domains); } catch (e) { if (process.env.DEBUG_STORES) console.log('[stores]', url, '->', e.message); return null; }
     const p = parseProduct(page.html, page.url);
+    if (process.env.DEBUG_STORES) console.log('[stores]', url, '->', page.url, p ? 'fiche lue : ' + p.title + ' ' + p.price : 'pas une fiche (' + page.html.length + ' octets)');
     if (p) return { p, finalUrl: page.url };
     if (isUrl || depth > 0 || rk.length < 4) return null;
     // page de résultats : on suit le premier lien de fiche dont l'adresse contient la référence
