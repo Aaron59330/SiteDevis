@@ -83,7 +83,7 @@ function stepRecap(inv) {
   if (!pays.length) return null;
   return `<div class="pay-title">Conditions de paiement :</div>` + pays.map((p, i) => {
     const pi = p.invoiceId ? getQuote(p.invoiceId) : null;
-    const paid = pi && pi.status === 'payee' ? `, payé le ${shortDate(pi.paidAt || '', inv.date)}`.replace(/ le $/, '') : '';
+    const paid = pi && pi.status === 'payee' ? ` (payé${pi.paidAt ? ' le ' + shortDate(pi.paidAt, inv.date) : ''})` : '';
     return `<div>• ${fmtNum.format(num(p.pct))} % soit ${money(t.ttc * num(p.pct) / 100)}${p.label ? ' : ' + esc(String(p.label).trim()) : ''}${paid}${i === pays.length - 1 ? ' .' : ''}</div>`;
   }).join('');
 }
@@ -92,11 +92,13 @@ function createStepInvoice(src, idx) {
   const p = src.payments[idx], t = totals(src), pct = num(p.pct);
   const inv = createInvoice(src);
   const rates = Object.keys(t.htByRate).map(Number).sort((a, b) => a - b);
-  const what = `${(p.label || 'Paiement').trim()} — ${fmtNum.format(pct)} % du devis N° ${src.number}`;
+  const name = (p.label || 'Paiement').trim();
+  const what = `${name} — ${fmtNum.format(pct)} % du devis N° ${src.number}${src.title ? ' (' + String(src.title).replace(/\s+/g, ' ').trim() + ')' : ''}`;
   inv.lines = (rates.length ? rates : [num(db.settings.defaultVat)]).map(r => ({
     t: 'item', ref: '', desc: what + (rates.length > 1 ? ` (TVA ${String(r).replace('.', ',')} %)` : ''),
     qty: 1, unit: 'forfait', price: r2(num(t.htByRate[r]) * pct / 100), vat: r
   }));
+  inv.title = `Facture ${name}`;
   inv.discount = 0; inv.stepId = p.id; inv.stepLabel = p.label || '';
   p.invoiceId = inv.id;
   if (src.status === 'brouillon' || src.status === 'envoye') src.status = 'accepte';
