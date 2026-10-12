@@ -291,6 +291,30 @@ route('GET', '/api/prices/search', 'user', async ctx => {
   return ok({ offers, pages, store: store ? { name: store.name, domain: store.domain } : null, exact: offers.some(o => o.exact) });
 });
 
+/* ---------- Envoi du devis ou de la facture par email au client (PDF en pièce jointe) ---------- */
+route('POST', '/api/send-document', 'user', async ctx => {
+  if (!mail.configured()) throw err(501, 'L\'envoi d\'emails n\'est pas activé sur ce serveur.', { code: 'no_mail' });
+  if (!pdf.available()) throw err(501, 'La création du PDF n\'est pas disponible sur ce serveur.', { code: 'no_pdf' });
+  if (!access(ctx.user).active) throw err(402, 'Un abonnement actif est nécessaire.', { code: 'payment_required' });
+  limit('sendmail:' + ctx.user.id, 30, 3600e3);
+  const b = ctx.body || {}, mailRe = /^[^\s@<>,;"]{1,64}@[^\s@<>,;"]{1,190}\.[A-Za-z]{2,}$/;
+  const to = str(b.to, 254).trim();
+  if (!mailRe.test(to)) throw err(400, 'Adresse email du destinataire invalide.');
+  const replyTo = mailRe.test(str(b.replyTo, 254).trim()) ? str(b.replyTo, 254).trim() : ctx.user.email;
+  if (typeof b.html !== 'string' || b.html.length < 50 || b.html.length > 5.5e6) throw err(400, 'Document invalide.');
+  const subject = str(b.subject, 150).replace(/[\r\n]+/g, ' ').trim() || 'Votre document';
+  const message = str(b.message, 3000).trim();
+  const fname = String(b.filename || 'document').replace(/[^\w.\- ]+/g, '').trim().slice(0, 80) || 'document';
+  let buf;
+  try { buf = await pdf.toPdf({ html: b.html, label: str(b.label, 80), date: str(b.date, 60), accent: str(b.accent, 7) }); }
+  catch (e) { console.error('PDF :', e.message); throw err(502, 'Impossible de créer le PDF pour le moment.'); }
+  const text = (message ? message + '\n\n' : '') + 'Le document est en pièce jointe (PDF).\n\n— Envoyé depuis OptiDevis. Pour répondre, répondez simplement à cet email.';
+  const entry = await mail.send(to, subject, text, { replyTo, fromName: str(b.fromName, 60), bcc: b.copy ? ctx.user.email : undefined, attachments: [{ filename: fname.replace(/\.pdf$/i, '') + '.pdf', content: buf.toString('base64') }] });
+  if (entry.status !== 'envoyé') throw err(502, 'L\'email n\'a pas pu être envoyé (' + (entry.error ? 'refusé par le service d\'envoi' : 'service indisponible') + '). Vérifiez l\'adresse puis réessayez.');
+  audit(ctx.user, 'document envoyé par email', to);
+  return ok({ sent: true, to });
+});
+
 /* ---------- Téléchargement PDF du devis ou de la facture ---------- */
 route('POST', '/api/pdf', 'user', async ctx => {
   if (!pdf.available()) throw err(501, 'Le téléchargement PDF n\'est pas disponible sur ce serveur.', { code: 'no_pdf' });

@@ -313,7 +313,8 @@ function renderEditor() {
         : `<button class="btn" data-act="make-invoice" data-id="${q.id}">🧾 ${(i => i >= 0 ? 'Facturer : ' + (q.payments[i].label || 'échéance ' + (i + 1)) : db.quotes.some(f => f.fromQuoteId === q.id) ? 'Créer une autre facture' : 'Créer la facture')(nextStep(q))}</button>`}
       ${isInv(q) ? '' : '<button class="btn" data-act="purchase-list" title="Matériaux à commander, par fournisseur">🛒 Liste d\'achat</button>'}
       <button class="btn" data-act="dup" data-id="${q.id}">⧉ Dupliquer</button>
-      <button class="btn primary" data-act="pdf" title="Télécharge le document en PDF, prêt à envoyer au client">⬇ Télécharger le PDF</button>
+      <button class="btn primary" data-act="send-mail" title="Envoie le document en PDF à l'adresse email de votre client">✉ Envoyer par email</button>
+      <button class="btn" data-act="pdf" title="Télécharge le document en PDF, prêt à envoyer au client">⬇ Télécharger le PDF</button>
       <button class="btn" data-act="print" title="Ouvre la fenêtre d'impression du navigateur">🖨 Imprimer</button>
     </div>
   </div>
@@ -847,6 +848,34 @@ const actions = {
       setTimeout(() => URL.revokeObjectURL(url), 4000); toast('PDF téléchargé');
     } catch (e) { toast('PDF impossible : ' + e.message); }
     t.disabled = false; t.innerHTML = old;
+  },
+  'send-mail'() {
+    const q = getQuote(editingId); if (!q) return;
+    if (!session.config.mailConfigured || !session.config.pdf) return toast('L\'envoi par email n\'est pas encore activé sur ce serveur : téléchargez le PDF.');
+    const inv = isInv(q), cl = getClient(q.clientId), co = db.company;
+    const guess = (cl && cl.email) || ((String(q.clientText || '').match(/[^\s@]+@[^\s@]+\.[A-Za-z]{2,}/) || [''])[0]);
+    const who = (cl && cl.contact) || (cl && cl.name) || '';
+    const label = `${q.opts.docLabel} N° ${q.number}`;
+    const m = openModal(`<form id="mailForm"><h2>Envoyer ${inv ? 'la facture' : 'le devis'} par email</h2>
+      <p class="muted" style="margin:0 0 12px">Le document est joint en PDF. Votre client peut vous répondre directement : la réponse arrive sur ${esc(co.email || 'votre email de compte')}.</p>
+      <div class="field"><label>Email de votre client *</label><input name="to" type="email" required value="${esc(guess)}" placeholder="client@exemple.fr" autocomplete="off"></div>
+      <div class="field"><label>Objet</label><input name="subject" value="${esc(label + (co.name ? ' – ' + co.name : ''))}" maxlength="150"></div>
+      <div class="field"><label>Message</label><textarea name="message" rows="6" maxlength="3000">${esc(`Bonjour${who ? ' ' + who : ''},\n\nVeuillez trouver ci-joint ${inv ? 'notre facture' : 'notre devis'} ${q.number}.\n${inv ? 'Je reste à votre disposition pour toute question.' : 'Je reste à votre disposition pour toute question ou modification.'}\n\nCordialement,\n${co.name || ''}`)}</textarea></div>
+      <label class="check"><input type="checkbox" name="copy" checked> M'envoyer une copie</label>
+      <div class="form-err" id="mailErr" hidden></div>
+      <div class="row" style="justify-content:flex-end;margin-top:14px"><button type="button" class="btn" data-act="close-modal">Annuler</button><button class="btn primary" id="mailGo">✉ Envoyer</button></div></form>`);
+    const f = $('#mailForm'); f.elements.to.focus();
+    f.onsubmit = async e => {
+      e.preventDefault(); const go = $('#mailGo'), err = $('#mailErr'); err.hidden = true; go.disabled = true; go.textContent = 'Envoi…';
+      try {
+        const r = await fetch('/api/send-document', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'sitedevis' },
+          body: JSON.stringify({ html: $('#doc').innerHTML, accent: accentOf(), label, date: flongdate(q.date), filename: `${q.opts.docLabel}-${q.number}`, to: f.elements.to.value.trim(), subject: f.elements.subject.value, message: f.elements.message.value, copy: f.elements.copy.checked, replyTo: co.email || '', fromName: co.name || '' }) });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(j.error || 'Erreur ' + r.status);
+        if (q.status === 'brouillon') { q.status = 'envoye'; save(); }
+        m.close(); toast('Envoyé à ' + f.elements.to.value.trim()); if (editingId === q.id) render();
+      } catch (er) { err.textContent = er.message; err.hidden = false; go.disabled = false; go.textContent = '✉ Envoyer'; }
+    };
   },
   pane(t) { pane = t.dataset.pane; $('#editor').dataset.pane = pane; document.querySelectorAll('.pane-switch button').forEach(b => b.classList.toggle('on', b.dataset.pane === pane)); fitDoc(); window.scrollTo(0, 0); },
   'toggle-wide'() { wide = !wide; $('#editor').classList.toggle('wide', wide); fitDoc(); },

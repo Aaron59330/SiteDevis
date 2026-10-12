@@ -8,14 +8,21 @@ const escHtml = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&l
 const toHtml = text => '<div style="font:15px/1.6 system-ui,sans-serif;color:#111;max-width:560px">' +
   escHtml(text).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1">$1</a>').replace(/\n/g, '<br>') + '</div>';
 
-async function send(to, subject, text) {
-  const entry = { id: store.uuid(), to, subject, text, at: new Date().toISOString(), status: 'démo (non envoyé)' };
+// expéditeur : adresse de MAIL_FROM, avec le nom de l'entreprise de l'utilisateur affiché (« Entreprise via OptiDevis »)
+function fromWith(name) {
+  const m = /<([^>]+)>/.exec(process.env.MAIL_FROM || ''), addr = m ? m[1] : process.env.MAIL_FROM;
+  const clean = String(name || '').replace(/[<>"\r\n,;]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
+  return clean ? `"${clean} via OptiDevis" <${addr}>` : process.env.MAIL_FROM;
+}
+
+async function send(to, subject, text, opts = {}) {
+  const entry = { id: store.uuid(), to, subject, text: opts.attachments ? text + '\n[pièce jointe : ' + opts.attachments.map(a => a.filename).join(', ') + ']' : text, at: new Date().toISOString(), status: 'démo (non envoyé)' };
   if (configured()) {
     try {
       const r = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: { Authorization: 'Bearer ' + process.env.RESEND_API_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ from: process.env.MAIL_FROM, to: [to], subject, text, html: toHtml(text) })
+        body: JSON.stringify({ from: opts.fromName ? fromWith(opts.fromName) : process.env.MAIL_FROM, to: [to], subject, text, html: toHtml(text), ...(opts.replyTo ? { reply_to: opts.replyTo } : {}), ...(opts.bcc ? { bcc: [opts.bcc] } : {}), ...(opts.attachments ? { attachments: opts.attachments } : {}) })
       });
       entry.status = r.ok ? 'envoyé' : 'erreur';
       if (!r.ok) entry.error = (await r.text()).slice(0, 300);
