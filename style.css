@@ -148,6 +148,13 @@ table.list tr:hover td { background: var(--card2); }
 .doc thead { display: table-header-group; }
 .doc tfoot { display: table-footer-group; }
 
+.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; background: var(--input); border: 1px solid var(--line); border-radius: 12px; padding: 4px; }
+.seg label { margin: 0; cursor: pointer; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; width: 0; }
+.seg span { display: block; text-align: center; padding: 9px; border-radius: 9px; color: var(--muted); font-size: .85rem; font-weight: 600; transition: .15s; }
+.seg input:checked + span { background: var(--text); color: var(--on-primary); }
+[hidden] { display: none !important; }
+
 /* ===== Boîtes de dialogue / toast ===== */
 dialog { border: 1px solid var(--line); border-radius: 18px; padding: 26px; width: min(540px, 94vw); background: var(--card); color: var(--text); box-shadow: 0 30px 80px rgba(0, 0, 0, .5); }
 dialog::backdrop { background: rgba(5, 8, 20, .6); backdrop-filter: blur(3px); }

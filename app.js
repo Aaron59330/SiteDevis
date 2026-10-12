@@ -96,7 +96,9 @@ function issuerBlock(co) {
 }
 function clientBlock(c) {
   if (!c) return '';
-  return [c.name, c.address, c.phone && `Port. : ${c.phone}`, c.email].filter(Boolean).join('\n');
+  const pro = c.type === 'pro';
+  return [c.name, c.address, pro && c.contact && `À l'attention de : ${c.contact}`, pro && c.siret && `N° SIRET : ${c.siret}`,
+    pro && c.vatNumber && `N° TVA : ${c.vatNumber}`, c.phone && `Port. : ${c.phone}`, c.email].filter(Boolean).join('\n');
 }
 function makeFooter(base) {
   base = base || db;
@@ -453,9 +455,10 @@ function renderClients() {
   return `
   <div class="row between" style="margin-bottom:16px"><h1>Clients</h1><button class="btn primary" data-act="new-client">＋ Nouveau client</button></div>
   <div class="card">${db.clients.length ? `<table class="list">
-    <thead><tr><th>Nom</th><th>Email</th><th>Téléphone</th><th>Devis</th><th></th></tr></thead>
+    <thead><tr><th>Nom</th><th>Type</th><th>Email</th><th>Téléphone</th><th>Devis</th><th></th></tr></thead>
     <tbody>${db.clients.map(c => `<tr>
       <td><b>${esc(c.name)}</b><div class="muted" style="white-space:pre-line">${esc(c.address)}</div></td>
+      <td><span class="badge ${c.type === 'pro' ? 'envoye' : 'brouillon'}">${c.type === 'pro' ? 'Pro' : 'Particulier'}</span>${c.siret ? `<div class="muted" style="font-size:.78rem">${esc(c.siret)}</div>` : ''}</td>
       <td>${esc(c.email)}</td><td>${esc(c.phone)}</td>
       <td>${db.quotes.filter(q => q.clientId === c.id).length}</td>
       <td class="right"><button class="btn small" data-act="edit-client" data-id="${c.id}">Modifier</button>
@@ -463,24 +466,127 @@ function renderClients() {
     : `<div class="empty">Aucun client enregistré.</div>`}</div>`;
 }
 
+/* Recherche d'entreprise par SIRET (API publique « Recherche d'entreprises », data.gouv.fr) */
+async function lookupSiret(raw) {
+  const siret = String(raw).replace(/\D/g, '');
+  if (siret.length !== 14) throw new Error('Le SIRET doit contenir 14 chiffres.');
+  let r;
+  try { r = await fetch('https://recherche-entreprises.api.gouv.fr/search?q=' + siret + '&per_page=1'); }
+  catch (e) { throw new Error('Impossible de joindre le service de recherche (vérifiez votre connexion internet).'); }
+  if (!r.ok) throw new Error('Service de recherche indisponible, réessayez dans un instant.');
+  const d = await r.json();
+  const e = d.results && d.results[0];
+  const et = e && ((e.matching_etablissements || []).find(x => x.siret === siret) || (e.siege && e.siege.siret === siret ? e.siege : null));
+  if (!et) throw new Error('Aucune entreprise trouvée pour ce SIRET.');
+  const cp = et.code_postal || '', ville = et.libelle_commune || '';
+  let street = et.adresse || '';
+  const tail = `${cp} ${ville}`.trim();
+  if (tail && street.endsWith(tail)) street = street.slice(0, -tail.length).trim();
+  else street = [et.numero_voie, et.indice_repetition, et.type_voie, et.libelle_voie].filter(Boolean).join(' ');
+  const siren = siret.slice(0, 9);
+  const key = (12 + 3 * (parseInt(siren, 10) % 97)) % 97;
+  const dir = (e.dirigeants || []).find(x => x.type_dirigeant === 'personne physique');
+  const ei = e.complements && e.complements.est_entrepreneur_individuel;
+  const cap = s => String(s || '').toLowerCase().replace(/(^|[\s-])\S/g, m => m.toUpperCase());
+  return {
+    name: e.nom_raison_sociale || e.nom_complet || '',
+    address: [street, tail].filter(Boolean).join('\n'),
+    vatNumber: 'FR' + String(key).padStart(2, '0') + siren,
+    contact: dir ? `${cap(dir.prenoms ? dir.prenoms.split(',')[0] : '')} ${String(dir.nom || '').toUpperCase()}`.trim() : '',
+    ei, closed: et.etat_administratif === 'F'
+  };
+}
+
 function clientModal(id, afterSave) {
-  const c = db.clients.find(x => x.id === id) || { name: '', address: '', email: '', phone: '' };
+  const old = db.clients.find(x => x.id === id);
+  const c = old ? { ...old } : { type: 'particulier' };
+  if (!c.type) { c.type = 'particulier'; c.lastName = c.name; }
+  const v = k => esc(c[k] || '');
   const m = $('#modal');
   m.innerHTML = `<form method="dialog" id="clientForm">
     <h2>${id ? 'Modifier le client' : 'Nouveau client'}</h2>
-    <div class="field"><label>Nom / société * (ex : M Jean DUPONT)</label><input name="name" required value="${esc(c.name)}"></div>
-    <div class="field"><label>Adresse</label><textarea name="address">${esc(c.address)}</textarea></div>
+    <div class="seg" style="margin-bottom:16px">
+      <label><input type="radio" name="type" value="particulier" ${c.type === 'particulier' ? 'checked' : ''}><span>👤 Particulier</span></label>
+      <label><input type="radio" name="type" value="pro" ${c.type === 'pro' ? 'checked' : ''}><span>🏢 Professionnel</span></label>
+    </div>
+
+    <div id="boxPart">
+      <div class="grid3">
+        <div class="field"><label>Civilité</label><select name="civ">${['M', 'Mme', 'Mlle', ''].map(x => `<option value="${x}" ${(c.civ ?? 'M') === x ? 'selected' : ''}>${x || '—'}</option>`).join('')}</select></div>
+        <div class="field"><label>Prénom</label><input name="firstName" value="${v('firstName')}"></div>
+        <div class="field"><label>Nom *</label><input name="lastName" value="${v('lastName')}"></div>
+      </div>
+    </div>
+
+    <div id="boxPro">
+      <div class="field"><label>N° SIRET (14 chiffres) — les informations se remplissent toutes seules</label>
+        <div class="row" style="flex-wrap:nowrap">
+          <input name="siret" id="siretIn" inputmode="numeric" placeholder="123 456 789 00012" value="${v('siret')}">
+          <button type="button" class="btn" id="siretBtn">🔍 Rechercher</button>
+        </div>
+        <div id="siretMsg" class="muted" style="margin-top:6px;font-size:.85rem"></div>
+      </div>
+      <div class="field"><label>Raison sociale *</label><input name="name" value="${v('name')}"></div>
+      <div class="grid2">
+        <div class="field"><label>Contact / dirigeant</label><input name="contact" value="${v('contact')}"></div>
+        <div class="field"><label>N° TVA intracommunautaire</label><input name="vatNumber" value="${v('vatNumber')}"></div>
+      </div>
+    </div>
+
+    <div class="field"><label>Adresse</label><textarea name="address" rows="2">${v('address')}</textarea></div>
     <div class="grid2">
-      <div class="field"><label>Email</label><input name="email" type="email" value="${esc(c.email)}"></div>
-      <div class="field"><label>Téléphone</label><input name="phone" value="${esc(c.phone)}"></div>
+      <div class="field"><label>Email</label><input name="email" type="email" value="${v('email')}"></div>
+      <div class="field"><label>Téléphone</label><input name="phone" value="${v('phone')}"></div>
     </div>
     <div class="row" style="justify-content:flex-end"><button type="button" class="btn" data-act="close-modal">Annuler</button><button class="btn primary">Enregistrer</button></div>
   </form>`;
   m.showModal();
-  $('#clientForm').onsubmit = e => {
+
+  const form = $('#clientForm'), msg = $('#siretMsg');
+  const typeNow = () => form.elements.type.value;
+  const sync = () => {
+    const pro = typeNow() === 'pro';
+    $('#boxPro').hidden = !pro; $('#boxPart').hidden = pro;
+    form.elements.name.required = pro; form.elements.lastName.required = !pro;
+  };
+  form.querySelectorAll('[name=type]').forEach(r => r.onchange = sync);
+  sync();
+
+  let seq = 0;
+  async function search() {
+    const my = ++seq;
+    msg.style.color = ''; msg.textContent = 'Recherche en cours…';
+    try {
+      const r = await lookupSiret(form.elements.siret.value);
+      if (my !== seq) return;
+      const f = form.elements;
+      f.name.value = r.name; f.address.value = r.address; f.vatNumber.value = r.vatNumber;
+      if (r.contact && !f.contact.value) f.contact.value = r.contact;
+      msg.style.color = r.closed ? 'var(--warn)' : 'var(--ok)';
+      msg.textContent = (r.closed ? '⚠ Établissement fermé — ' : '✓ ') + 'Informations récupérées' + (r.ei ? ' (entrepreneur individuel)' : '') + '. Vérifiez-les puis enregistrez.';
+    } catch (err) {
+      if (my !== seq) return;
+      msg.style.color = 'var(--danger)'; msg.textContent = err.message;
+    }
+  }
+  $('#siretBtn').onclick = search;
+  $('#siretIn').addEventListener('input', e => {
+    if (e.target.value.replace(/\D/g, '').length === 14) search(); else { seq++; msg.textContent = ''; }
+  });
+
+  form.onsubmit = e => {
     e.preventDefault();
-    const f = new FormData(e.target);
-    const data = { name: f.get('name').trim(), address: f.get('address'), email: f.get('email'), phone: f.get('phone') };
+    const f = new FormData(e.target), g = k => (f.get(k) || '').toString().trim();
+    const type = g('type');
+    const data = { type, address: f.get('address'), email: g('email'), phone: g('phone') };
+    if (type === 'pro') {
+      Object.assign(data, { name: g('name'), siret: g('siret').replace(/\D/g, '').replace(/^(\d{3})(\d{3})(\d{3})(\d{5})$/, '$1 $2 $3 $4'),
+        contact: g('contact'), vatNumber: g('vatNumber'), civ: '', firstName: '', lastName: '' });
+    } else {
+      const first = g('firstName'), last = g('lastName');
+      Object.assign(data, { civ: g('civ'), firstName: first, lastName: last, siret: '', contact: '', vatNumber: '',
+        name: [g('civ'), first, last.toUpperCase()].filter(Boolean).join(' ') });
+    }
     let cl = db.clients.find(x => x.id === id);
     if (cl) Object.assign(cl, data); else { cl = { id: uid(), ...data }; db.clients.push(cl); }
     db.clients.sort((a, b) => a.name.localeCompare(b.name, 'fr'));
