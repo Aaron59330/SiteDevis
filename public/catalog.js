@@ -661,15 +661,15 @@ function refSearch(f, refresh, editId) {
     try {
       const res = await api('GET', '/api/prices/search?q=' + encodeURIComponent(ref) + (sp ? '&s=' + encodeURIComponent(sp.name) + (sp.website ? '&w=' + encodeURIComponent(sp.website) : '') : ''));
       offers = res.offers.filter(o => o.price > 0); pages = res.pages || []; found = res.store;
-      const pg = pages.length ? `<div class="muted" style="font-size:.82rem;margin-top:8px">${pages.some(x => x.exact) ? '<b>Fiche trouvée pour cette référence</b>' : 'Pages trouvées'} sur ${esc(found ? found.domain : 'le site')} (prix à lire sur la page) :
-          ${pages.slice(0, 4).map((x, i) => `<div style="margin-top:6px">${x.exact ? '✓ ' : ''}${esc(x.title.slice(0, 70))} — <a href="${esc(x.link)}" target="_blank" rel="noopener">ouvrir ↗</a> <button type="button" class="btn small" data-page="${i}">Utiliser la fiche</button></div>`).join('')}</div>` : '';
-      if (!offers.length) { panel.innerHTML = `<div class="notice bad" style="margin:6px 0 12px">Aucune offre avec prix trouvée pour cette référence${found ? ' chez ' + esc(found.name) : ''}. Essayez avec le code EAN, collez l'adresse de la fiche produit, ou saisissez le prix à la main.${pg}</div>`; bindPages(); return; }
-      const order = rank(ref);
-      if (offers[order[0]].exact) apply(order[0]);                          // produit trouvé avec cette référence exacte : remplissage automatique
-      else {                                                               // rien d'exact : on propose, sans rien remplir
+      const exactPages = pages.filter(x => x.exact);                         // seules les fiches qui portent exactement la référence sont montrées
+      const pg = exactPages.length ? `<div class="muted" style="font-size:.82rem;margin-top:8px"><b>Fiche trouvée pour cette référence</b> (prix à lire sur la page) :
+          ${exactPages.slice(0, 3).map(x => `<div style="margin-top:6px">${esc(x.title.slice(0, 70))} — <a href="${esc(x.link)}" target="_blank" rel="noopener">ouvrir ↗</a> <button type="button" class="btn small" data-page="${pages.indexOf(x)}">Utiliser la fiche</button></div>`).join('')}</div>` : '';
+      const order = offers.length ? rank(ref) : [];
+      if (order.length && offers[order[0]].exact) apply(order[0]);          // produit trouvé avec cette référence exacte : remplissage automatique
+      else {                                                               // rien d'exact : message seul, rien n'est rempli ni proposé
         pick = -1;
-        panel.innerHTML = `<div class="notice" style="margin:6px 0 12px"><b>Aucune offre ne correspond exactement à la référence « ${esc(ref)} ».</b> Ce sont les plus proches, peut-être pas le bon produit : choisissez-en une pour reprendre prix et désignation (votre fournisseur ne change pas), ou collez l'adresse de la fiche produit dans le champ référence.${list(order)}${pg}</div>`;
-        bind(null);
+        panel.innerHTML = `<div class="notice" style="margin:6px 0 12px"><b>Aucune offre ne correspond exactement à la référence « ${esc(ref || E.ref.value.trim())} ».</b>${pg}</div>`;
+        bindPages();
       }
     } catch (e) { panel.innerHTML = `<div class="notice bad" style="margin:6px 0 12px">${esc(e.message)}</div>`; } finally { btn.disabled = false; btn.textContent = 'Chercher'; }
   };

@@ -279,7 +279,6 @@ route('GET', '/api/prices/search', 'user', async ctx => {
   offers.forEach(o => { o.mine = same(o.store); o.exact = exactOf(o) || (o.direct && isUrl); });
   offers.sort((a, b) => (b.exact ? 1 : 0) - (a.exact ? 1 : 0) || (b.mine ? 1 : 0) - (a.mine ? 1 : 0) || a.price - b.price);
   pages.sort((a, b) => (b.exact ? 1 : 0) - (a.exact ? 1 : 0));
-  if (!key && !offers.length && !pages.length && !d) throw err(503, 'La recherche automatique n\'a rien trouvé et la recherche web (clé SERPAPI_KEY) n\'est pas activée. Collez l\'adresse de la fiche produit pour que le site la lise.');
   return ok({ offers, pages, store: store ? { name: store.name, domain: store.domain } : null, exact: offers.some(o => o.exact) });
 });
 
