@@ -74,6 +74,8 @@ function createInvoice(src) {
 }
 
 /* ---------- Une facture par échéance de paiement du devis ---------- */
+const hasSteps = q => (q.payments || []).some(p => num(p.pct) > 0);
+const nextStep = q => (q.payments || []).findIndex(p => num(p.pct) > 0 && !(p.invoiceId && getQuote(p.invoiceId)));
 const shortDate = (iso, ref) => { if (!iso) return ''; const [y, m, d] = iso.split('-'); return `${d}/${m}${ref && ref.slice(0, 4) !== y ? '/' + y : ''}`; };
 
 /* Récapitulatif « Conditions de paiement » d'une facture d'échéance : les échéances déjà réglées sont notées « payé le … » */
@@ -89,18 +91,11 @@ function stepRecap(inv) {
 }
 
 function createStepInvoice(src, idx) {
-  const p = src.payments[idx], t = totals(src), pct = num(p.pct);
-  const inv = createInvoice(src);
-  const rates = Object.keys(t.htByRate).map(Number).sort((a, b) => a - b);
-  const name = (p.label || 'Paiement').trim();
-  const what = `${name} — ${fmtNum.format(pct)} % du devis N° ${src.number}${src.title ? ' (' + String(src.title).replace(/\s+/g, ' ').trim() + ')' : ''}`;
-  inv.lines = (rates.length ? rates : [num(db.settings.defaultVat)]).map(r => ({
-    t: 'item', ref: '', desc: what + (rates.length > 1 ? ` (TVA ${String(r).replace('.', ',')} %)` : ''),
-    qty: 1, unit: 'forfait', price: r2(num(t.htByRate[r]) * pct / 100), vat: r
-  }));
+  const p = src.payments[idx], pct = num(p.pct), name = (p.label || 'Paiement').trim();
+  const inv = createInvoice(src);              // reprend le détail complet du devis (lignes, remise, notes…)
   inv.payments = [];
   inv.title = `Facture ${name}`;
-  inv.discount = 0; inv.stepId = p.id; inv.stepLabel = p.label || '';
+  inv.stepId = p.id; inv.stepLabel = p.label || ''; inv.stepPct = pct;   // les totaux ne comptent que cette part
   p.invoiceId = inv.id;
   if (src.status === 'brouillon' || src.status === 'envoye') src.status = 'accepte';
   return inv;
@@ -119,7 +114,20 @@ Object.assign(actions, {
   },
   'goto-quotes': () => go('quotes'),
   'new-invoice'() { if (!requireAccess()) return; const inv = createInvoice(null); save(); go('editor', inv.id); },
+  /* Devis avec échéancier : « Facturer » crée la facture de la prochaine échéance (pas celle du devis complet) */
   'make-invoice'(t) {
+    if (!requireAccess()) return;
+    const src = getQuote(t.dataset.id || editingId); if (!src || isInv(src)) return;
+    const idx = nextStep(src);
+    if (idx >= 0) {
+      const inv = createStepInvoice(src, idx);
+      save(); toast(`Facture ${inv.number} créée pour l'échéance « ${src.payments[idx].label || 'Paiement'} »`);
+      return go('editor', inv.id);
+    }
+    if (hasSteps(src) && !confirm('Toutes les échéances de ce devis sont déjà facturées.\nCréer quand même une facture du devis complet ?')) return;
+    actions['make-invoice-full'](t);
+  },
+  'make-invoice-full'(t) {
     if (!requireAccess()) return;
     const src = getQuote(t.dataset.id || editingId); if (!src || isInv(src)) return;
     const existing = invoices().filter(i => i.fromQuoteId === src.id);

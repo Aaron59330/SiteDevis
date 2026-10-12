@@ -62,6 +62,7 @@ function normQuote(q, base) {
   if (!q.payments) q.payments = q.kind === 'facture' ? [] : q.deposit ? [{ pct: num(q.deposit), label: 'Acompte' }, { pct: 100 - num(q.deposit), label: 'Solde' }] : parsePayments(base.settings.defaultPayments);
   if (q.kind !== 'facture') q.payments.forEach(p => { p.id = p.id || uid(); p.invoiceId = p.invoiceId || ''; });
   if (q.kind === 'facture') q.totalOverride = q.totalOverride === '' || q.totalOverride == null || !Number.isFinite(Number(q.totalOverride)) ? '' : Number(q.totalOverride);
+  if (q.kind === 'facture' && !(num(q.stepPct) > 0)) delete q.stepPct;
   q.notes = q.notes || ''; q.discount = num(q.discount); q.status = q.status || 'brouillon';
   return q;
 }
@@ -173,12 +174,19 @@ function totals(q) {
   let ht = subtotal - discountAmt;
   let vat = Object.values(byRate).reduce((s, v) => s + v, 0);
   let ttc = ht + vat;
+  /* Facture d'une échéance : le tableau garde le détail du devis, les totaux ne reprennent que la part de l'échéance */
+  let subtotalOut = subtotal, discountOut = discountAmt;
+  if (isInv(q) && num(q.stepPct) > 0) {
+    const k = num(q.stepPct) / 100;
+    ht *= k; vat *= k; ttc = ht + vat; subtotalOut *= k; discountOut *= k;
+    for (const r in byRate) { byRate[r] *= k; htByRate[r] *= k; }
+  }
   /* Total saisi à la main (factures) : seul le total TTC change, ni les lignes, ni le HT, ni la TVA */
   const ov = isInv(q) && q.totalOverride !== '' && q.totalOverride != null && Number.isFinite(Number(q.totalOverride)) ? Number(q.totalOverride) : null;
   const auto = ttc;
   if (ov != null) ttc = ov;
   const paid = isInv(q) ? num(q.alreadyPaid) : 0;
-  return { subtotal, discountAmt, ht, vat, byRate, htByRate, ttc, paid, due: ttc - paid, overridden: ov != null, auto };
+  return { subtotal: subtotalOut, discountAmt: discountOut, ht, vat, byRate, htByRate, ttc, paid, due: ttc - paid, overridden: ov != null, auto };
 }
 
 /* ---------- Rendu principal ---------- */
@@ -301,7 +309,7 @@ function renderEditor() {
       <button class="btn hide-sm" data-act="toggle-wide">👁 Aperçu large / ✎ Édition</button>
       ${isInv(q)
         ? `${q.fromQuoteId && getQuote(q.fromQuoteId) ? `<button class="btn" data-act="edit" data-id="${q.fromQuoteId}">← Voir le devis ${esc(q.fromNumber || '')}</button>` : ''}${q.status !== 'payee' ? '<button class="btn" data-act="mark-paid">✓ Marquer comme payée</button>' : ''}`
-        : `<button class="btn" data-act="make-invoice" data-id="${q.id}">🧾 ${db.quotes.some(i => i.fromQuoteId === q.id) ? 'Créer une autre facture' : 'Créer la facture'}</button>`}
+        : `<button class="btn" data-act="make-invoice" data-id="${q.id}">🧾 ${(i => i >= 0 ? 'Facturer : ' + (q.payments[i].label || 'échéance ' + (i + 1)) : db.quotes.some(f => f.fromQuoteId === q.id) ? 'Créer une autre facture' : 'Créer la facture')(nextStep(q))}</button>`}
       ${isInv(q) ? '' : '<button class="btn" data-act="purchase-list" title="Matériaux à commander, par fournisseur">🛒 Liste d\'achat</button>'}
       <button class="btn" data-act="dup" data-id="${q.id}">⧉ Dupliquer</button>
       <button class="btn primary" data-act="pdf" title="Télécharge le document en PDF, prêt à envoyer au client">⬇ Télécharger le PDF</button>
@@ -368,11 +376,12 @@ function renderEditor() {
           <div class="field"><label>Payée le</label><input type="date" data-f="paidAt" value="${q.paidAt}"></div></div>
           <div class="field"><label>Total TTC de la facture (modifiable)</label>
             <div class="row" style="flex-wrap:nowrap"><input type="number" step="0.01" min="0" data-f="totalOverride" value="${q.totalOverride === '' ? '' : q.totalOverride}" placeholder="${(totals(q).auto).toFixed(2)}" style="max-width:200px"> <span class="muted" style="font-size:.85rem">€ — vide = calcul automatique (${money(totals(q).auto)}). Seul le total TTC change : les lignes, le HT et la TVA restent identiques.</span></div></div>
-          ${q.stepId ? `<p class="muted" style="margin:-4px 0 12px;font-size:.82rem">Facture de l'échéance « ${esc(q.stepLabel || 'Paiement')} » du devis N° ${esc(q.fromNumber)} : le total ne reprend que cette échéance. Le récapitulatif des conditions de paiement indique celles déjà réglées.</p>` : ''}
+          ${q.stepId ? `<p class="muted" style="margin:-4px 0 12px;font-size:.82rem">Facture de l'échéance « ${esc(q.stepLabel || 'Paiement')} » (${fmtNum.format(num(q.stepPct))} %) du devis N° ${esc(q.fromNumber)} : le tableau reprend le détail du devis, les totaux ne reprennent que cette échéance. Le récapitulatif des conditions de paiement indique celles déjà réglées.</p>` : ''}
           <p class="muted" style="margin:-4px 0 12px;font-size:.82rem">Si un acompte a déjà été payé sur le devis, indiquez-le : la facture affichera « Déjà réglé » et le « Net à payer ».</p>` : ''}
         ${isInv(q) && q.stepId ? '' : `<label>Conditions de paiement (échéancier)</label>
         <div id="payBody">${paymentsHtml(q)}</div>
-        <div class="row between" style="margin:6px 0 14px"><button class="btn small" data-act="add-pay">＋ Échéance</button><span id="paySum" class="muted"></span></div>`}
+        <div class="row between" style="margin:6px 0 14px"><button class="btn small" data-act="add-pay">＋ Échéance</button><span id="paySum" class="muted"></span></div>
+        ${!isInv(q) ? '<p class="muted" style="margin:-6px 0 12px;font-size:.82rem">« Facturer » crée la facture de chaque échéance, une par paiement. <a href="#" data-act="make-invoice-full" data-id="' + q.id + '">Facturer le devis complet d\'un seul coup</a></p>' : ''}`}
         <div class="field"><label>Coordonnées bancaires</label><textarea class="auto" data-f="bank" placeholder="Coordonnées bancaires : …&#10;IBAN : …&#10;BIC/SWIFT : …">${esc(q.bank)}</textarea></div>
         <div class="field"><label>Notes / remarques (affichées sur le document)</label><textarea class="auto" data-f="notes" placeholder="Délais, matériel fourni, précisions…">${esc(q.notes)}</textarea></div>
       </div>
