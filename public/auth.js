@@ -144,11 +144,11 @@ document.addEventListener('click', e => { if (!e.target.closest('#userbox')) $('
 function updateTopbar() {
   const u = session.user, a = session.access;
   if (!u) return;
-  const items = [['quotes', 'Devis'], ['clients', 'Clients'], ['catalog', 'Catalogue'], ['company', 'Mon entreprise'], ['billing', 'Abonnement']];
+  const items = [['quotes', 'Devis'], ['invoices', 'Factures'], ['clients', 'Clients'], ['catalog', 'Catalogue'], ['company', 'Mon entreprise'], ['billing', 'Abonnement']];
   if (u.role === 'admin') items.push(['admin', '🛡 Administration']);
   $('#nav').innerHTML = items.map(([v, l]) => `<button data-view="${v}">${l}</button>`).join('');
   document.querySelectorAll('#nav button').forEach(b =>
-    b.classList.toggle('active', b.dataset.view === view || (view === 'editor' && b.dataset.view === 'quotes') || (view === 'account' && b.dataset.view === 'billing')));
+    b.classList.toggle('active', b.dataset.view === navFor()));
   const pill = $('#accessPill');
   if (u.role === 'admin') pill.innerHTML = '<span class="pill ok">Administrateur</span>';
   else if (a.active) pill.innerHTML = `<span class="pill ok">${a.source === 'trial' ? 'Essai' : '✓ Actif'} jusqu'au ${new Date(a.until).toLocaleDateString('fr-FR')}</span>`;

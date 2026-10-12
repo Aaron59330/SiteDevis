@@ -323,7 +323,7 @@ route('PUT', '/api/data', 'user', ctx => {
   const d = ctx.body;
   if (!d || typeof d !== 'object' || !Array.isArray(d.quotes) || !Array.isArray(d.clients)) throw err(400, 'Données invalides.');
   store.setUserData(ctx.user.id, d);
-  ctx.user.quotesCount = d.quotes.length; ctx.user.dataAt = now(); store.save();
+  ctx.user.quotesCount = d.quotes.filter(q => q && q.kind !== 'facture').length; ctx.user.dataAt = now(); store.save();
   return ok();
 });
 

@@ -5,6 +5,9 @@ const LEGACY_KEY = 'sitedevis.v1';
 const session = { user: null, access: { active: false }, config: {} };
 const EXTRA = {}, AFTER = {};
 const STATUS = { brouillon: 'Brouillon', envoye: 'Envoyé', accepte: 'Accepté', refuse: 'Refusé' };
+const INV_STATUS = { brouillon: 'Brouillon', envoye: 'Envoyée', payee: 'Payée', annulee: 'Annulée' };
+const isInv = q => q && q.kind === 'facture';
+const statusOf = q => (isInv(q) ? INV_STATUS : STATUS);
 const UNITS = ['u', 'pièce(s)', 'h', 'jour', 'forfait', 'm2', 'm²', 'ml', 'm', 'kg', 'mois'];
 const VATS = [0, 5.5, 10, 20];
 const VAT_MENTION = 'TVA non applicable – article 293 B du Code général des impôts.';
@@ -15,7 +18,7 @@ const DEFAULT_FOOTER =
 
 const defaults = () => ({
   company: { name: '', legalLine: '', address: '', phone: '', email: '', siret: '', vatNumber: '', bank: '', logo: '', vatExempt: false, accent: '#26323f' },
-  settings: { numberPattern: 'DEV-{YYYY}-{N}', next: 1, defaultVat: 20, validityDays: 30,
+  settings: { numberPattern: 'DEV-{YYYY}-{N}', next: 1, invoicePattern: 'FAC-{YYYY}-{N}', invoiceNext: 1, dueDays: 30, defaultVat: 20, validityDays: 30,
     defaultPayments: '30 | Acompte à la commande\n70 | Solde à la fin des travaux',
     defaultFooter: DEFAULT_FOOTER },
   clients: [],
@@ -43,13 +46,15 @@ function normalize(raw) {
 }
 function normQuote(q, base) {
   base = base || db;
+  q.kind = q.kind === 'facture' ? 'facture' : 'devis';
   q.lines = (q.lines && q.lines.length ? q.lines : [newItem(base)]).map(l => ({ t: 'item', ref: '', ...l }));
-  q.opts = { showRef: true, showVat: true, docLabel: 'DEVIS', agreeLabel: 'Bon pour Accord', ...(q.opts || {}) };
+  q.opts = { showRef: true, showVat: true, docLabel: q.kind === 'facture' ? 'FACTURE' : 'DEVIS', agreeLabel: q.kind === 'facture' ? '' : 'Bon pour Accord', ...(q.opts || {}) };
+  if (q.kind === 'facture') { q.dueDate = q.dueDate || ''; q.serviceDate = q.serviceDate || ''; q.alreadyPaid = num(q.alreadyPaid); q.payMethod = q.payMethod ?? 'Virement bancaire'; q.paidAt = q.paidAt || ''; }
   if (q.issuerText == null) q.issuerText = issuerBlock(base.company);
   if (q.clientText == null) q.clientText = clientBlock((base.clients || []).find(c => c.id === q.clientId));
   if (q.footer == null) q.footer = makeFooter(base);
   if (q.bank == null) q.bank = base.company.bank || '';
-  if (!q.payments) q.payments = q.deposit ? [{ pct: num(q.deposit), label: 'Acompte' }, { pct: 100 - num(q.deposit), label: 'Solde' }] : parsePayments(base.settings.defaultPayments);
+  if (!q.payments) q.payments = q.kind === 'facture' ? [] : q.deposit ? [{ pct: num(q.deposit), label: 'Acompte' }, { pct: 100 - num(q.deposit), label: 'Solde' }] : parsePayments(base.settings.defaultPayments);
   q.notes = q.notes || ''; q.discount = num(q.discount); q.status = q.status || 'brouillon';
   return q;
 }
@@ -101,12 +106,16 @@ function toast(msg) {
   clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 2200);
 }
 
-function makeNumber() {
-  const d = new Date(), y = String(d.getFullYear());
-  return (db.settings.numberPattern || 'DEV-{YYYY}-{N}')
+function makeNumber(kind) {
+  const d = new Date(), y = String(d.getFullYear()), inv = kind === 'facture';
+  return ((inv ? db.settings.invoicePattern : db.settings.numberPattern) || (inv ? 'FAC-{YYYY}-{N}' : 'DEV-{YYYY}-{N}'))
     .replace('{YYYY}', y).replace('{YY}', y.slice(2))
     .replace('{MM}', String(d.getMonth() + 1).padStart(2, '0'))
-    .replace('{N}', String(db.settings.next).padStart(3, '0'));
+    .replace('{N}', String(inv ? db.settings.invoiceNext : db.settings.next).padStart(3, '0'));
+}
+function bumpNumber(kind) {
+  if (kind === 'facture') db.settings.invoiceNext = num(db.settings.invoiceNext) + 1;
+  else db.settings.next = num(db.settings.next) + 1;
 }
 function issuerBlock(co) {
   return [co.name, co.legalLine, co.address, co.phone && `Port. : ${co.phone}`, co.email, co.siret && `N° SIRET : ${co.siret}`,
@@ -155,13 +164,14 @@ function totals(q) {
   });
   const ht = subtotal - discountAmt;
   const vat = Object.values(byRate).reduce((s, v) => s + v, 0);
-  return { subtotal, discountAmt, ht, vat, byRate, ttc: ht + vat };
+  const ttc = ht + vat, paid = isInv(q) ? num(q.alreadyPaid) : 0;
+  return { subtotal, discountAmt, ht, vat, byRate, ttc, paid, due: ttc - paid };
 }
 
 /* ---------- Rendu principal ---------- */
 function render() {
   document.querySelectorAll('#nav button').forEach(b =>
-    b.classList.toggle('active', b.dataset.view === view || (view === 'editor' && b.dataset.view === 'quotes')));
+    b.classList.toggle('active', b.dataset.view === navFor()));
   const app = $('#app');
   if (view === 'quotes') app.innerHTML = renderQuotes();
   else if (view === 'editor') app.innerHTML = renderEditor();
@@ -172,6 +182,10 @@ function render() {
   if (AFTER[view]) AFTER[view]();
   if (view === 'editor') { fitDoc(); updatePrintStyle(); autosize(); } else updatePrintStyle(true);
   window.scrollTo(0, 0);
+}
+function navFor() {
+  if (view === 'editor') return isInv(getQuote(editingId)) ? 'invoices' : 'quotes';
+  return view === 'account' ? 'billing' : view;
 }
 function go(v, id = null) {
   if (v === 'editor' && !requireAccess()) return;
@@ -201,7 +215,7 @@ function updatePrintStyle(clear) {
 
 /* ---------- Liste des devis ---------- */
 function renderQuotes() {
-  const all = db.quotes;
+  const all = db.quotes.filter(q => !isInv(q));
   const sum = st => all.filter(q => q.status === st).reduce((s, q) => s + totals(q).ttc, 0);
   const list = all.filter(q => {
     const c = getClient(q.clientId);
@@ -238,10 +252,11 @@ function renderQuotes() {
           <td>${esc(c ? c.name : '—')}</td>
           <td>${esc(q.title)}</td>
           <td>${fdate(q.date)}</td>
-          <td><span class="badge ${q.status}">${STATUS[q.status]}</span></td>
+          <td><span class="badge ${q.status}">${STATUS[q.status]}</span>${db.quotes.some(i => i.fromQuoteId === q.id) ? ' <span class="badge info2" title="Une facture existe">🧾 Facturé</span>' : ''}</td>
           <td class="right"><b>${money(totals(q).ttc)}</b></td>
           <td class="right" style="white-space:nowrap">
             <button class="btn small" data-act="edit" data-id="${q.id}">Ouvrir</button>
+            <button class="btn small" data-act="make-invoice" data-id="${q.id}" title="Créer la facture à partir de ce devis">🧾 Facturer</button>
             <button class="btn small" data-act="dup" data-id="${q.id}" title="Dupliquer">⧉</button>
             <button class="btn small danger" data-act="del-quote" data-id="${q.id}" title="Supprimer">🗑</button>
           </td></tr>`;
@@ -267,6 +282,9 @@ function renderEditor() {
     <div class="row"><button class="btn" data-act="back">← Retour</button><h1 style="margin:0">${esc(q.opts.docLabel)} ${esc(q.number)}</h1></div>
     <div class="row">
       <button class="btn" data-act="toggle-wide">👁 Aperçu large / ✎ Édition</button>
+      ${isInv(q)
+        ? `${q.fromQuoteId && getQuote(q.fromQuoteId) ? `<button class="btn" data-act="edit" data-id="${q.fromQuoteId}">← Voir le devis ${esc(q.fromNumber || '')}</button>` : ''}${q.status !== 'payee' ? '<button class="btn" data-act="mark-paid">✓ Marquer comme payée</button>' : ''}`
+        : `<button class="btn" data-act="make-invoice" data-id="${q.id}">🧾 ${db.quotes.some(i => i.fromQuoteId === q.id) ? 'Créer une autre facture' : 'Créer la facture'}</button>`}
       <button class="btn" data-act="dup" data-id="${q.id}">⧉ Dupliquer</button>
       <button class="btn primary" data-act="print" title="Dans la fenêtre d'impression : destination « Enregistrer au format PDF », décochez « En-têtes et pieds de page »">🖨 Imprimer / PDF</button>
     </div>
@@ -278,9 +296,13 @@ function renderEditor() {
         <div class="grid3">
           <div class="field"><label>Numéro</label><input data-f="number" value="${esc(q.number)}"></div>
           <div class="field"><label>Date</label><input type="date" data-f="date" value="${q.date}"></div>
-          <div class="field"><label>Valable jusqu'au</label><input type="date" data-f="validUntil" value="${q.validUntil}"></div>
+          ${isInv(q)
+            ? `<div class="field"><label>Échéance de paiement</label><input type="date" data-f="dueDate" value="${q.dueDate}"></div>`
+            : `<div class="field"><label>Valable jusqu'au</label><input type="date" data-f="validUntil" value="${q.validUntil}"></div>`}
         </div>
-        <div class="field"><label>Titre en haut du devis (objet des travaux)</label><textarea class="auto" rows="2" data-f="title" placeholder="Ex : TRAVAUX DE PLÂTRERIE LOGEMENT 12 RUE DES LILAS">${esc(q.title)}</textarea></div>
+        ${isInv(q) ? `<div class="grid2"><div class="field"><label>Date de la prestation / livraison</label><input type="date" data-f="serviceDate" value="${q.serviceDate}"></div>
+          <div class="field"><label>Devis d'origine</label><input value="${esc(q.fromNumber ? 'Devis N° ' + q.fromNumber : '— aucun —')}" disabled></div></div>` : ''}
+        <div class="field"><label>Titre en haut du document (objet des travaux)</label><textarea class="auto" rows="2" data-f="title" placeholder="Ex : TRAVAUX DE PLÂTRERIE LOGEMENT 12 RUE DES LILAS">${esc(q.title)}</textarea></div>
         <div class="grid2">
           <div class="field"><label>Client</label>
             <div class="row" style="flex-wrap:nowrap">
@@ -288,10 +310,10 @@ function renderEditor() {
               <button class="btn" data-act="new-client-inline" title="Nouveau client">＋</button>
             </div></div>
           <div class="field"><label>Statut</label>
-            <select data-f="status">${Object.entries(STATUS).map(([k, v]) => `<option value="${k}" ${q.status === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
+            <select data-f="status">${Object.entries(statusOf(q)).map(([k, v]) => `<option value="${k}" ${q.status === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
         </div>
         <details>
-          <summary>Blocs « Émetteur » et « Client » affichés sur le devis (modifiables)</summary>
+          <summary>Blocs « Émetteur » et « Client » affichés sur le document (modifiables)</summary>
           <div class="field" style="margin-top:10px"><label>Émetteur (première ligne en gras)
             <a href="#" data-act="reset-issuer" style="float:right;font-weight:400">↻ recopier depuis Mon entreprise</a></label>
             <textarea class="auto" data-f="issuerText">${esc(q.issuerText)}</textarea></div>
@@ -318,12 +340,17 @@ function renderEditor() {
       </div>
 
       <div class="card">
-        <h2>Paiement</h2>
+        <h2>${isInv(q) ? 'Règlement' : 'Paiement'}</h2>
+        ${isInv(q) ? `<div class="grid3">
+          <div class="field"><label>Déjà réglé / acompte versé (€ TTC)</label><input type="number" step="0.01" min="0" data-f="alreadyPaid" value="${q.alreadyPaid}"></div>
+          <div class="field"><label>Mode de règlement</label><input data-f="payMethod" value="${esc(q.payMethod)}" placeholder="Virement bancaire"></div>
+          <div class="field"><label>Payée le</label><input type="date" data-f="paidAt" value="${q.paidAt}"></div></div>
+          <p class="muted" style="margin:-4px 0 12px;font-size:.82rem">Si un acompte a déjà été payé sur le devis, indiquez-le : la facture affichera « Déjà réglé » et le « Net à payer ».</p>` : `
         <label>Conditions de paiement (échéancier)</label>
         <div id="payBody">${paymentsHtml(q)}</div>
-        <div class="row between" style="margin:6px 0 14px"><button class="btn small" data-act="add-pay">＋ Échéance</button><span id="paySum" class="muted"></span></div>
+        <div class="row between" style="margin:6px 0 14px"><button class="btn small" data-act="add-pay">＋ Échéance</button><span id="paySum" class="muted"></span></div>`}
         <div class="field"><label>Coordonnées bancaires</label><textarea class="auto" data-f="bank" placeholder="Coordonnées bancaires : …&#10;IBAN : …&#10;BIC/SWIFT : …">${esc(q.bank)}</textarea></div>
-        <div class="field"><label>Notes / remarques (affichées au-dessus de la signature)</label><textarea class="auto" data-f="notes" placeholder="Délais, matériel fourni, précisions…">${esc(q.notes)}</textarea></div>
+        <div class="field"><label>Notes / remarques (affichées sur le document)</label><textarea class="auto" data-f="notes" placeholder="Délais, matériel fourni, précisions…">${esc(q.notes)}</textarea></div>
       </div>
 
       <div class="card">
@@ -331,7 +358,7 @@ function renderEditor() {
         <div class="field"><label>Pied de page (répété sur chaque page)</label><textarea class="auto" data-f="footer">${esc(q.footer)}</textarea></div>
         <div class="grid2">
           <div class="field"><label>Intitulé du document</label><input data-o="docLabel" value="${esc(q.opts.docLabel)}"></div>
-          <div class="field"><label>Texte de signature</label><input data-o="agreeLabel" value="${esc(q.opts.agreeLabel)}"></div>
+          ${isInv(q) ? '<div></div>' : `<div class="field"><label>Texte de signature</label><input data-o="agreeLabel" value="${esc(q.opts.agreeLabel)}"></div>`}
         </div>
         <div class="row">
           <label style="margin:0"><input type="checkbox" data-o="showRef" ${q.opts.showRef ? 'checked' : ''} style="width:auto"> Colonne Référence</label>
@@ -420,7 +447,8 @@ function renderDoc(q) {
     <div class="client">${esc(q.clientText)}</div>
   </div>
   <div class="dnum">${esc(o.docLabel)} N° ${esc(q.number)}</div>
-  <div class="ddate">Le ${flongdate(q.date)}${q.validUntil ? ` — valable jusqu'au ${fdate(q.validUntil)}` : ''}</div>
+  <div class="ddate">Le ${flongdate(q.date)}${!isInv(q) && q.validUntil ? ` — valable jusqu'au ${fdate(q.validUntil)}` : ''}</div>
+  ${isInv(q) ? `<div class="dmeta">${q.fromNumber ? `<span>Suite au devis N° ${esc(q.fromNumber)}</span>` : ''}${q.serviceDate ? `<span>Prestation réalisée le ${fdate(q.serviceDate)}</span>` : ''}${q.dueDate ? `<span><b>Échéance de paiement : ${fdate(q.dueDate)}</b></span>` : ''}</div>` : ''}
   <table class="items">
     <colgroup>${cols.map(c => `<col style="width:${c === 'desc' ? 100 - used : widths[c]}%">`).join('')}</colgroup>
     <thead><tr>${cols.map(c => `<th class="${['qty', 'price', 'vat', 'amount'].includes(c) ? 'r' : ''}">${head[c]}</th>`).join('')}</tr></thead>
@@ -428,7 +456,7 @@ function renderDoc(q) {
       <tr class="final"><td colspan="${N}"><div class="fwrap">
         <div class="fleft">
           ${q.notes ? `<div class="fnotes">${esc(q.notes)}</div>` : ''}
-          <div class="agree">${esc(o.agreeLabel)}</div>
+          ${isInv(q) ? (q.payMethod ? `<div class="bank" style="margin-top:10px">Mode de règlement : ${esc(q.payMethod)}</div>` : '') : `<div class="agree">${esc(o.agreeLabel)}</div>`}
           ${q.bank ? `<div class="bank">${esc(q.bank)}</div>` : ''}
           <div class="pays">${payHtml}</div>
         </div>
@@ -436,7 +464,9 @@ function renderDoc(q) {
           ${t.discountAmt ? `<div class="tr"><span>Sous-total HT</span><span>${money(t.subtotal)}</span></div><div class="tr"><span>Remise (${fmtNum.format(num(q.discount))} %)</span><span>− ${money(t.discountAmt)}</span></div>` : ''}
           <div class="tr b"><span>Total HT</span><span>${money(t.ht)}</span></div>
           ${vatRows}
-          <div class="tr grand"><span>Total TTC</span><span>${money(t.ttc)}</span></div>
+          <div class="tr ${t.paid ? 'b' : 'grand'}"><span>Total TTC</span><span>${money(t.ttc)}</span></div>
+          ${t.paid ? `<div class="tr"><span>Déjà réglé</span><span>− ${money(t.paid)}</span></div><div class="tr grand"><span>Net à payer</span><span>${money(t.due)}</span></div>` : ''}
+          ${isInv(q) && q.status === 'payee' ? `<div class="stamp">✓ Facture acquittée${q.paidAt ? ' le ' + fdate(q.paidAt) : ''}</div>` : ''}
         </div>
       </div></td></tr>
     </tbody>
@@ -725,7 +755,10 @@ function renderCompany() {
       <div class="card"><h2>Réglages des devis</h2>
         <div class="grid2">
           <div class="field"><label>Modèle de numérotation</label><input data-s="numberPattern" value="${esc(s.numberPattern)}"></div>
-          <div class="field"><label>Prochain numéro ({N})</label><input type="number" min="1" data-s="next" value="${s.next}"></div>
+          <div class="field"><label>Prochain numéro de devis ({N})</label><input type="number" min="1" data-s="next" value="${s.next}"></div>
+          <div class="field"><label>Modèle de numérotation des factures</label><input data-s="invoicePattern" value="${esc(s.invoicePattern)}"></div>
+          <div class="field"><label>Prochain numéro de facture ({N})</label><input type="number" min="1" data-s="invoiceNext" value="${s.invoiceNext}"></div>
+          <div class="field"><label>Délai de paiement des factures (jours)</label><input type="number" min="0" data-s="dueDays" value="${s.dueDays}"></div>
         </div>
         <p class="muted" style="margin-top:-4px;font-size:.8rem">Variables : {YYYY} année, {YY} année courte, {MM} mois, {N} compteur. Ex : <code>I-{YY}-{MM}-{N}</code></p>
         <div class="grid2">
@@ -782,21 +815,22 @@ const actions = {
   demo() { if (requireAccess()) loadDemo(); },
   'goto-company': () => go('company'),
   edit: t => go('editor', t.dataset.id),
-  back: () => go('quotes'),
+  back() { go(isInv(getQuote(editingId)) ? 'invoices' : 'quotes'); },
   print() { fitDoc(); window.print(); },
   'toggle-wide'() { wide = !wide; $('#editor').classList.toggle('wide', wide); fitDoc(); },
   dup(t) {
     if (!requireAccess()) return;
     const src = getQuote(t.dataset.id); if (!src) return;
     const q = JSON.parse(JSON.stringify(src));
-    q.id = uid(); q.number = makeNumber(); q.date = today(); q.status = 'brouillon';
-    q.validUntil = addDays(q.date, num(db.settings.validityDays));
-    db.settings.next = num(db.settings.next) + 1;
-    db.quotes.push(q); save(); toast('Devis dupliqué'); go('editor', q.id);
+    q.id = uid(); q.number = makeNumber(src.kind); q.date = today(); q.status = 'brouillon';
+    if (isInv(q)) { q.dueDate = addDays(q.date, num(db.settings.dueDays)); q.paidAt = ''; q.alreadyPaid = 0; delete q.fromQuoteId; delete q.fromNumber; }
+    else q.validUntil = addDays(q.date, num(db.settings.validityDays));
+    bumpNumber(src.kind);
+    db.quotes.push(q); save(); toast(isInv(q) ? 'Facture dupliquée' : 'Devis dupliqué'); go('editor', q.id);
   },
   'del-quote'(t) {
     const q = getQuote(t.dataset.id);
-    if (q && confirm(`Supprimer le devis ${q.number} ?`)) { db.quotes = db.quotes.filter(x => x !== q); save(); render(); }
+    if (q && confirm(`Supprimer ${isInv(q) ? 'la facture' : 'le devis'} ${q.number} ?`)) { db.quotes = db.quotes.filter(x => x !== q); save(); render(); }
   },
   'add-line'() { getQuote(editingId).lines.push(newItem()); save(); refreshLines(); },
   'add-title'() { getQuote(editingId).lines.push({ t: 'title', desc: '' }); save(); refreshLines(); },
@@ -873,7 +907,8 @@ document.addEventListener('input', e => {
     if (t.dataset.f) {
       const f = t.dataset.f;
       q[f] = t.type === 'number' ? num(t.value) : t.value;
-      if (f === 'date' && t.value) { q.validUntil = addDays(t.value, num(db.settings.validityDays)); const v = $('[data-f=validUntil]'); if (v) v.value = q.validUntil; }
+      if (f === 'date' && t.value) { const k = isInv(q) ? 'dueDate' : 'validUntil'; q[k] = addDays(t.value, num(isInv(q) ? db.settings.dueDays : db.settings.validityDays)); const v = $(`[data-f=${k}]`); if (v) v.value = q[k]; }
+      if (f === 'status' && isInv(q) && t.value === 'payee' && !q.paidAt) { q.paidAt = today(); const v = $('[data-f=paidAt]'); if (v) v.value = q.paidAt; }
       if (f === 'clientId') { q.clientText = clientBlock(getClient(t.value)); const ct = $('[data-f=clientText]'); ct.value = q.clientText; autosize(); }
       save(); refreshPreview();
     } else if (t.dataset.o) {

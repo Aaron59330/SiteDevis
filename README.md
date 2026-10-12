@@ -18,6 +18,7 @@ Au premier lancement, un **compte administrateur** est créé : son email et son
 - **Administration** (`🛡 Administration`) : tableau de bord (revenus, MRR, inscriptions), gestion des utilisateurs (suspendre, offrir/révoquer
   un accès, rôle, réinitialisation de mot de passe, suppression), paiements (remboursement, paiement manuel, export CSV), offres, réglages
   (essai gratuit, inscriptions), journal d'activité.
+- **Factures** : bouton « 🧾 Créer la facture » depuis un devis (lignes, client et mentions reprises), numérotation propre, échéance, acompte déjà réglé, suivi payée/en retard.
 - **Devis** : multi-pages façon pro, sous-totaux, échéancier, clients particuliers/pros (remplissage par SIRET ou raison sociale), catalogue, PDF.
 
 ## Mise en production
