@@ -45,5 +45,5 @@ const server = http.createServer((req, res) => {
 
 app.seedAdmin();
 server.listen(PORT, () => {
-  console.log(`\n✅  Mes Devis est lancé : http://localhost:${PORT}\n    (Ctrl+C pour arrêter)\n`);
+  console.log(`\nMes Devis est lancé : http://localhost:${PORT}\n    (Ctrl+C pour arrêter)\n`);
 });

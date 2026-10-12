@@ -468,7 +468,7 @@ function renderDoc(q) {
           ${vatRows}
           <div class="tr ${t.paid ? 'b' : 'grand'}"><span>Total TTC</span><span>${money(t.ttc)}</span></div>
           ${t.paid ? `<div class="tr"><span>Déjà réglé</span><span>− ${money(t.paid)}</span></div><div class="tr grand"><span>Net à payer</span><span>${money(t.due)}</span></div>` : ''}
-          ${isInv(q) && q.status === 'payee' ? `<div class="stamp">✓ Facture acquittée${q.paidAt ? ' le ' + fdate(q.paidAt) : ''}</div>` : ''}
+          ${isInv(q) && q.status === 'payee' ? `<div class="stamp">Facture acquittée${q.paidAt ? ' le ' + fdate(q.paidAt) : ''}</div>` : ''}
         </div>
       </div></td></tr>
     </tbody>

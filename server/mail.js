@@ -21,7 +21,7 @@ async function send(to, subject, text) {
       if (!r.ok) entry.error = (await r.text()).slice(0, 300);
     } catch (e) { entry.status = 'erreur'; entry.error = e.message; }
   } else {
-    console.log(`\n✉  [email non envoyé – mode démo] à ${to} — ${subject}\n${text}\n`);
+    console.log(`\n[email non envoyé – mode démo] à ${to} — ${subject}\n${text}\n`);
   }
   store.db.outbox.unshift(entry);
   store.db.outbox.length = Math.min(store.db.outbox.length, 300);

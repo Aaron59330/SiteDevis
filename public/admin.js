@@ -21,7 +21,7 @@ async function adminLoad() {
 }
 
 const accessBadge = u => u.role === 'admin' ? '<span class="badge accepte">Admin ∞</span>'
-  : u.access.active ? `<span class="badge accepte">Actif → ${dt(u.accessUntil)}</span>`
+  : u.access.active ? `<span class="badge accepte">Actif jusqu\x27au ${dt(u.accessUntil)}</span>`
   : u.accessUntil ? `<span class="badge refuse">Expiré ${dt(u.accessUntil)}</span>` : '<span class="badge brouillon">Aucun accès</span>';
 
 /* ----- Tableau de bord ----- */

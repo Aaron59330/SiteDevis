@@ -87,7 +87,7 @@ function renderMaterials() {
     <div class="row"><button class="btn" data-act="mat-demo" title="Ajoute des fournisseurs et matériaux d'exemple">📦 Exemples</button><button class="btn" data-act="mat-export">⬇ Export CSV</button><button class="btn" data-act="mat-import">⬆ Import CSV</button>
       <button class="btn primary" data-act="new-mat">＋ Matériau</button></div></div>
   <p class="muted" style="margin-top:0">Enregistrez les matériaux de chacun de vos fournisseurs avec <b>leur prix d'achat</b>. Le prix de vente est calculé avec votre marge (réglable par fournisseur ou par matériau).
-    Dans un devis : <b>📚 Catalogue → 🧱 Matériaux</b>, vous choisissez le fournisseur, cherchez le matériau (ex : « gouttière 2 m 80 mm »), indiquez la quantité, et c'est calculé.</p>
+    Dans un devis : <b>Catalogue, onglet Matériaux</b>, vous choisissez le fournisseur, cherchez le matériau (ex : « gouttière 2 m 80 mm »), indiquez la quantité, et c'est calculé.</p>
   ${!ss.length ? `<div class="card empty">Commencez par ajouter un fournisseur (ex : votre négoce habituel).<br><br><button class="btn primary" data-act="new-sup">＋ Ajouter un fournisseur</button> <button class="btn" data-act="mat-demo">📦 Charger des exemples</button></div>`
   : `<div class="card">
     <div class="chips">${chip('', 'Tous', all.length)}${ss.map(s => chip(s.id, esc(s.name), all.filter(c => c.supplierId === s.id).length)).join('')}</div>
@@ -475,7 +475,7 @@ function cpRender() {
       ${isPack(c) ? `<span class="muted" style="font-size:.78rem">${partsText(c)}</span>` : ''}</div>
       <div class="cp-calc"><input type="number" class="cp-qty" step="any" min="0" value="1"><span class="muted">${esc(c.unit)}</span><b class="cp-tot">= ${money(price)}</b>
       <button class="btn small primary cp-add">＋ Ajouter</button></div></div>`;
-  }).join('') : `<div class="empty">${base.length ? 'Aucun résultat.' : mat ? 'Aucun matériau. Ajoutez vos fournisseurs et leurs matériaux (onglet Catalogue → Matériaux), ou créez-en un maintenant.' : 'Votre catalogue est vide. Créez votre première prestation (ex : Pose de parquet, m², 5,00 €).'}</div>`;
+  }).join('') : `<div class="empty">${base.length ? 'Aucun résultat.' : mat ? 'Aucun matériau. Ajoutez vos fournisseurs et leurs matériaux (Catalogue, onglet Matériaux), ou créez-en un maintenant.' : 'Votre catalogue est vide. Créez votre première prestation (ex : Pose de parquet, m², 5,00 €).'}</div>`;
 }
 function cpAdd(row) {
   const c = catItem(row.dataset.id), q = getQuote(editingId);
@@ -529,7 +529,7 @@ function purchaseModal() {
   openModal(`<div class="modal-wide"><div class="row between"><h2 style="margin:0">🛒 Liste d'achat — ${esc(q.opts.docLabel)} ${esc(q.number)}</h2><button class="btn small" data-act="close-modal">✕ Fermer</button></div>
     <p class="muted" style="margin:6px 0 14px">Matériaux du devis regroupés par fournisseur (issus du catalogue Matériaux). Les quantités suivent celles du devis.</p>
     ${groups.length ? html + `<div class="cp-sum">Achats matériaux : <b>${money(totBuy)}</b> · Vendus au client : <b>${money(totSell)}</b> · Marge sur matériaux : <b>${money(totSell - totBuy)}</b></div>`
-    : '<div class="empty">Aucun matériau fournisseur dans ce devis.<br>Ajoutez-en via <b>📚 Catalogue → 🧱 Matériaux</b>.</div>'}</div>`);
+    : '<div class="empty">Aucun matériau fournisseur dans ce devis.<br>Ajoutez-en via <b>Catalogue, onglet Matériaux</b>.</div>'}</div>`);
 }
 
 /* ================= ACTIONS & ÉVÉNEMENTS ================= */

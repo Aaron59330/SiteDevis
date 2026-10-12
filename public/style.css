@@ -285,3 +285,12 @@ body.auth-mode main { max-width: none; padding: 0; }
 .finder { margin: 6px 0 4px; padding: 10px 14px; border: 1px dashed var(--input-line); border-radius: 12px; }
 .pf-calc { display: grid; grid-template-columns: 1fr 1fr 1.3fr; gap: 12px; margin-top: 12px; }
 .offer { display: flex; justify-content: space-between; gap: 14px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; margin-bottom: 8px; background: var(--card2); }
+
+/* ===== Icônes ===== */
+.ic { width: 1.1em; height: 1.1em; vertical-align: -.2em; flex: none; margin-right: .4em; }
+.ic:only-child, .btn.icon .ic, .star .ic, .theme-btn .ic, .avatar .ic { margin-right: 0; }
+.star .ic { width: 1.2em; height: 1.2em; }
+.big-ico .ic { width: 1em; height: 1em; margin: 0; stroke-width: 1.5; }
+.theme-btn .ic { width: 1.1em; height: 1.1em; }
+.btn .ic { opacity: .9; }
+.card:has(> table.list) { overflow-x: auto; }
