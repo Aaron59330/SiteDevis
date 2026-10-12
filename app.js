@@ -189,7 +189,7 @@ function renderQuotes() {
     <h1>Mes devis</h1>
     <button class="btn primary" data-act="new-quote">＋ Nouveau devis</button>
   </div>
-  ${!db.company.name ? `<div class="card" style="border-color:#fbbf24;background:#fffbeb">👋 Commencez par renseigner <a href="#" data-act="goto-company">votre entreprise</a> (logo, coordonnées, IBAN, mentions légales) : tout sera repris automatiquement sur vos devis. Vous pouvez aussi <a href="#" data-act="demo">charger un exemple</a> pour voir le résultat.</div>` : ''}
+  ${!db.company.name ? `<div class="card" style="border-color:var(--warn)">👋 Commencez par renseigner <a href="#" data-act="goto-company">votre entreprise</a> (logo, coordonnées, IBAN, mentions légales) : tout sera repris automatiquement sur vos devis. Vous pouvez aussi <a href="#" data-act="demo">charger un exemple</a> pour voir le résultat.</div>` : ''}
   <div class="stats">
     <div class="stat"><div class="n">${all.length}</div><div class="l">Devis au total</div></div>
     <div class="stat"><div class="n">${money(sum('envoye'))}</div><div class="l">En attente de réponse</div></div>
