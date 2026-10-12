@@ -2,20 +2,20 @@
 /* Boîte à outils : conversion d'images, photos en PDF, calculs métier, messages types, astuces.
    Tout fonctionne dans le navigateur : les fichiers ne quittent jamais l'ordinateur de l'utilisateur. */
 
-const toolsUI = { tab: 'files', tipCat: '', tipQ: '' };
-const TOOL_TABS = [['files', 'Fichiers & images'], ['calc', 'Calculs & utilitaires'], ['msg', 'Messages types'], ['tips', 'Astuces']];
+const toolsUI = { tab: 'guide', tipCat: '', tipQ: '' };
+const TOOL_TABS = [['guide', 'Bien faire un devis'], ['files', 'Fichiers & images'], ['calc', 'Petits calculs'], ['tips', 'Astuces']];
 const fmtSize = n => (n >= 1048576 ? (n / 1048576).toFixed(2).replace('.', ',') + ' Mo' : Math.max(1, Math.round(n / 1024)) + ' Ko');
 const fnum = (n, d = 2) => (Number.isFinite(n) ? n.toLocaleString('fr-FR', { minimumFractionDigits: d, maximumFractionDigits: d }) : '—');
 const tv = id => num((document.getElementById(id) || {}).value);
 
 EXTRA.tools = function renderTools() {
   return `<h1>Boîte à outils</h1>
-  <p class="muted" style="margin-top:0">Des outils simples pour gagner du temps au quotidien. Vos fichiers restent sur votre ordinateur : ils ne sont jamais envoyés sur Internet.</p>
+  <p class="muted" style="margin-top:0">Des outils simples pour bien faire vos devis et gagner du temps. Vos fichiers restent sur votre ordinateur : ils ne sont jamais envoyés sur Internet.</p>
   <div class="tabs">${TOOL_TABS.map(([k, l]) => `<button data-act="tools-tab" data-tab="${k}" class="${toolsUI.tab === k ? 'on' : ''}">${l}</button>`).join('')}</div>
   <div id="toolsBody">${toolsBody()}</div>`;
 };
-AFTER.tools = () => { if (toolsUI.tab === 'calc') calcAll(); if (toolsUI.tab === 'msg') msgFill(); if (toolsUI.tab === 'files') { imgRender(); pdfRender(); } };
-const toolsBody = () => ({ files: filesHtml, calc: calcHtml, msg: msgHtml, tips: tipsHtml }[toolsUI.tab])();
+AFTER.tools = () => { if (toolsUI.tab === 'calc') calcAll(); if (toolsUI.tab === 'guide') { simAll(); guideCheck(); } if (toolsUI.tab === 'files') { imgRender(); pdfRender(); } };
+const toolsBody = () => ({ guide: guideHtml, files: filesHtml, calc: calcHtml, tips: tipsHtml }[toolsUI.tab])();
 
 /* ================= FICHIERS & IMAGES ================= */
 const img = { items: [] }, pdf = { items: [] };
@@ -149,120 +149,116 @@ function pdfRender() {
 
 /* ================= CALCULS & UTILITAIRES ================= */
 function calcHtml() {
-  const today0 = today();
   const row = (id, label, extra = '') => `<div class="field"><label>${label}</label><input id="${id}" type="number" step="any" ${extra}></div>`;
   return `<div class="tool-grid">
-  <div class="card"><h2>TVA : HT et TTC</h2>
+  <div class="card"><h2>TVA : passer du HT au TTC</h2>
+    <p class="muted" style="margin-top:0">Pour savoir combien facturer, ou retrouver le prix HT d'un ticket de caisse.</p>
     <div class="grid3">${row('tvaAmt', 'Montant (€)', 'value="100"')}
       <div class="field"><label>Je pars du prix</label><select id="tvaDir"><option value="ht">HT (calculer le TTC)</option><option value="ttc">TTC (calculer le HT)</option></select></div>
       <div class="field"><label>Taux de TVA</label><select id="tvaRate"><option value="20">20 %</option><option value="10">10 %</option><option value="5.5">5,5 %</option><option value="2.1">2,1 %</option><option value="0">0 %</option></select></div></div>
     <div class="cp-sum" id="tvaOut"></div></div>
 
-  <div class="card"><h2>Marge, coefficient et prix de vente</h2>
+  <div class="card"><h2>Marge et coefficient</h2>
+    <p class="muted" style="margin-top:0">Vous achetez 100 € et vous voulez gagner 30 % : à quel prix vendre ?</p>
     <div class="grid3">${row('mgBuy', "Prix d'achat HT (€)", 'value="100"')}
       <div class="field"><label>Je connais</label><select id="mgKnown"><option value="coef">Le coefficient</option><option value="markup">La majoration (%)</option><option value="rate">Le taux de marque (%)</option><option value="sell">Le prix de vente</option></select></div>
       ${row('mgVal', 'Valeur', 'value="1.3"')}</div>
     <div class="cp-sum" id="mgOut"></div>
     <p class="muted" style="font-size:.8rem;margin:8px 0 0">Majoration = bénéfice ÷ achat. Taux de marque = bénéfice ÷ prix de vente. Ils ne sont pas identiques : 30 % de majoration = 23 % de taux de marque.</p></div>
 
-  <div class="card"><h2>Surfaces, volumes et quantités</h2>
+  <div class="card"><h2>Surfaces et quantités d'une pièce</h2>
+    <p class="muted" style="margin-top:0">Le métré de base pour chiffrer peinture, sol et plinthes.</p>
     <div class="grid3">${row('sfL', 'Longueur (m)', 'value="5"')}${row('sfW', 'Largeur (m)', 'value="4"')}${row('sfH', 'Hauteur sous plafond (m)', 'value="2.5"')}</div>
     <div class="grid3">${row('sfD', 'Portes (nombre)', 'value="1" min="0"')}${row('sfWin', 'Fenêtres (nombre)', 'value="2" min="0"')}${row('sfWaste', 'Pertes (%)', 'value="10"')}</div>
     <div class="grid3">${row('sfDa', "Surface d'une porte (m²)", 'value="1.84"')}${row('sfWa', "Surface d'une fenêtre (m²)", 'value="1.4"')}${row('sfYield', 'Rendement peinture (m²/L)', 'value="10"')}</div>
     <div class="cp-sum" id="sfOut"></div></div>
-
-  <div class="card"><h2>Convertisseur d'unités</h2>
-    <div class="grid3"><div class="field"><label>Grandeur</label><select id="unCat"><option value="length">Longueur</option><option value="area">Surface</option><option value="volume">Volume</option><option value="mass">Poids</option></select></div>
-      ${row('unVal', 'Valeur', 'value="1"')}<div class="field"><label>Unité</label><select id="unFrom"></select></div></div>
-    <div class="cp-sum" id="unOut"></div></div>
-
-  <div class="card"><h2>Date d'échéance de paiement</h2>
-    <div class="grid3"><div class="field"><label>Date de la facture</label><input id="ecStart" type="date" value="${today0}"></div>${row('ecDays', 'Délai (jours)', 'value="30" min="0"')}
-      <div class="field"><label>Mode de calcul</label><select id="ecMode"><option value="net">Jours calendaires</option><option value="eom">Fin de mois (après les jours)</option></select></div></div>
-    <div class="cp-sum" id="ecOut"></div></div>
-
-  <div class="card"><h2>Remise ou majoration</h2>
-    <div class="grid3">${row('rmPrice', 'Prix (€)', 'value="1000"')}${row('rmPct', 'Pourcentage (%)', 'value="10"')}
-      <div class="field"><label>Opération</label><select id="rmMode"><option value="-">Remise (−)</option><option value="+">Majoration (+)</option></select></div></div>
-    <div class="cp-sum" id="rmOut"></div></div>
-
-  <div class="card"><h2>Mot de passe sécurisé</h2>
-    <div class="grid2"><div class="field"><label>Longueur : <b id="pwLv">16</b> caractères</label><input id="pwLen" type="range" min="8" max="40" value="16"></div>
-      <div class="field"><label>Caractères</label><div class="row"><label class="check" style="margin:0"><input type="checkbox" id="pwUp" checked> A-Z</label><label class="check" style="margin:0"><input type="checkbox" id="pwDg" checked> 0-9</label><label class="check" style="margin:0"><input type="checkbox" id="pwSy" checked> #$%</label></div></div></div>
-    <div class="row" style="flex-wrap:nowrap"><input id="pwOut" readonly class="grow" style="font-family:ui-monospace,monospace"><button class="btn" data-act="pw-new">Générer</button><button class="btn primary" data-act="pw-copy">Copier</button></div>
-    <p class="muted" style="font-size:.8rem;margin:8px 0 0">Généré dans votre navigateur, jamais enregistré. Utilisez un mot de passe différent pour chaque site.</p></div>
   </div>`;
 }
-const UNITS_TBL = {
-  length: { m: 1, mm: 0.001, cm: 0.01, km: 1000, pouce: 0.0254, pied: 0.3048 },
-  area: { 'm²': 1, 'cm²': 1e-4, 'ha': 1e4, 'pied²': 0.09290304, 'pouce²': 6.4516e-4 },
-  volume: { 'm³': 1, 'L': 0.001, 'mL': 1e-6, 'gallon US': 0.003785411784 },
-  mass: { kg: 1, g: 0.001, t: 1000, livre: 0.45359237 }
-};
 function calcAll() {
   const $$ = id => document.getElementById(id); if (!$$('tvaOut')) return;
-  // TVA
   { const a = tv('tvaAmt'), r = tv('tvaRate'), ttc = $$('tvaDir').value === 'ht' ? a * (1 + r / 100) : a, ht = $$('tvaDir').value === 'ht' ? a : a / (1 + r / 100);
     $$('tvaOut').innerHTML = `Prix HT : <b>${fnum(ht)} €</b> · TVA (${String(r).replace('.', ',')} %) : <b>${fnum(ttc - ht)} €</b> · Prix TTC : <b>${fnum(ttc)} €</b>`; }
-  // Marge
   { const B = tv('mgBuy'), k = $$('mgKnown').value, v = tv('mgVal'); let S = 0;
     if (k === 'coef') S = B * v; else if (k === 'markup') S = B * (1 + v / 100); else if (k === 'rate') S = v < 100 ? B / (1 - v / 100) : NaN; else S = v;
     $$('mgOut').innerHTML = B > 0 && S > 0 ? `Prix de vente HT : <b>${fnum(S)} €</b> · Bénéfice : <b>${fnum(S - B)} €</b><br>Coefficient : <b>${fnum(S / B, 3)}</b> · Majoration : <b>${fnum((S / B - 1) * 100)} %</b> · Taux de marque : <b>${fnum((S - B) / S * 100)} %</b>` : 'Saisissez un prix d\'achat et une valeur.'; }
-  // Surfaces
   { const L = tv('sfL'), W = tv('sfW'), H = tv('sfH'), nd = tv('sfD'), nw = tv('sfWin'), waste = tv('sfWaste'), y = tv('sfYield') || 10;
     const floor = L * W, per = 2 * (L + W), gross = per * H, open = nd * tv('sfDa') + nw * tv('sfWa'), net = Math.max(0, gross - open);
     $$('sfOut').innerHTML = `Sol / plafond : <b>${fnum(floor)} m²</b> · Périmètre : <b>${fnum(per)} ml</b> · Volume : <b>${fnum(floor * H)} m³</b><br>Murs : <b>${fnum(gross)} m²</b> bruts, <b>${fnum(net)} m²</b> nets (ouvertures déduites)<br>
-      Revêtement de sol à prévoir (pertes ${fnum(waste, 0)} %) : <b>${fnum(floor * (1 + waste / 100))} m²</b> · Plinthes : <b>${fnum(Math.max(0, per - nd * 0.9 * 1))} ml</b><br>Peinture 2 couches : murs <b>${fnum(net * 2 / y)} L</b>, plafond <b>${fnum(floor * 2 / y)} L</b>`; }
-  // Unités
-  { const cat = $$('unCat').value, tbl = UNITS_TBL[cat], sel = $$('unFrom');
-    if (sel.dataset.cat !== cat) { sel.innerHTML = Object.keys(tbl).map(u => `<option>${u}</option>`).join(''); sel.dataset.cat = cat; }
-    const base = tv('unVal') * tbl[sel.value];
-    $$('unOut').innerHTML = Object.entries(tbl).filter(([u]) => u !== sel.value).map(([u, f]) => `<b>${fnum(base / f, 4).replace(/,?0+$/, '')} ${u}</b>`).join(' · '); }
-  // Échéance
-  { const s = $$('ecStart').value; if (s) { const d = new Date(s + 'T12:00:00'); d.setDate(d.getDate() + tv('ecDays')); if ($$('ecMode').value === 'eom') { d.setMonth(d.getMonth() + 1, 0); }
-    $$('ecOut').innerHTML = `Échéance : <b>${d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</b>`; } }
-  // Remise
-  { const p = tv('rmPrice'), pc = tv('rmPct'), sign = $$('rmMode').value === '-' ? -1 : 1, np = p * (1 + sign * pc / 100);
-    $$('rmOut').innerHTML = `Nouveau prix : <b>${fnum(np)} €</b> (${sign < 0 ? '−' : '+'} ${fnum(Math.abs(np - p))} €)`; }
-}
-function pwGen() {
-  const $$ = id => document.getElementById(id), n = tv('pwLen');
-  let set = 'abcdefghijkmnopqrstuvwxyz'; if ($$('pwUp').checked) set += 'ABCDEFGHJKLMNPQRSTUVWXYZ'; if ($$('pwDg').checked) set += '23456789'; if ($$('pwSy').checked) set += '#$%&*+-=?@!';
-  const out = []; const buf = new Uint32Array(n * 2); crypto.getRandomValues(buf);
-  const lim = Math.floor(4294967296 / set.length) * set.length; let j = 0;
-  while (out.length < n) { if (j >= buf.length) { crypto.getRandomValues(buf); j = 0; } if (buf[j] < lim) out.push(set[buf[j] % set.length]); j++; }
-  $$('pwOut').value = out.join(''); $$('pwLv').textContent = n;
+      Revêtement de sol à prévoir (pertes ${fnum(waste, 0)} %) : <b>${fnum(floor * (1 + waste / 100))} m²</b> · Plinthes : <b>${fnum(Math.max(0, per - nd * 0.9))} ml</b><br>Peinture 2 couches : murs <b>${fnum(net * 2 / y)} L</b>, plafond <b>${fnum(floor * 2 / y)} L</b>`; }
 }
 
-/* ================= MESSAGES TYPES ================= */
-const MSG = {
-  devis: ['Envoi d\'un devis', 'Votre devis n° {numero}', 'Bonjour {client},\n\nSuite à notre échange, veuillez trouver ci-joint le devis n° {numero} d\'un montant de {montant} TTC{chantier_de}.\n\nIl est valable jusqu\'au {echeance}. Pour l\'accepter, il suffit de me le retourner daté et signé, avec la mention « Bon pour accord ».\n\nJe reste à votre disposition pour toute question ou ajustement.\n\nCordialement,\n{signataire}'],
-  relanceDevis: ['Relance de devis', 'Votre devis n° {numero}', 'Bonjour {client},\n\nJe me permets de revenir vers vous au sujet du devis n° {numero} ({montant} TTC){chantier_de}, que je vous ai transmis récemment.\n\nAvez-vous pu en prendre connaissance ? Je peux l\'adapter si besoin, et vous rappelle qu\'il est valable jusqu\'au {echeance}.\n\nBien cordialement,\n{signataire}'],
-  acompte: ['Demande d\'acompte', 'Acompte — devis n° {numero}', 'Bonjour {client},\n\nMerci d\'avoir accepté le devis n° {numero}{chantier_de}. Afin de lancer la commande des fournitures et de planifier le chantier, je vous remercie de bien vouloir régler l\'acompte prévu au devis ({montant}) avant le {echeance}.\n\nMes coordonnées bancaires figurent sur le devis.\n\nCordialement,\n{signataire}'],
-  facture: ['Envoi d\'une facture', 'Facture n° {numero}', 'Bonjour {client},\n\nVeuillez trouver ci-joint la facture n° {numero} d\'un montant de {montant} TTC{chantier_de}.\n\nElle est à régler avant le {echeance}, par virement (coordonnées bancaires en bas de facture).\n\nJe vous remercie pour votre confiance.\n\nCordialement,\n{signataire}'],
-  relance1: ['Relance amiable (facture échue)', 'Facture n° {numero} — rappel', 'Bonjour {client},\n\nSauf erreur de ma part, la facture n° {numero} d\'un montant de {montant} TTC, arrivée à échéance le {echeance}, n\'a pas encore été réglée.\n\nS\'il s\'agit d\'un oubli, je vous remercie de bien vouloir procéder au règlement dans les meilleurs délais. Si le paiement a déjà été effectué, merci de ne pas tenir compte de ce message.\n\nBien cordialement,\n{signataire}'],
-  relance2: ['Relance ferme (2e rappel)', 'Facture n° {numero} — second rappel', 'Bonjour {client},\n\nMalgré mon précédent message, la facture n° {numero} d\'un montant de {montant} TTC, échue le {echeance}, reste impayée.\n\nJe vous demande de bien vouloir la régler sous 8 jours. Pour rappel, des pénalités de retard ainsi qu\'une indemnité forfaitaire de 40 € pour frais de recouvrement (clients professionnels) sont dues de plein droit en cas de retard de paiement (article L441-10 du Code de commerce).\n\nSans règlement dans ce délai, je serai contraint d\'engager les démarches de recouvrement. Je reste joignable pour trouver une solution si vous rencontrez une difficulté.\n\nCordialement,\n{signataire}'],
-  avis: ['Fin de chantier et demande d\'avis', 'Merci pour votre confiance', 'Bonjour {client},\n\nLes travaux{chantier_de} sont désormais terminés. Je vous remercie de votre confiance et j\'espère que le résultat vous satisfait.\n\nSi vous le souhaitez, un avis sur ma prestation m\'aiderait beaucoup. N\'hésitez pas non plus à me contacter pour toute question ou retouche.\n\nBien cordialement,\n{signataire}']
-};
-const msgSt = { tpl: 'devis' };
-function msgHtml() {
-  const docs = [...db.quotes].sort((a, b) => (b.date + b.number).localeCompare(a.date + a.number));
-  return `<div class="card"><h2>Messages types prêts à envoyer</h2>
-    <p class="muted">Choisissez un modèle, sélectionnez un devis ou une facture pour remplir automatiquement les informations, puis copiez le message ou ouvrez-le dans votre messagerie. Ce sont des modèles à adapter.</p>
-    <div class="grid2"><div class="field"><label>Modèle</label><select id="msgTpl">${Object.entries(MSG).map(([k, v]) => `<option value="${k}" ${msgSt.tpl === k ? 'selected' : ''}>${v[0]}</option>`).join('')}</select></div>
-      <div class="field"><label>Remplir depuis un document</label><select id="msgDoc"><option value="">— Saisie manuelle —</option>${docs.map(q => `<option value="${q.id}">${esc(isInv(q) ? 'Facture' : 'Devis')} ${esc(q.number)} — ${esc((getClient(q.clientId) || {}).name || 'sans client')} — ${money(totals(q).ttc)}</option>`).join('')}</select></div></div>
-    <div class="grid3"><div class="field"><label>Client</label><input id="msgClient"></div><div class="field"><label>Email du client</label><input id="msgTo" type="email"></div><div class="field"><label>N° du document</label><input id="msgNum"></div>
-      <div class="field"><label>Montant TTC</label><input id="msgAmt"></div><div class="field"><label>Date (validité ou échéance)</label><input id="msgDate"></div><div class="field"><label>Chantier / objet (facultatif)</label><input id="msgSite"></div></div>
-    <div class="field"><label>Signature</label><input id="msgSign" value="${esc(db.company.name || '')}"></div>
-    <div class="field"><label>Objet</label><input id="msgSubj"></div>
-    <div class="field"><label>Message</label><textarea id="msgBody" rows="12"></textarea></div>
-    <div class="row"><button class="btn primary" data-act="msg-copy">Copier le message</button><button class="btn" data-act="msg-mail">Ouvrir dans ma messagerie</button></div></div>`;
+/* ================= BIEN FAIRE UN DEVIS ================= */
+const gSt = { doc: '' };
+const STEPS = [
+  ['Comprendre le besoin', 'Avant de chiffrer, posez les bonnes questions : que veut le client, pour quand, avec quel budget ? Visitez les lieux si possible et prenez des photos. Notez l\'état du support, l\'accès au chantier (étage, ascenseur, stationnement) et les contraintes (occupé ou vide, horaires).'],
+  ['Faire le métré', 'Mesurez : surfaces, longueurs, nombre de points. Un métré précis évite de perdre de l\'argent. Servez-vous de l\'onglet « Petits calculs » pour les surfaces, les murs nets et les pertes.'],
+  ['Lister les lignes', 'Séparez la main-d\'œuvre et les fournitures. Une ligne = une prestation, avec une désignation claire, une quantité, une unité (m², ml, heure, forfait) et un prix unitaire. Regroupez par pièce ou par corps de métier avec des titres de section et des sous-totaux.'],
+  ['Calculer le bon prix', 'Additionnez ce que ça vous coûte vraiment : matériaux (avec les pertes), temps passé, déplacement, location de matériel. Ajoutez votre marge pour couvrir vos charges et dégager un bénéfice. Le simulateur ci-dessous fait ce calcul pour vous.'],
+  ['Rédiger clairement', 'Précisez ce qui est compris et ce qui ne l\'est pas (évacuation des gravats, finitions, fournitures par le client). Indiquez les délais, la date de début, la durée de validité du devis et les conditions de paiement (acompte, échéances).'],
+  ['Vérifier les mentions', 'Identité de l\'entreprise, SIRET, date, numéro, client, description et prix, TVA ou mention d\'exonération, durée de validité, conditions de paiement. Utilisez « Vérifier mon devis » plus bas : il contrôle tout à votre place.'],
+  ['Envoyer, relancer, signer', 'Envoyez le devis en PDF, avec un message court et poli. Relancez après quelques jours. Le client le signe avec la mention « Bon pour accord » : c\'est votre preuve. Demandez l\'acompte à la commande, puis facturez dès la fin du chantier.']
+];
+function guideHtml() {
+  const docs = [...db.quotes].filter(q => !isInv(q)).sort((a, b) => (b.date + b.number).localeCompare(a.date + a.number));
+  return `
+  <div class="card"><h2>Les 7 étapes d'un bon devis</h2>
+    <div class="steps">${STEPS.map((s, i) => `<div class="step"><div class="sn">${i + 1}</div><div><b>${s[0]}</b><p class="muted" style="margin:4px 0 0">${s[1]}</p></div></div>`).join('')}</div></div>
+
+  <div class="card"><h2>Une bonne ligne de devis, une mauvaise</h2>
+    <div class="grid2"><div class="ex bad"><div class="muted" style="font-size:.78rem;text-transform:uppercase;letter-spacing:.06em">À éviter</div><b>Peinture salon</b><br>Forfait : 700 €<p class="muted" style="margin:6px 0 0">Flou : le client ne sait pas ce qui est compris, vous ne pouvez pas justifier le prix ni facturer un supplément.</p></div>
+      <div class="ex good"><div class="muted" style="font-size:.78rem;text-transform:uppercase;letter-spacing:.06em">À faire</div><b>Peinture des murs du salon, 2 couches, sous-couche et protections comprises</b><br>38 m² × 18,00 € = 684,00 € HT<p class="muted" style="margin:6px 0 0">Précis : quantité, unité, prix unitaire, périmètre clair. Facile à accepter et à défendre.</p></div></div></div>
+
+  <div class="card"><h2>Simulateur : quel prix pour cette prestation ?</h2>
+    <p class="muted" style="margin-top:0">Entrez ce que la prestation vous coûte : le simulateur donne le prix à mettre sur le devis.</p>
+    <div class="grid4"><div class="field"><label>Quantité</label><input id="spQty" type="number" step="any" value="40"></div><div class="field"><label>Unité</label><input id="spUnit" value="m²"></div>
+      <div class="field"><label>Temps par unité (heures)</label><input id="spTime" type="number" step="any" value="0.35"></div><div class="field"><label>Coût horaire (€/h)</label><input id="spRate" type="number" step="any" value="35"></div>
+      <div class="field"><label>Matériaux achetés HT (€)</label><input id="spMat" type="number" step="any" value="120"></div><div class="field"><label>Pertes sur matériaux (%)</label><input id="spWaste" type="number" step="any" value="10"></div>
+      <div class="field"><label>Déplacement et frais (€)</label><input id="spFees" type="number" step="any" value="40"></div><div class="field"><label>Marge souhaitée sur coût (%)</label><input id="spMargin" type="number" step="any" value="25"></div></div>
+    <div class="cp-sum" id="spOut"></div>
+    <p class="muted" style="font-size:.8rem;margin:8px 0 0">Le coût horaire doit couvrir votre salaire et vos charges, pas seulement ce que vous aimeriez gagner.</p></div>
+
+  <div class="card"><h2>Vérifier mon devis</h2>
+    <p class="muted" style="margin-top:0">Choisissez un de vos devis : l'outil contrôle les points importants et vous dit comment corriger.</p>
+    <div class="field" style="max-width:520px"><label>Devis à vérifier</label><select id="gDoc"><option value="">— Choisir un devis —</option>${docs.map(q => `<option value="${q.id}" ${gSt.doc === q.id ? 'selected' : ''}>${esc(q.number)} — ${esc((getClient(q.clientId) || {}).name || 'sans client')} — ${money(totals(q).ttc)}</option>`).join('')}</select></div>
+    <div id="gOut">${docs.length ? '' : '<p class="muted">Créez un devis pour pouvoir le vérifier.</p>'}</div></div>`;
 }
-function msgFill() {
-  const $$ = id => document.getElementById(id), t = MSG[$$('msgTpl').value];
-  const v = k => ($$(k).value || '').trim(), site = v('msgSite');
-  const sub = s => s.replace(/\{chantier_de\}/g, site ? ` (${site})` : '').replace(/\{client\}/g, v('msgClient') || '[client]').replace(/\{numero\}/g, v('msgNum') || '[n°]').replace(/\{montant\}/g, v('msgAmt') || '[montant]').replace(/\{echeance\}/g, v('msgDate') || '[date]').replace(/\{signataire\}/g, v('msgSign') || '[votre nom]');
-  $$('msgSubj').value = sub(t[1]); $$('msgBody').value = sub(t[2]);
+function simAll() {
+  const o = document.getElementById('spOut'); if (!o) return;
+  const q = tv('spQty'), unit = document.getElementById('spUnit').value || 'unité', hours = q * tv('spTime'), labor = hours * tv('spRate'), mat = tv('spMat') * (1 + tv('spWaste') / 100), fees = tv('spFees');
+  const cost = labor + mat + fees, sell = cost * (1 + tv('spMargin') / 100);
+  o.innerHTML = q > 0 ? `Temps total : <b>${fnum(hours, 1)} h</b> · Main-d'œuvre : <b>${money(labor)}</b> · Matériaux avec pertes : <b>${money(mat)}</b> · Frais : <b>${money(fees)}</b><br>
+    Coût de revient : <b>${money(cost)}</b> → <b style="font-size:1.1rem">Prix de vente HT : ${money(sell)}</b> (bénéfice ${money(sell - cost)})<br>
+    À indiquer sur le devis : <b>${fnum(q, q % 1 ? 2 : 0)} ${esc(unit)} × ${money(sell / q)} HT</b>` : 'Indiquez une quantité.';
+}
+function checkQuote(q) {
+  const co = db.company, t = totals(q), items = q.lines.filter(l => l.t === 'item'), issuer = q.issuerText || '', filled = items.filter(l => num(l.price) > 0);
+  const pays = (q.payments || []).reduce((s, p) => s + num(p.pct), 0), foot = (q.footer || '').toLowerCase();
+  const C = (ok, label, fix, warn) => ({ ok, label, fix, warn });
+  return [
+    C(!!(q.title || '').trim(), 'Un titre décrit les travaux', 'Ajoutez l\'objet du devis (ex : « Rénovation salle de bain, 12 rue des Lilas »).'),
+    C(!!(q.clientText || '').trim() && (q.clientText || '').split('\n').length > 1, 'Le client est identifié avec son adresse', 'Choisissez ou créez un client avec son adresse complète.'),
+    C(issuer.split('\n').length >= 3, 'Vos coordonnées sont complètes', 'Complétez « Mon entreprise » : adresse, téléphone, email.'),
+    C(/\d{3}\s?\d{3}\s?\d{3}\s?\d{5}|siret/i.test(issuer), 'Votre numéro SIRET figure sur le devis', 'Renseignez votre SIRET dans « Mon entreprise ».'),
+    C(!!q.date && !!q.validUntil, 'La date et la durée de validité sont indiquées', 'Renseignez « Valable jusqu\'au » : le prix des matériaux peut changer.'),
+    C(filled.length > 0, 'Au moins une ligne avec un prix', 'Ajoutez vos prestations dans la section « Prestations ».'),
+    C(items.every(l => String(l.desc).trim().length >= 8 || !num(l.price)), 'Chaque ligne a une désignation claire', 'Remplacez les désignations trop courtes par une description précise (quoi, où, comment).', true),
+    C(filled.every(l => num(l.qty) > 0 && String(l.unit).trim()), 'Chaque ligne a une quantité et une unité', 'Indiquez la quantité et l\'unité (m², ml, heure, forfait).'),
+    C(co.vatExempt ? /293 ?b/i.test(q.footer || '') : filled.every(l => [0, 5.5, 10, 20, 2.1].includes(num(l.vat))), co.vatExempt ? 'La mention d\'exonération de TVA est présente' : 'Le taux de TVA est renseigné sur chaque ligne', co.vatExempt ? 'Ajoutez « TVA non applicable, article 293 B du CGI » dans le pied de page.' : 'Choisissez un taux de TVA pour chaque ligne.'),
+    C(Math.abs(pays - 100) < 0.01 && (q.payments || []).length > 0, 'Les conditions de paiement sont définies (total 100 %)', 'Complétez l\'échéancier dans « Paiement » : acompte, solde…'),
+    C(!!(q.bank || '').trim(), 'Vos coordonnées bancaires sont indiquées', 'Ajoutez votre IBAN dans « Paiement » pour être payé par virement.', true),
+    C(/p[ée]nalit/.test(foot) && /40/.test(foot), 'Les pénalités de retard et l\'indemnité de 40 € sont mentionnées', 'Rétablissez les mentions légales dans le pied de page (réglages de « Mon entreprise »).', true),
+    C(!!(q.opts.agreeLabel || '').trim(), 'Le « Bon pour accord » est prévu pour la signature', 'Renseignez le texte de signature dans « Mentions légales & présentation ».'),
+    C(t.ttc > 0, 'Le total est supérieur à zéro', 'Vérifiez les prix et les quantités de vos lignes.')
+  ];
+}
+function guideCheck() {
+  const q = getQuote(gSt.doc), o = document.getElementById('gOut'); if (!o) return;
+  if (!q) { o.innerHTML = ''; return; }
+  const res = checkQuote(q), okN = res.filter(r => r.ok).length, pct = Math.round(okN / res.length * 100);
+  o.innerHTML = `<div class="score"><div class="sbar"><i style="width:${pct}%;background:${pct === 100 ? 'var(--ok)' : pct >= 70 ? 'var(--warn)' : 'var(--danger)'}"></i></div><b>${okN} / ${res.length} points validés</b>
+    ${pct === 100 ? '<span style="color:var(--ok)"> — Votre devis est complet.</span>' : ''}</div>
+    ${res.map(r => `<div class="chk ${r.ok ? 'ok' : r.warn ? 'warn' : 'bad'}"><span class="mk">${r.ok ? '✓' : r.warn ? '!' : '✕'}</span><div><b>${r.label}</b>${r.ok ? '' : `<div class="muted" style="font-size:.85rem">${r.fix}</div>`}</div></div>`).join('')}
+    <div class="row" style="margin-top:12px"><button class="btn" data-act="edit" data-id="${q.id}">Ouvrir ce devis pour le corriger</button></div>`;
 }
 
 /* ================= ASTUCES ================= */
@@ -273,7 +269,7 @@ const TIPS = [
   ['Devis et factures', 'Les mentions à ne pas oublier', 'En général : identité et coordonnées de l\'entreprise, SIRET, date, description des prestations, prix, TVA (ou mention d\'exonération), conditions de paiement, pénalités de retard et, entre professionnels, indemnité forfaitaire de 40 €. Elles dépendent de votre statut : vérifiez auprès de votre comptable.'],
   ['Devis et factures', 'Une numérotation continue', 'Numérotez vos factures dans l\'ordre, sans trou ni doublon. Le site le fait pour vous (réglages dans « Mon entreprise »).'],
   ['Devis et factures', 'Facturez dès la fin du chantier', 'Plus la facture part tôt, plus elle est payée tôt. Prévoyez un acompte à la commande pour financer les fournitures.'],
-  ['Prix et marge', 'Marge et taux de marque, ce n\'est pas pareil', 'Un coefficient de 1,3 donne 30 % de majoration mais seulement 23 % de taux de marque. Utilisez le calculateur de marge de cette boîte à outils.'],
+  ['Prix et marge', 'Marge et taux de marque, ce n\'est pas pareil', 'Un coefficient de 1,3 donne 30 % de majoration mais seulement 23 % de taux de marque. Utilisez le calculateur de marge ou le simulateur de prix de cette boîte à outils.'],
   ['Prix et marge', 'Prévoyez les pertes', 'Sur carrelage, parquet ou plinthes, comptez souvent 5 à 10 % de pertes (coupes, casse). Le calculateur de surfaces les intègre.'],
   ['Prix et marge', 'Comptez tout dans vos prix', 'Déplacements, temps passé au téléphone et en devis, petites fournitures : s\'ils ne sont pas dans vos prix, ils sont à votre charge.'],
   ['Photos et fichiers', 'Photographiez avant, pendant, après', 'Des photos datées protègent en cas de litige et valorisent votre travail. Classez-les dans un dossier par chantier.'],
@@ -282,11 +278,9 @@ const TIPS = [
   ['Photos et fichiers', 'Envoyez des PDF', 'Un devis ou une facture en PDF ne peut pas être modifié par erreur et s\'ouvre partout. Nommez-le clairement : 2026-10_Dupont_Devis-001.pdf.'],
   ['Organisation', 'Un dossier par chantier', 'Devis signé, photos, factures, échanges : tout au même endroit. Vous retrouvez une information en dix secondes.'],
   ['Organisation', 'Sauvegardez régulièrement', 'Exportez une sauvegarde depuis la page Devis et gardez une copie hors de votre ordinateur (clé USB, cloud).'],
-  ['Relation client', 'Relancez sans attendre', 'Une relance courtoise le lendemain de l\'échéance règle la majorité des retards. Des modèles sont prêts dans « Messages types ».'],
+  ['Relation client', 'Relancez sans attendre', 'Une relance courtoise le lendemain de l\'échéance règle la majorité des retards.'],
   ['Relation client', 'Confirmez les changements par écrit', 'Un supplément ou une modification de chantier ? Un petit email ou un avenant évite les mauvaises surprises à la facturation.'],
-  ['Relation client', 'Demandez un avis', 'À la fin du chantier, un client satisfait laisse volontiers un avis. C\'est votre meilleure publicité.'],
-  ['Sécurité', 'Un mot de passe différent par site', 'Si un site est piraté, les autres restent protégés. Utilisez le générateur de mots de passe et un gestionnaire de mots de passe.'],
-  ['Sécurité', 'Méfiez-vous des faux emails', 'Faux paiement, fausse facture, changement d\'IBAN : vérifiez l\'expéditeur et appelez le numéro que vous connaissez avant de cliquer ou de payer.']
+  ['Relation client', 'Demandez un avis', 'À la fin du chantier, un client satisfait laisse volontiers un avis. C\'est votre meilleure publicité.']
 ];
 function tipsHtml() {
   const cats = [...new Set(TIPS.map(t => t[0]))];
@@ -327,19 +321,12 @@ Object.assign(actions, {
     } catch (e) { msg.textContent = 'Impossible de lire une des images.'; }
     t.disabled = false;
   },
-  'pw-new': pwGen,
-  'pw-copy'() { const v = document.getElementById('pwOut').value; navigator.clipboard && navigator.clipboard.writeText(v).then(() => toast('Mot de passe copié')); },
-  'tip-cat'(t) { toolsUI.tipCat = t.dataset.cat; T().innerHTML = tipsHtml(); },
-  'msg-copy'() { const b = document.getElementById('msgBody').value; navigator.clipboard && navigator.clipboard.writeText(b).then(() => toast('Message copié')); },
-  'msg-mail'() {
-    const to = document.getElementById('msgTo').value.trim(), s = document.getElementById('msgSubj').value, b = document.getElementById('msgBody').value;
-    location.href = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(s)}&body=${encodeURIComponent(b)}`;
-  }
+  'tip-cat'(t) { toolsUI.tipCat = t.dataset.cat; T().innerHTML = tipsHtml(); }
 });
 document.addEventListener('input', e => {
   const t = e.target; if (!t.closest || !t.closest('#toolsBody')) return;
-  if (toolsUI.tab === 'calc') { if (t.id === 'pwLen') pwGen(); calcAll(); }
-  if (toolsUI.tab === 'msg' && t.id !== 'msgDoc' && t.id !== 'msgTpl') { if (t.id !== 'msgBody' && t.id !== 'msgSubj') msgFill(); }
+  if (toolsUI.tab === 'calc') calcAll();
+  if (toolsUI.tab === 'guide') simAll();
   if (toolsUI.tab === 'tips' && t.id === 'tipQ') { toolsUI.tipQ = t.value; const pos = t.selectionStart; T().innerHTML = tipsHtml(); const q = document.getElementById('tipQ'); q.focus(); q.setSelectionRange(pos, pos); }
   if (t.id === 'imgQ') { document.getElementById('imgQv').textContent = t.value; document.getElementById('imgPreset').value = ''; if (img.items.length) imgProcess(); }
   if (t.id === 'imgW') { document.getElementById('imgPreset').value = ''; if (img.items.length) imgProcess(); }
@@ -355,16 +342,7 @@ document.addEventListener('change', e => {
   }
   if (t.id === 'imgIn') { addImages(t.files, img.items, imgProcess); t.value = ''; }
   if (t.id === 'pdfIn') { addImages(t.files, pdf.items, pdfRender); t.value = ''; }
-  if (t.id === 'msgTpl') { msgSt.tpl = t.value; msgFill(); }
-  if (t.id === 'msgDoc') {
-    const q = getQuote(t.value); if (!q) return;
-    const c = getClient(q.clientId), tt = totals(q);
-    const set = (id, v) => { document.getElementById(id).value = v || ''; };
-    set('msgClient', c ? c.name : (q.clientText || '').split('\n')[0]); set('msgTo', c ? c.email : ''); set('msgNum', q.number);
-    set('msgAmt', money(isInv(q) ? tt.due : tt.ttc)); set('msgDate', fdate(isInv(q) ? q.dueDate : q.validUntil)); set('msgSite', (q.title || '').replace(/\s+/g, ' ').toLowerCase());
-    const guess = isInv(q) ? (q.status === 'envoye' ? 'relance1' : 'facture') : 'devis';
-    msgSt.tpl = guess; document.getElementById('msgTpl').value = guess; msgFill();
-  }
+  if (t.id === 'gDoc') { gSt.doc = t.value; guideCheck(); }
 });
 ['dragover', 'dragleave', 'drop'].forEach(ev => document.addEventListener(ev, e => {
   const z = e.target.closest && e.target.closest('.dropzone'); if (!z) return;

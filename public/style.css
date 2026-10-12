@@ -308,3 +308,14 @@ body.auth-mode main { max-width: none; padding: 0; }
 .tip { margin: 0; }
 input[type=range] { padding: 0; accent-color: var(--text); }
 @media (max-width: 900px) { .grid4 { grid-template-columns: 1fr 1fr; } .tool-grid { grid-template-columns: 1fr; } }
+
+/* ===== Guide du devis ===== */
+.steps { display: grid; gap: 14px; }
+.step { display: flex; gap: 16px; align-items: flex-start; }
+.sn { flex: none; width: 34px; height: 34px; border-radius: 50%; background: var(--text); color: var(--on-primary); display: flex; align-items: center; justify-content: center; font-weight: 800; }
+.ex { padding: 16px 18px; border-radius: 12px; border: 1px solid var(--line); background: var(--card2); }
+.ex.bad { border-color: rgba(248,113,113,.4); } .ex.good { border-color: rgba(52,211,153,.4); }
+.score { margin-bottom: 14px; } .sbar { height: 8px; border-radius: 99px; background: var(--card2); border: 1px solid var(--line); overflow: hidden; margin-bottom: 8px; } .sbar i { display: block; height: 100%; }
+.chk { display: flex; gap: 12px; padding: 10px 12px; border-radius: 10px; margin-bottom: 6px; border: 1px solid var(--line); background: var(--card2); }
+.chk .mk { flex: none; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: .8rem; }
+.chk.ok .mk { background: rgba(52,211,153,.16); color: var(--ok); } .chk.bad .mk { background: rgba(248,113,113,.16); color: var(--danger); } .chk.warn .mk { background: rgba(251,191,36,.16); color: var(--warn); }

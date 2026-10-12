@@ -20,7 +20,7 @@ Au premier lancement, un **compte administrateur** est créé : son email et son
   (essai gratuit, inscriptions), journal d'activité.
 - **Matériaux & fournisseurs** : vos fournisseurs, leurs matériaux avec prix d’achat et marge ; dans un devis, choix du fournisseur, recherche (« gouttière 80 mm »), quantité → total automatique ; liste d’achat par fournisseur.
 - **Prix en ligne** : assistant dans la fiche matériau (liens de recherche Leroy Merlin, Castorama, Brico Dépôt, Point.P ; conversion TTC → HT par unité) et recherche automatique optionnelle via SerpApi (`SERPAPI_KEY`).
-- **Boîte à outils** : conversion et compression d’images (JPEG/PNG/WebP, ZIP), photos en PDF, calculs (TVA, marge, surfaces, unités, échéance, remise), mots de passe, messages types (devis, relances) et astuces. Tout fonctionne dans le navigateur.
+- **Boîte à outils** : guide « Bien faire un devis » (7 étapes, simulateur de prix, vérificateur de devis), conversion et compression d’images, photos en PDF, petits calculs (TVA, marge, surfaces) et astuces. Tout fonctionne dans le navigateur.
 - **Factures** : bouton « 🧾 Créer la facture » depuis un devis (lignes, client et mentions reprises), numérotation propre, échéance, acompte déjà réglé, suivi payée/en retard.
 - **Devis** : multi-pages façon pro, sous-totaux, échéancier, clients particuliers/pros (remplissage par SIRET ou raison sociale), catalogue, PDF.
 
