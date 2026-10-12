@@ -224,7 +224,9 @@ route('GET', '/api/prices/search', 'user', async ctx => {
   const store = stores.matchStore(str(ctx.query.s, 80), str(ctx.query.w, 120));       // fournisseur reconnu même mal écrit (« pointp », « leroy merlain »…)
   const extra = [store && store.domain, stores.domainOf(str(ctx.query.w, 120))].filter(Boolean);
   const isUrl = /^https:\/\//i.test(q), ref = isUrl ? '' : q, rk = stores.key(ref);
-  const exactOf = o => !!(rk && rk.length >= 4 && (stores.key(o.title + ' ' + (o.link || '') + ' ' + (o.sku || '') + ' ' + (o.ean || '')).includes(rk)));
+  // la référence doit apparaître dans le titre, le code ou l'adresse de la fiche (hors liens Google, qui répètent la recherche, et hors paramètres d'URL)
+  const linkPath = l => { try { const u = new URL(l); return /(^|\.)google\./i.test(u.hostname) ? '' : u.hostname + u.pathname; } catch (e) { return ''; } };
+  const exactOf = o => !!(rk && rk.length >= 4 && (stores.key(o.title + ' ' + linkPath(o.link) + ' ' + (o.sku || '') + ' ' + (o.ean || '')).includes(rk)));
   const serp = async params => {
     if (!key) return null;
     let r; try { r = await fetch('https://serpapi.com/search.json?' + new URLSearchParams({ gl: 'fr', hl: 'fr', google_domain: 'google.fr', api_key: key, ...params })); }
