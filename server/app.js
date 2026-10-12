@@ -486,13 +486,13 @@ const adminRow = u => ({
   id: u.id, name: u.name, email: u.email, role: u.role, verified: u.verified, suspended: !!u.suspended, createdAt: u.createdAt,
   lastLoginAt: u.lastLoginAt || null, lastSeenAt: u.lastSeenAt || null, accessUntil: u.accessUntil || null, access: access(u),
   quotesCount: u.quotesCount || 0,
-  paidCents: db.payments.filter(p => p.userId === u.id && p.status === 'paid').reduce((s, p) => s + p.amountCents, 0)
+  paidCents: db.payments.filter(p => p.userId === u.id && p.status === 'paid' && p.provider !== 'simulated').reduce((s, p) => s + p.amountCents, 0)
 });
 const adminCount = () => db.users.filter(u => u.role === 'admin' && !u.suspended).length;
 const target = ctx => { const u = findUser(ctx.params.id); if (!u) throw err(404, 'Utilisateur introuvable.'); return u; };
 
 route('GET', '/api/admin/stats', A, () => {
-  const paid = db.payments.filter(p => p.status === 'paid');
+  const paid = db.payments.filter(p => p.status === 'paid' && p.provider !== 'simulated');   // les paiements de démonstration ne comptent pas dans les revenus
   const t = Date.now(), d30 = t - 30 * 864e5, d7 = t - 7 * 864e5;
   const sum = l => l.reduce((s, p) => s + p.amountCents, 0);
   const activeSubs = db.users.filter(u => u.role !== 'admin' && access(u).active && u.accessSource === 'subscription');
