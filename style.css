@@ -154,6 +154,11 @@ table.list tr:hover td { background: var(--card2); }
 .seg span { display: block; text-align: center; padding: 9px; border-radius: 9px; color: var(--muted); font-size: .85rem; font-weight: 600; transition: .15s; }
 .seg input:checked + span { background: var(--text); color: var(--on-primary); }
 [hidden] { display: none !important; }
+.sugg { position: absolute; left: 0; right: 0; top: 100%; margin-top: 4px; z-index: 5; background: var(--card2); border: 1px solid var(--input-line); border-radius: 10px; overflow: hidden; box-shadow: var(--shadow); }
+.sugg .sg { display: flex; flex-direction: column; align-items: flex-start; width: 100%; padding: 9px 12px; background: none; border: 0; border-bottom: 1px solid var(--line); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.sugg .sg:last-child { border-bottom: 0; }
+.sugg .sg:hover { background: var(--primary-soft); }
+.sugg .sg span { font-size: .78rem; }
 
 /* ===== Boîtes de dialogue / toast ===== */
 dialog { border: 1px solid var(--line); border-radius: 18px; padding: 26px; width: min(540px, 94vw); background: var(--card); color: var(--text); box-shadow: 0 30px 80px rgba(0, 0, 0, .5); }

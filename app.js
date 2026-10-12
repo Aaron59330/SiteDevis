@@ -497,6 +497,18 @@ async function lookupSiret(raw) {
   };
 }
 
+async function searchCompanies(q) {
+  let r;
+  try { r = await fetch('https://recherche-entreprises.api.gouv.fr/search?per_page=6&q=' + encodeURIComponent(q)); }
+  catch (e) { throw new Error('Impossible de joindre le service de recherche (vérifiez votre connexion internet).'); }
+  if (!r.ok) throw new Error('Service de recherche indisponible, réessayez dans un instant.');
+  const d = await r.json();
+  return (d.results || []).filter(e => e.siege && e.siege.siret).map(e => ({
+    name: e.nom_complet, siret: e.siege.siret, city: [e.siege.code_postal, e.siege.libelle_commune].filter(Boolean).join(' '),
+    closed: e.etat_administratif === 'C'
+  }));
+}
+
 function clientModal(id, afterSave) {
   const old = db.clients.find(x => x.id === id);
   const c = old ? { ...old } : { type: 'particulier' };
@@ -519,7 +531,11 @@ function clientModal(id, afterSave) {
     </div>
 
     <div id="boxPro">
-      <div class="field"><label>N° SIRET (14 chiffres) — les informations se remplissent toutes seules</label>
+      <div class="field" style="position:relative"><label>Rechercher une entreprise par son nom (raison sociale)</label>
+        <input id="coSearch" autocomplete="off" placeholder="Ex : L.H Rénovation, Boulangerie Dupont…">
+        <div id="sugg" class="sugg" hidden></div>
+      </div>
+      <div class="field"><label>… ou par N° SIRET (14 chiffres) — les informations se remplissent toutes seules</label>
         <div class="row" style="flex-wrap:nowrap">
           <input name="siret" id="siretIn" inputmode="numeric" placeholder="123 456 789 00012" value="${v('siret')}">
           <button type="button" class="btn" id="siretBtn">🔍 Rechercher</button>
@@ -570,6 +586,29 @@ function clientModal(id, afterSave) {
     }
   }
   $('#siretBtn').onclick = search;
+  const sugg = $('#sugg');
+  let timer, seq2 = 0;
+  $('#coSearch').addEventListener('input', e => {
+    const q = e.target.value.trim(), digits = q.replace(/\D/g, '');
+    clearTimeout(timer); sugg.hidden = true;
+    if (digits.length === 14 && /^[\d\s]+$/.test(q)) { form.elements.siret.value = digits; search(); return; }
+    if (q.length < 3) return;
+    timer = setTimeout(async () => {
+      const my = ++seq2;
+      sugg.hidden = false; sugg.innerHTML = '<div class="muted" style="padding:10px">Recherche…</div>';
+      try {
+        const list = await searchCompanies(q);
+        if (my !== seq2) return;
+        sugg.innerHTML = list.length ? list.map(x => `<button type="button" class="sg" data-siret="${x.siret}">
+          <b>${esc(x.name)}</b><span class="muted">${esc(x.city)} · ${x.siret}${x.closed ? ' · fermée' : ''}</span></button>`).join('')
+          : '<div class="muted" style="padding:10px">Aucun résultat.</div>';
+      } catch (err) { if (my === seq2) sugg.innerHTML = `<div style="padding:10px;color:var(--danger)">${esc(err.message)}</div>`; }
+    }, 400);
+  });
+  sugg.addEventListener('click', e => {
+    const b = e.target.closest('.sg'); if (!b) return;
+    form.elements.siret.value = b.dataset.siret; sugg.hidden = true; $('#coSearch').value = ''; search();
+  });
   $('#siretIn').addEventListener('input', e => {
     if (e.target.value.replace(/\D/g, '').length === 14) search(); else { seq++; msg.textContent = ''; }
   });
