@@ -1,26 +1,26 @@
 <!doctype html>
-<html lang="fr"><meta charset="utf-8"><title>Mes Devis — film</title>
+<html lang="fr"><meta charset="utf-8"><title>OptiDevis. — film</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{background:#000;overflow:hidden}
-#stage{position:relative;width:1920px;height:1080px;overflow:hidden;background:#070707;color:#f2f2f3;font-family:Inter,"Segoe UI",system-ui,-apple-system,Roboto,sans-serif}
+#stage{position:relative;width:1920px;height:1080px;overflow:hidden;background:#0d0a07;color:#f7ead4;font-family:Inter,"Segoe UI",system-ui,-apple-system,Roboto,sans-serif}
 .glow{position:absolute;border-radius:50%;filter:blur(120px);opacity:.5}
-.g1{width:900px;height:900px;background:radial-gradient(circle,#ffffff22,transparent 70%)}
-.g2{width:700px;height:700px;background:radial-gradient(circle,#6b7cff30,transparent 70%)}
-.grid{position:absolute;inset:0;background-image:linear-gradient(#ffffff08 1px,transparent 1px),linear-gradient(90deg,#ffffff08 1px,transparent 1px);background-size:80px 80px;mask-image:radial-gradient(ellipse at 50% 50%,#000 20%,transparent 75%)}
-#progress{position:absolute;left:0;bottom:0;height:5px;background:#f2f2f3;width:0;z-index:50}
+.g1{width:900px;height:900px;background:radial-gradient(circle,#e3a04b38,transparent 70%)}
+.g2{width:700px;height:700px;background:radial-gradient(circle,#c9822f30,transparent 70%)}
+.grid{position:absolute;inset:0;background-image:linear-gradient(#e3a04b0c 1px,transparent 1px),linear-gradient(90deg,#e3a04b0c 1px,transparent 1px);background-size:80px 80px;mask-image:radial-gradient(ellipse at 50% 50%,#000 20%,transparent 75%)}
+#progress{position:absolute;left:0;bottom:0;height:5px;background:#e3a04b;width:0;z-index:50}
 .scene{position:absolute;inset:0;display:none}
 .abs{position:absolute}
-.logo{width:150px;height:150px;border-radius:38px;background:#f2f2f3;box-shadow:0 0 0 14px #ffffff12,0 30px 80px #ffffff25}
-.logo i{position:absolute;inset:38px;border-radius:14px;background:#0a0a0a}
+.logo{width:150px;height:150px;border-radius:38px;background:url(../public/logo.svg) center/cover;box-shadow:0 0 0 14px #e3a04b1c,0 30px 90px #e3a04b44}
+.logo i{display:none}
 .num{font-size:26px;letter-spacing:.2em;color:#8c8c92;font-weight:600}
 .h{font-size:92px;line-height:1.02;font-weight:800;letter-spacing:-.03em}
 .sub{font-size:34px;color:#8c8c92;line-height:1.4;font-weight:500}
-.card{background:#0e0e0f;border:2px solid #232326;border-radius:28px;box-shadow:0 40px 120px #000c,0 0 0 1px #ffffff08 inset}
+.card{background:#0e0e0f;border:2px solid #232326;border-radius:28px;box-shadow:0 40px 120px #000c,0 0 0 1px #e3a04b0c inset}
 .field{background:#0a0a0b;border:2px solid #2a2a2d;border-radius:16px;height:76px;padding:0 26px;display:flex;align-items:center;font-size:30px}
 .lbl{font-size:20px;font-weight:700;color:#8c8c92;letter-spacing:.04em;margin-bottom:10px}
-.btnw{background:#f2f2f3;color:#0a0a0a;border-radius:16px;height:84px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:26px;letter-spacing:.06em;text-transform:uppercase}
-.caret{display:inline-block;width:3px;height:34px;background:#f2f2f3;margin-left:2px;vertical-align:middle}
+.btnw{background:#e3a04b;color:#0a0a0a;border-radius:16px;height:84px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:26px;letter-spacing:.06em;text-transform:uppercase}
+.caret{display:inline-block;width:3px;height:34px;background:#e3a04b;margin-left:2px;vertical-align:middle}
 .chip{display:inline-flex;align-items:center;gap:12px;padding:16px 28px;border-radius:999px;border:2px solid #2a2a2d;background:#0e0e0f;font-size:28px;font-weight:600;margin:0 14px 16px 0}
 .chip b{color:#34d399}
 .rowc{display:flex;justify-content:space-between;align-items:center;padding:26px 32px;border-radius:20px;background:#141415;border:2px solid #232326;font-size:30px;margin-bottom:18px}
@@ -86,7 +86,7 @@ html,body{background:#000;overflow:hidden}
       <div class="rowc" id="l1"><div>Cloison BA13<small>30 m² × 16,00 €</small></div><b>480,00 €</b></div>
       <div class="rowc" id="l2"><div>Doublage sur optima<small>86 m² × 14,00 €</small></div><b>1 204,00 €</b></div>
       <div class="rowc" id="l3"><div>Plafond BA13 isolé<small>83 m² × 18,00 €</small></div><b>1 494,00 €</b></div>
-      <div class="rowc" id="l4" style="background:#f2f2f3;color:#0a0a0a;border-color:#f2f2f3"><div style="font-weight:800">Sous-total</div><b id="subv">0,00 €</b></div>
+      <div class="rowc" id="l4" style="background:#e3a04b;color:#0a0a0a;border-color:#e3a04b"><div style="font-weight:800">Sous-total</div><b id="subv">0,00 €</b></div>
     </div>
     <div class="abs" id="s3d" style="left:1010px;top:110px;height:860px;width:794px;overflow:hidden;border-radius:6px">
       <div class="doc" style="box-shadow:none">
@@ -115,7 +115,7 @@ N° SIRET : 123 456 789 00012</div><div>M Paul DUPONT
     <div class="abs card" id="s4c" style="left:1000px;top:130px;width:780px;height:820px;padding:50px">
       <div style="font-size:42px;font-weight:800;margin-bottom:26px">Nouveau client</div>
       <div style="position:relative;display:grid;grid-template-columns:1fr 1fr;background:#0a0a0b;border:2px solid #232326;border-radius:20px;padding:8px;height:84px;margin-bottom:30px;font-size:26px;font-weight:700;text-align:center">
-        <div id="segbg" class="abs" style="left:8px;top:8px;width:calc(50% - 8px);height:60px;background:#f2f2f3;border-radius:14px"></div>
+        <div id="segbg" class="abs" style="left:8px;top:8px;width:calc(50% - 8px);height:60px;background:#e3a04b;border-radius:14px"></div>
         <div id="sg1" style="position:relative;line-height:68px">👤 Particulier</div><div id="sg2" style="position:relative;line-height:68px">🏢 Professionnel</div></div>
       <div class="lbl">N° SIRET</div><div class="field" id="f4" style="margin-bottom:12px"></div>
       <div id="srch" style="font-size:24px;color:#8c8c92;height:34px;margin-bottom:14px"></div>
@@ -144,16 +144,16 @@ N° SIRET : 123 456 789 00012</div><div>M Paul DUPONT
       <table><tr><th>Référence</th><th>Désignation</th><th class="r">Montant</th></tr>
       <tr><td>F300</td><td>Fourrure F300</td><td class="r">156,80 €</td></tr><tr><td>LISSE</td><td>Lisse clip</td><td class="r">180,00 €</td></tr><tr class="sbt"><td colspan="2">Sous Total</td><td class="r">4 174,82 €</td></tr></table>
       <div class="fin"><div class="pays"><div style="margin-bottom:22px">Bon pour Accord</div><div>Conditions de paiement :</div><div>• 30,00 % : Acompte,</div><div>• 70,00 % : Solde.</div></div><div class="tb"><div class="tr g"><span>Total TTC</span><span>8 164,82 €</span></div></div></div></div></div>
-    <div class="abs" id="pdfb" style="left:1210px;top:100px;width:200px;height:200px;border-radius:44px;background:#f2f2f3;color:#0a0a0a;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:900;font-size:62px;box-shadow:0 30px 80px #000c;z-index:5">PDF<small style="font-size:22px;font-weight:700;margin-top:4px">2 pages</small></div>
+    <div class="abs" id="pdfb" style="left:1210px;top:100px;width:200px;height:200px;border-radius:44px;background:#e3a04b;color:#0a0a0a;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:900;font-size:62px;box-shadow:0 30px 80px #000c;z-index:5">PDF<small style="font-size:22px;font-weight:700;margin-top:4px">2 pages</small></div>
   </section>
 
   <!-- S6 abonnement -->
   <section class="scene" id="s6">
     <div class="abs" id="s6h" style="left:120px;top:300px;width:700px"><div class="num">05 — ABONNEMENT</div><div class="h" style="margin-top:20px">Paiement<br>sécurisé</div><div class="sub" style="margin-top:28px">Accès débloqué<br>dès le paiement.</div></div>
     <div class="abs card plan" id="p1" style="left:900px;top:150px;height:700px"><h3>Mensuel</h3><div class="pr">9,90 €<small> / mois</small></div><ul style="margin:26px 0"><li>Devis illimités</li><li>Clients &amp; catalogue</li><li>Export PDF</li></ul><div class="btnw" style="height:78px;font-size:22px">Choisir cette offre</div></div>
-    <div class="abs card plan" id="p2" style="left:1380px;top:150px;height:700px;border-color:#f2f2f3"><div class="abs" style="top:-22px;right:30px;background:#f2f2f3;color:#0a0a0a;padding:8px 22px;border-radius:999px;font-weight:800;font-size:22px">Le plus avantageux</div><h3>Annuel</h3><div class="pr">99 €<small> / an</small></div><ul style="margin:26px 0"><li>Devis illimités</li><li>Clients &amp; catalogue</li><li>Export PDF</li></ul><div class="btnw" id="p2b" style="height:78px;font-size:22px">Choisir cette offre</div></div>
+    <div class="abs card plan" id="p2" style="left:1380px;top:150px;height:700px;border-color:#e3a04b"><div class="abs" style="top:-22px;right:30px;background:#e3a04b;color:#0a0a0a;padding:8px 22px;border-radius:999px;font-weight:800;font-size:22px">Le plus avantageux</div><h3>Annuel</h3><div class="pr">99 €<small> / an</small></div><ul style="margin:26px 0"><li>Devis illimités</li><li>Clients &amp; catalogue</li><li>Export PDF</li></ul><div class="btnw" id="p2b" style="height:78px;font-size:22px">Choisir cette offre</div></div>
     <div class="abs" id="paywrap" style="left:900px;top:150px;width:920px;height:700px;opacity:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;background:#0e0e0f;border:2px solid #232326;border-radius:28px;z-index:4">
-      <div id="spin" style="width:90px;height:90px;border-radius:50%;border:8px solid #2a2a2d;border-top-color:#f2f2f3"></div>
+      <div id="spin" style="width:90px;height:90px;border-radius:50%;border:8px solid #2a2a2d;border-top-color:#e3a04b"></div>
       <svg id="pchk" width="190" height="190" viewBox="0 0 100 100" style="display:none"><circle cx="50" cy="50" r="44" fill="#34d3991a" stroke="#34d399" stroke-width="5"/><path d="M30 52 L45 66 L72 36" fill="none" stroke="#34d399" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" id="ptick" stroke-dasharray="70" stroke-dashoffset="70"/></svg>
       <div id="ptxt" style="font-size:56px;font-weight:800">Paiement en cours…</div>
       <div id="ppill" class="badge ok" style="font-size:30px;padding:10px 30px;opacity:0">✓ Actif jusqu'au 12/10/2027</div>
@@ -179,14 +179,14 @@ N° SIRET : 123 456 789 00012</div><div>M Paul DUPONT
   <!-- S8 outro -->
   <section class="scene" id="s8">
     <div class="abs logo" id="s8logo" style="left:885px;top:210px"><i></i></div>
-    <div class="abs h" id="s8t" style="left:0;width:1920px;top:430px;text-align:center;font-size:170px">Mes Devis</div>
+    <div class="abs h" id="s8t" style="left:0;width:1920px;top:430px;text-align:center;font-size:170px">OptiDevis<span style="color:#e3a04b">.</span></div>
     <div class="abs sub" id="s8s" style="left:0;width:1920px;top:640px;text-align:center;font-size:48px;color:#d6d6da">Comptes · Abonnements · Administration</div>
-    <div class="abs" id="s8c" style="left:0;width:1920px;top:760px;text-align:center"><span class="chip" style="font-size:36px;padding:22px 50px;background:#f2f2f3;color:#0a0a0a;border-color:#f2f2f3;font-weight:800">Essayez-le maintenant</span></div>
+    <div class="abs" id="s8c" style="left:0;width:1920px;top:760px;text-align:center"><span class="chip" style="font-size:36px;padding:22px 50px;background:#e3a04b;color:#0a0a0a;border-color:#e3a04b;font-weight:800">Essayez-le maintenant</span></div>
   </section>
 
   <svg id="cursor" viewBox="0 0 24 24"><path d="M4 2 L4 19 L8.5 15 L11.5 22 L14 21 L11 14.2 L17 14 Z" fill="#fff" stroke="#000" stroke-width="1.4" stroke-linejoin="round"/></svg>
 </div>
-<style>.br{display:block;background:linear-gradient(#f2f2f3,#f2f2f355);border-radius:10px 10px 4px 4px;height:0}</style>
+<style>.br{display:block;background:linear-gradient(#e3a04b,#e3a04b55);border-radius:10px 10px 4px 4px;height:0}</style>
 <script src="timeline.js"></script>
 <script>
 const $=id=>document.getElementById(id);
@@ -207,7 +207,7 @@ function moveCursor(t,keys){ // keys: [t,x,y]
 const press=(t,at)=>1-.06*Math.sin(clamp((t-at)/.25)*Math.PI);
 
 // confetti
-const conf=$('confetti');for(let i=0;i<46;i++){const d=document.createElement('i');const a=Math.random()*Math.PI*2,r=300+Math.random()*520;d.style.cssText=`position:absolute;left:1360px;top:500px;width:${10+Math.random()*14}px;height:${10+Math.random()*14}px;border-radius:${Math.random()>.5?'50%':'3px'};background:${['#f2f2f3','#34d399','#60a5fa','#fbbf24','#f87171'][i%5]};opacity:0`;d.dataset.a=a;d.dataset.r=r;d.dataset.rot=Math.random()*720;conf.appendChild(d);}
+const conf=$('confetti');for(let i=0;i<46;i++){const d=document.createElement('i');const a=Math.random()*Math.PI*2,r=300+Math.random()*520;d.style.cssText=`position:absolute;left:1360px;top:500px;width:${10+Math.random()*14}px;height:${10+Math.random()*14}px;border-radius:${Math.random()>.5?'50%':'3px'};background:${['#e3a04b','#34d399','#60a5fa','#fbbf24','#f87171'][i%5]};opacity:0`;d.dataset.a=a;d.dataset.r=r;d.dataset.rot=Math.random()*720;conf.appendChild(d);}
 
 window.seek=function(t){
   // fond animé
@@ -220,7 +220,7 @@ window.seek=function(t){
   // S1
   if(scene($('s1'),t,0,3.2)){
     put($('s1logo'),P(t,.3,.9,E.back),{y:0,s:.2});
-    const word='Mes Devis';$('s1t').innerHTML=[...word].map((c,i)=>{const p=P(t,.75+i*.06,1.2+i*.06);return `<span style="display:inline-block;opacity:${clamp(p*1.5)};transform:translateY(${(1-p)*90}px);filter:blur(${(1-p)*14}px);white-space:pre">${c}</span>`}).join('');
+    const word='OptiDevis.';$('s1t').innerHTML=[...word].map((c,i)=>{const p=P(t,.75+i*.06,1.2+i*.06);return `<span style="display:inline-block;opacity:${clamp(p*1.5)};transform:translateY(${(1-p)*90}px);filter:blur(${(1-p)*14}px);white-space:pre">${c}</span>`}).join('');
     put($('s1s'),P(t,1.6,2.2),{y:30});
   }
   // S2
@@ -229,7 +229,7 @@ window.seek=function(t){
     put($('s2c'),P(t,3.35,4.0),{x:140,y:0,s:.92,blur:14});
     typed($('f1'),'Alice Martin',t,4.0,4.4,t<4.5);typed($('f2'),'alice@exemple.fr',t,4.4,5.0,t>=4.4&&t<5.05);
     typed($('f3'),'••••••••••',t,5.0,5.3,t>=5.0&&t<5.4);
-    $('s2b').style.transform=`scale(${press(t,5.5)})`;$('s2b').style.background=t>5.5&&t<5.7?'#fff':'#f2f2f3';
+    $('s2b').style.transform=`scale(${press(t,5.5)})`;$('s2b').style.background=t>5.5&&t<5.7?'#fff':'#e3a04b';
     moveCursor(t,[[4.9,1500,650],[5.5,1360,805],[6.2,1400,830]]);
     const sw=P(t,5.85,6.1,E.io);$('s2form').style.opacity=1-sw;$('s2ok').style.opacity=sw;
     const envP=P(t,6.0,6.4,E.back);$('s2env').style.transform=`scale(${envP}) rotate(${(1-envP)*-20}deg)`;

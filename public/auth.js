@@ -18,6 +18,7 @@ function renderAuth(mode, opts = {}) {
       <div class="form-err" hidden></div>
       <button class="btn primary block">Se connecter</button>
     </form>
+    <p class="auth-video-link"><a href="#" data-act="hero-open">Voir la vidéo de présentation (30 s)</a></p>
     ${cfg.registrationOpen ? `<p class="auth-alt">Pas encore de compte ? <a href="#" data-act="auth-go" data-mode="register">Créer un compte</a></p>` : '<p class="auth-alt muted">Les inscriptions sont fermées.</p>'}`;
   else if (mode === 'register') card = `
     <h2>Créer un compte</h2><p class="muted">Un email de confirmation vous sera envoyé.</p>
@@ -66,19 +67,26 @@ function renderAuth(mode, opts = {}) {
   $('#app').innerHTML = `
   <div class="auth">
     <section class="auth-hero">
-      <div class="brand big">${brandHtml(cfg.siteName)}</div>
-      <h1>Des devis professionnels,<br>en quelques minutes.</h1>
-      <ul>
-        <li>📄 Devis multi-pages prêts à imprimer en PDF</li>
-        <li>🏢 Clients pros remplis automatiquement avec leur SIRET</li>
-        <li>🧮 Sous-totaux, remises, TVA, échéancier de paiement</li>
-        <li>🔒 Vos données sont privées et sauvegardées dans votre compte</li>
-      </ul>
-      <div class="hero-card"><div class="hc-row"><span>Cloison BA13</span><b>480,00 €</b></div><div class="hc-row"><span>Doublage</span><b>1 204,00 €</b></div><div class="hc-row tot"><span>Total TTC</span><b>1 684,00 €</b></div></div>
+      <div class="orb o1"></div><div class="orb o2"></div>
+      <div class="brand big rise" style="--d:.0s">${brandHtml(cfg.siteName)}</div>
+      <span class="eyebrow rise" style="--d:.08s">Devis &amp; factures pour artisans et indépendants</span>
+      <h1 class="rise" style="--d:.16s">Des devis qui <em>font signer</em>,<br>en quelques minutes.</h1>
+      <p class="hero-sub rise" style="--d:.24s">Créez un devis complet, facturez chaque paiement, téléchargez le PDF : tout est prêt à envoyer à votre client.</p>
+      <div class="hero-video rise" style="--d:.32s" id="heroVideoBox">
+        <video id="heroVideo" muted loop playsinline preload="metadata" poster="/media/optidevis-poster.jpg"></video>
+        <div class="hv-bar">
+          <button type="button" class="hv-btn" data-act="hero-play" id="hvPlay" aria-label="Lecture / pause">Pause</button>
+          <button type="button" class="hv-btn" data-act="hero-sound" id="hvSound" aria-label="Activer le son">Activer le son</button>
+          <button type="button" class="hv-btn" data-act="hero-full" aria-label="Plein écran">Plein écran</button>
+        </div>
+        <div class="hero-card"><div class="hc-row"><span>Cloison BA13</span><b>480,00 €</b></div><div class="hc-row"><span>Doublage</span><b>1 204,00 €</b></div><div class="hc-row tot"><span>Total TTC</span><b>1 684,00 €</b></div></div>
+      </div>
+      <div class="chips rise" style="--d:.4s"><span>PDF en un clic</span><span>Clients remplis par SIRET</span><span>Une facture par paiement</span><span>Catalogue &amp; matériaux</span></div>
     </section>
-    <section class="auth-card"><button class="theme-btn auth-theme" id="themeBtn" title="Mode clair / sombre">🌙</button>${card}</section>
+    <section class="auth-card"><button class="theme-btn auth-theme" id="themeBtn" title="Mode clair / sombre">🌙</button><div class="brand big auth-brand-m">${brandHtml(cfg.siteName)}</div>${card}</section>
   </div>`;
   syncThemeBtn();
+  initHeroVideo();
 }
 
 function formMsg(form, text, good) {
@@ -188,3 +196,27 @@ function brandHtml(name) {
   const n = String(name || 'OptiDevis'), m = /^(opti)(devis)$/i.exec(n);
   return LOGO_MARK + '<span class="nm">' + (m ? esc(m[1]) + '<b>' + esc(m[2]) + '</b><i class="dot">.</i>' : esc(n)) + '</span>';
 }
+
+/* ---------- Vidéo de présentation de l'écran de connexion ---------- */
+const HERO_MP4 = '/media/optidevis-30s.mp4', HERO_WEBM = '/media/optidevis-30s.webm';
+const heroSources = () => `<source src="${HERO_MP4}" type="video/mp4"><source src="${HERO_WEBM}" type="video/webm">`;
+function loadHero(v) { if (v.dataset.ready) return; v.dataset.ready = '1'; v.innerHTML = heroSources(); v.load(); }
+function initHeroVideo() {
+  const v = document.getElementById('heroVideo'); if (!v) return;
+  const conn = navigator.connection || {};
+  const wide = window.matchMedia('(min-width: 901px)').matches;
+  if (!wide || conn.saveData) { const box = document.getElementById('heroVideoBox'); if (box) box.classList.add('idle'); return; }
+  loadHero(v); v.muted = true;
+  v.play().catch(() => { document.getElementById('heroVideoBox').classList.add('idle'); });
+  v.onplay = () => { const b = document.getElementById('hvPlay'); if (b) b.textContent = 'Pause'; };
+  v.onpause = () => { const b = document.getElementById('hvPlay'); if (b) b.textContent = 'Lecture'; };
+}
+Object.assign(actions, {
+  'hero-play'() { const v = $('#heroVideo'); if (!v) return; loadHero(v); if (v.paused) v.play().catch(() => {}); else v.pause(); $('#heroVideoBox').classList.remove('idle'); },
+  'hero-sound'() { const v = $('#heroVideo'); if (!v) return; loadHero(v); v.muted = !v.muted; if (!v.muted && v.paused) v.play().catch(() => {}); $('#hvSound').textContent = v.muted ? 'Activer le son' : 'Couper le son'; $('#heroVideoBox').classList.remove('idle'); },
+  'hero-full'() { const v = $('#heroVideo'); if (!v) return; loadHero(v); v.play().catch(() => {}); (v.requestFullscreen || v.webkitEnterFullscreen || (() => {})).call(v); },
+  'hero-open'() {
+    openModal(`<div class="modal-wide"><div class="row between"><h2 style="margin:0">Découvrir OptiDevis</h2><button class="btn small" data-act="close-modal">Fermer</button></div>
+      <video id="modalVideo" controls playsinline autoplay poster="/media/optidevis-poster.jpg" style="width:100%;border-radius:12px;margin-top:12px;background:#000">${heroSources()}</video></div>`);
+  }
+});
