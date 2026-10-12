@@ -153,4 +153,4 @@ async function extractQuote(input, opts = {}) {
   try { return JSON.parse(block ? block.text : ''); } catch (e) { const er = new Error('Réponse de l\'IA illisible, réessayez.'); er.status = 502; throw er; }
 }
 
-module.exports = { extractQuote, available, review, useClient, sanitize, finalize, SCHEMA, model };
+module.exports = { IMPORT_SYSTEM, PHOTO_EXTRA, extractQuote, available, review, useClient, sanitize, finalize, SCHEMA, model };

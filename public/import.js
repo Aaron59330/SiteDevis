@@ -120,7 +120,7 @@ function photoThumbs() {
   const go = $('#phGo'); if (go) go.disabled = !photos.length;
 }
 function photoOpen() {
-  if (!session.config.importAi) { $('#impBody').innerHTML = `<div class="notice" style="margin:12px 0">La lecture de photos (devis écrit à la main ou imprimé) utilise l'IA. Elle n'est pas activée sur ce serveur : l'administrateur doit ajouter une clé IA. En attendant, importez un PDF.</div>`; return; }
+  if (!session.config.importPhoto) { $('#impBody').innerHTML = `<div class="notice" style="margin:12px 0">La lecture de photos n'est pas activée sur ce serveur. En attendant, importez un PDF.</div>`; return; }
   photos.length = 0;
   document.querySelectorAll('.seg2 [data-act]').forEach(b => b.classList.toggle('on', b.dataset.act === 'imp-photo'));
   $('#impBody').innerHTML = `<p class="muted" style="margin:10px 0">Prenez en photo un devis, même écrit à la main, ou choisissez des photos dans la pellicule : l'IA lit chaque ligne et recrée le devis. Plusieurs photos = plusieurs pages du même document.</p>
@@ -129,7 +129,7 @@ function photoOpen() {
       <label class="btn" style="cursor:pointer">${icon('upload')} Choisir dans la pellicule<input type="file" id="phPick" accept="image/*" multiple hidden></label>
     </div>
     <div id="phList" class="ph-list"></div>
-    <p class="muted" style="font-size:.82rem;margin:10px 0">Conseils : page entière dans le cadre, bonne lumière, texte net. Les photos sont envoyées au service d'IA d'Anthropic pour être lues, puis ne sont pas conservées par OptiDevis. Vérifiez toujours le résultat avant de créer le devis.</p>
+    <p class="muted" style="font-size:.82rem;margin:10px 0">Conseils : page entière dans le cadre, bonne lumière, texte net. ${session.config.photoKind === 'tesseract' ? '<b>Lecture gratuite sur notre serveur :</b> elle comprend le texte imprimé, pas l\'écriture à la main. ' : session.config.photoKind === 'gemini' ? 'Les photos sont envoyées au service gratuit Google Gemini pour être lues. ' : 'Les photos sont envoyées au service d\'IA d\'Anthropic pour être lues. '}OptiDevis ne conserve pas les photos. Vérifiez toujours le résultat avant de créer le devis.</p>
     <div class="form-err" id="impErr" hidden></div>
     <div class="row" style="justify-content:flex-end"><button class="btn primary" id="phGo" data-act="ph-run" disabled>Lire la photo</button></div>`;
   const add = async files => {

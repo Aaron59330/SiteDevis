@@ -7,6 +7,7 @@ const pdf = require('./pdf');
 const spell = require('./spell');
 const importer = require('./importer');
 const stores = require('./stores');
+const vision = require('./vision');
 const storefetch = require('./storefetch');
 const storefetchLookup = (...a) => storefetch.lookup(...a);
 let importFreeOk = false; importer.available().then(v => { importFreeOk = v; });
@@ -204,7 +205,7 @@ async function handle(req, res, url) {
 /* ---------- Config publique ---------- */
 route('GET', '/api/config', 'none', () => ({
   siteName: db.settings.siteName, registrationOpen: db.settings.registrationOpen, trialDays: db.settings.trialDays,
-  mailConfigured: mail.configured(), pdf: pdf.available(), importFree: importFreeOk, importAi: ai.available() && db.settings.aiEnabled !== false, priceSearch: true, ai: db.settings.aiEnabled !== false, aiKind: ai.available() ? 'claude' : 'free', stripe: !!stripeKey(), simulated: simulatedAllowed(),
+  mailConfigured: mail.configured(), pdf: pdf.available(), importFree: importFreeOk, importAi: ai.available() && db.settings.aiEnabled !== false, importPhoto: (ai.available() && db.settings.aiEnabled !== false) || vision.available(), photoKind: ai.available() && db.settings.aiEnabled !== false ? 'claude' : vision.kind(), priceSearch: true, ai: db.settings.aiEnabled !== false, aiKind: ai.available() ? 'claude' : 'free', stripe: !!stripeKey(), simulated: simulatedAllowed(),
   plans: db.plans.filter(p => p.active)
 }));
 
@@ -358,7 +359,8 @@ route('POST', '/api/import/pdf', 'user', async ctx => {
 
 /* ---------- Import d'un devis photographié (manuscrit ou imprimé) : lecture par IA ---------- */
 route('POST', '/api/import/photo', 'user', async ctx => {
-  if (!ai.available() || db.settings.aiEnabled === false) throw err(501, 'La lecture de photos demande l\'IA, qui n\'est pas activée sur ce serveur.', { code: 'no_ai' });
+  const useClaude = ai.available() && db.settings.aiEnabled !== false;
+  if (!useClaude && !vision.available()) throw err(501, 'La lecture de photos n\'est pas activée sur ce serveur.', { code: 'no_ai' });
   if (!access(ctx.user).active) throw err(402, 'Un abonnement actif est nécessaire.', { code: 'payment_required' });
   limit('imp:' + ctx.user.id, 12, 3600e3); limit('aiday:' + ctx.user.id, 60, 86400e3);
   const list = ctx.body && Array.isArray(ctx.body.images) ? ctx.body.images.slice(0, 6) : [];
@@ -375,11 +377,14 @@ route('POST', '/api/import/photo', 'user', async ctx => {
   }
   if (total > 15e6) throw err(400, 'Photos trop lourdes au total.');
   try {
-    const raw = await ai.extractQuote(imgs);
-    const r = importer.normalizeDoc(raw, 'ia');
+    let r;
+    if (useClaude) {
+      const raw = await ai.extractQuote(imgs);
+      r = importer.normalizeDoc(raw, 'ia');
+      if (raw && raw.notes) r.warnings = [...(r.warnings || []), 'À vérifier : ' + String(raw.notes).slice(0, 400)];
+      db.settings.aiTotal = (db.settings.aiTotal || 0) + 1; store.save();
+    } else r = await vision.read(imgs);
     if (!r.doc.lines.some(l => l.type === 'item')) throw err(422, 'Aucune ligne de devis n\'a été reconnue sur cette photo. Cadrez bien la page entière, avec une bonne lumière, et réessayez.');
-    if (raw && raw.notes) r.warnings = [...(r.warnings || []), 'À vérifier : ' + String(raw.notes).slice(0, 400)];
-    db.settings.aiTotal = (db.settings.aiTotal || 0) + 1; store.save();
     return ok(r);
   } catch (e) {
     if (e.status && e.status < 500 && e.status !== 429) throw err(e.status, e.message);
