@@ -243,13 +243,25 @@ route('GET', '/api/prices/search', 'user', async ctx => {
   const offers = shoppingOffers(j), pages = [];
   if (d) offers.unshift({ title: d.title, store: d.store, priceText: d.priceText, price: d.price, link: d.link, thumbnail: d.thumbnail || '', direct: true, sku: d.sku, ean: d.ean });
   const cand = [];
-  for (const r of ((js && js.organic_results) || []).slice(0, 8)) {
-    let host = ''; try { host = new URL(r.link).hostname.replace(/^www\./, ''); } catch (e) { continue; }
-    if (!(store && (host === store.domain || host.endsWith('.' + store.domain)))) continue;
-    const ext = r.rich_snippet && r.rich_snippet.top && r.rich_snippet.top.detected_extensions;
-    const m = /(\d{1,4}(?:[ \u00a0]\d{3})*(?:[,.]\d{1,2}))\s?€/.exec(String(r.snippet || '') + ' ' + String(r.title || ''));
-    const price = ext && Number.isFinite(Number(ext.price)) ? Number(ext.price) : m ? parseFloat(m[1].replace(/[\s\u00a0]/g, '').replace(',', '.')) : null;
-    cand.push({ title: str(r.title, 200), link: r.link, price, snippet: str(r.snippet, 200) });
+  const addCand = j2 => {
+    for (const r of ((j2 && j2.organic_results) || []).slice(0, 8)) {
+      let host = ''; try { host = new URL(r.link).hostname.replace(/^www\./, ''); } catch (e) { continue; }
+      if (!(store && (host === store.domain || host.endsWith('.' + store.domain)))) continue;
+      if (cand.some(c => c.link === r.link)) continue;
+      const ext = r.rich_snippet && r.rich_snippet.top && r.rich_snippet.top.detected_extensions;
+      const m = /(\d{1,4}(?:[ \u00a0]\d{3})*(?:[,.]\d{1,2}))\s?€/.exec(String(r.snippet || '') + ' ' + String(r.title || ''));
+      const price = ext && Number.isFinite(Number(ext.price)) ? Number(ext.price) : m ? parseFloat(m[1].replace(/[\s\u00a0]/g, '').replace(',', '.')) : null;
+      cand.push({ title: str(r.title, 200), link: r.link, price, snippet: str(r.snippet, 200) });
+    }
+  };
+  addCand(js);
+  // rien d'exact : deuxième tentative avec d'autres formulations (la fiche est souvent indexée par sa référence « Réf. 12345678 »)
+  if (!isUrl && store && store.domain && !cand.some(exactOf) && !offers.some(exactOf)) {
+    const more = await Promise.all([
+      serp({ engine: 'google', q: quoted + ' ' + store.name, num: '10' }).catch(() => null),
+      serp({ engine: 'google', q: store.domain + ' Réf. ' + ref, num: '10' }).catch(() => null)
+    ]);
+    more.forEach(addCand);
   }
   // pour les fiches qui correspondent à la référence : on lit la page pour récupérer le prix exact
   const exactPages = cand.filter(c => exactOf(c)).slice(0, 2);
