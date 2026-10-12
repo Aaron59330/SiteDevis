@@ -280,3 +280,8 @@ body.auth-mode main { max-width: none; padding: 0; }
 .sup-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
 .sup { display: flex; flex-direction: column; gap: 10px; margin: 0; }
 .sup-info { font-size: .88rem; line-height: 1.7; }
+
+/* ===== Assistant de prix ===== */
+.finder { margin: 6px 0 4px; padding: 10px 14px; border: 1px dashed var(--input-line); border-radius: 12px; }
+.pf-calc { display: grid; grid-template-columns: 1fr 1fr 1.3fr; gap: 12px; margin-top: 12px; }
+.offer { display: flex; justify-content: space-between; gap: 14px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; margin-bottom: 8px; background: var(--card2); }

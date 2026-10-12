@@ -97,7 +97,7 @@ function renderMaterials() {
       <td><button class="star ${c.fav ? 'on' : ''}" data-act="cat-fav" data-id="${c.id}">${c.fav ? '★' : '☆'}</button></td>
       <td>${esc((supplier(c.supplierId) || {}).name || '—')}</td><td>${esc(c.ref)}</td>
       <td><b>${esc(c.desc)}</b>${c.cat ? ` <span class="muted" style="font-size:.78rem">${esc(c.cat)}</span>` : ''}</td><td>${esc(c.unit)}</td>
-      <td class="right">${money(c.cost)}</td><td class="right muted">${pct(matMarkup(c))}${c.markup === '' || c.markup == null ? ' <span title="Marge du fournisseur">*</span>' : ''}</td>
+      <td class="right">${money(c.cost)}${c.priceDate || c.sourceUrl ? `<div class="muted" style="font-size:.72rem">${c.priceDate ? 'au ' + fdate(c.priceDate) : ''} ${/^https?:\/\//.test(c.sourceUrl || '') ? `<a href="${esc(c.sourceUrl)}" target="_blank" rel="noopener">🔗</a>` : ''}</div>` : ''}</td><td class="right muted">${pct(matMarkup(c))}${c.markup === '' || c.markup == null ? ' <span title="Marge du fournisseur">*</span>' : ''}</td>
       <td class="right"><b>${money(itemPrice(c))}</b></td><td>${String(c.vat).replace('.', ',')} %</td>
       <td class="right" style="white-space:nowrap"><button class="btn small" data-act="edit-item" data-id="${c.id}">Modifier</button>
         <button class="btn small" data-act="dup-item" data-id="${c.id}" title="Dupliquer">⧉</button>
@@ -151,7 +151,7 @@ function supplierModal(id, after) {
 function matModal(id, after, presetSup) {
   if (!sups().length) { toast('Ajoutez d\'abord un fournisseur'); return supplierModal(null, sp => matModal(id, after, sp.id)); }
   const base = catItem(id);
-  const c = base ? { ...base } : { type: 'materiau', supplierId: presetSup || catUI.sup || sups()[0].id, ref: '', desc: '', cat: '', unit: 'pièce(s)', cost: '', markup: '', vat: db.settings.defaultVat, fav: false };
+  const c = base ? { ...base } : { type: 'materiau', supplierId: presetSup || catUI.sup || sups()[0].id, ref: '', desc: '', cat: '', unit: 'pièce(s)', cost: '', markup: '', vat: db.settings.defaultVat, fav: false, sourceUrl: '', priceDate: '' };
   const m = openModal(`<div class="modal-wide"><form id="matForm"><h2>${id ? 'Modifier le matériau' : 'Nouveau matériau'}</h2>
     <div class="grid2"><div class="field"><label>Fournisseur *</label><div class="row" style="flex-wrap:nowrap"><select name="supplierId" id="msup">${sups().map(s => `<option value="${s.id}" ${s.id === c.supplierId ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>
         <button type="button" class="btn" id="msupNew" title="Nouveau fournisseur">＋</button></div></div>
@@ -164,6 +164,22 @@ function matModal(id, after, presetSup) {
       <div class="field"><label>Marge (%) — vide = marge du fournisseur</label><input name="markup" id="mmk" type="number" step="any" value="${c.markup ?? ''}"></div>
       <div class="field"><label>Prix de vente HT</label><input id="mprice" type="number" step="any" min="0"></div></div>
     <p class="muted" id="mhint" style="font-size:.82rem;margin:-4px 0 8px"></p>
+    <details class="finder" id="finder"><summary>🔎 Trouver le prix en ligne &amp; convertir à l'unité</summary>
+      <p class="muted" style="font-size:.82rem;margin:8px 0">Recherchez le produit chez Leroy Merlin, Castorama, Brico Dépôt, Point.P… puis saisissez le prix affiché : il est converti automatiquement en <b>prix HT par unité</b>.</p>
+      <div class="row" style="flex-wrap:nowrap"><input id="pfq" class="grow" placeholder="Produit à chercher (ex : gouttière PVC Ø 80 mm 2 m)">
+        ${session.config.priceSearch ? '<button type="button" class="btn" id="pfgo">🔍 Chercher les prix</button>' : ''}</div>
+      <div class="row" style="margin:8px 0" id="pflinks"></div>
+      <div id="pfres"></div>
+      <div class="pf-calc">
+        <div class="field"><label>Prix affiché (€)</label><input id="pfprice" type="number" step="any" min="0"></div>
+        <div class="field"><label>Ce prix est</label><select id="pfttc"><option value="1">TTC (prix magasin)</option><option value="0">HT</option></select></div>
+        <div class="field"><label>Contenu vendu à ce prix</label><div class="row" style="flex-wrap:nowrap"><input id="pfqty" type="number" step="any" min="0" value="1"><input id="pfunit" list="units" style="max-width:110px"></div></div>
+      </div>
+      <div class="cp-sum" id="pfout">Saisissez le prix affiché pour voir le prix HT par unité.</div>
+      <div class="row" style="justify-content:flex-end;margin-top:8px"><button type="button" class="btn small primary" id="pfuse" disabled>Utiliser ce prix d'achat</button></div>
+    </details>
+    <div class="grid2" style="margin-top:12px"><div class="field"><label>Lien de la fiche produit (facultatif)</label><input name="sourceUrl" value="${esc(c.sourceUrl || '')}" placeholder="https://…"></div>
+      <div class="field"><label>Prix relevé le</label><input name="priceDate" type="date" value="${c.priceDate || ''}"></div></div>
     <label class="check"><input type="checkbox" name="fav" ${c.fav ? 'checked' : ''}> ⭐ Favori</label>
     <div class="row" style="justify-content:flex-end"><button type="button" class="btn" data-act="close-modal">Annuler</button><button class="btn primary">Enregistrer</button></div></form></div>`);
   const f = $('#matForm'), E = f.elements, price = $('#mprice');
@@ -173,12 +189,63 @@ function matModal(id, after, presetSup) {
   price.oninput = () => { const k = num(E.cost.value); if (k > 0) { E.markup.value = r4((num(price.value) / k - 1) * 100); $('#mhint').textContent = `Marge appliquée : ${fmtNum.format(num(E.markup.value))} %`; } };
   $('#msupNew').onclick = () => supplierModal(null, sp => matModal(id, after, sp.id));
   refresh();
+  priceFinder(f, refresh);
   f.onsubmit = e => {
     e.preventDefault();
     const g = k => E[k].value.trim();
-    const data = { type: 'materiau', supplierId: g('supplierId'), ref: g('ref'), desc: g('desc'), cat: g('cat'), unit: g('unit') || 'u', cost: num(g('cost')), markup: g('markup') === '' ? '' : num(g('markup')), vat: num(g('vat')), fav: E.fav.checked, price: 0 };
+    const data = { type: 'materiau', supplierId: g('supplierId'), ref: g('ref'), desc: g('desc'), cat: g('cat'), unit: g('unit') || 'u', cost: num(g('cost')), markup: g('markup') === '' ? '' : num(g('markup')), vat: num(g('vat')), fav: E.fav.checked, price: 0, sourceUrl: g('sourceUrl'), priceDate: g('priceDate') || ((!base || num(base.cost) !== num(g('cost'))) ? today() : base.priceDate || '') };
     if (base) Object.assign(base, data); else db.catalog.push({ id: uid(), ...data });
     save(); m.close(); if (after) after(); else { catUI.tab = 'materiaux'; render(); }
+  };
+}
+
+/* ----- assistant de prix : recherche en ligne + conversion en prix HT par unité ----- */
+const STORES = [['Leroy Merlin', 'leroymerlin.fr'], ['Castorama', 'castorama.fr'], ['Brico Dépôt', 'bricodepot.fr'], ['Point.P', 'pointp.fr'], ['Tous les magasins', '']];
+function guessContent(title) { // « barre de 2 m », « paquet 2,2 m² », « 25 kg »… (suggestion seulement)
+  const m = /(\d+(?:[.,]\d+)?)\s?(m²|m2|ml|m|kg|l)\b/i.exec(title || '');
+  return m ? { qty: num(m[1]), unit: m[2].toLowerCase() === 'm2' ? 'm²' : m[2].toLowerCase() === 'm' ? 'ml' : m[2].toLowerCase() } : null;
+}
+function priceFinder(f, refreshHint) {
+  const E = f.elements, $$ = id => document.getElementById(id);
+  const fd = $$('finder'), q = $$('pfq');
+  const links = () => {
+    const t = encodeURIComponent((q.value || E.desc.value || '').trim() + ' prix');
+    $$('pflinks').innerHTML = STORES.map(([n, d]) => `<a class="btn small" target="_blank" rel="noopener" href="https://www.google.fr/search?q=${t}${d ? '+site%3A' + d : ''}${d ? '' : '&tbm=shop'}">${n} ↗</a>`).join('');
+  };
+  fd.addEventListener('toggle', () => { if (fd.open) { if (!q.value) q.value = E.desc.value; if (!$$('pfunit').value) $$('pfunit').value = E.unit.value; links(); } });
+  q.addEventListener('input', links);
+  const calc = () => {
+    const price = num($$('pfprice').value), ttc = $$('pfttc').value === '1', qty = num($$('pfqty').value), vat = num(E.vat.value);
+    const unit = $$('pfunit').value.trim() || E.unit.value, ht = ttc ? price / (1 + vat / 100) : price, per = qty > 0 ? ht / qty : 0;
+    $$('pfuse').disabled = !(price > 0 && qty > 0);
+    $$('pfout').innerHTML = price > 0 && qty > 0
+      ? `${fmtNum.format(price)} € ${ttc ? 'TTC' : 'HT'} pour ${fmtNum.format(qty)} ${esc(unit)}${ttc ? ` → ${money(ht)} HT` : ''} ⇒ <b>${money(per)} HT par ${esc(unit)}</b>`
+      : 'Saisissez le prix affiché pour voir le prix HT par unité.';
+    return { per, unit };
+  };
+  ['pfprice', 'pfttc', 'pfqty', 'pfunit'].forEach(i => { $$(i).addEventListener('input', calc); $$(i).addEventListener('change', calc); });
+  E.vat.addEventListener('change', calc);
+  $$('pfuse').onclick = () => {
+    const { per, unit } = calc();
+    E.cost.value = r4(per); E.unit.value = unit; E.priceDate.value = today(); refreshHint();
+    toast(`Prix d'achat renseigné : ${money(per)} HT / ${unit}`);
+  };
+  if ($$('pfgo')) $$('pfgo').onclick = async () => {
+    const term = q.value.trim(); if (term.length < 3) return toast('Saisissez au moins 3 caractères');
+    $$('pfres').innerHTML = '<p class="muted">Recherche en cours…</p>';
+    try {
+      const { offers } = await api('GET', '/api/prices/search?q=' + encodeURIComponent(term));
+      $$('pfres').innerHTML = offers.length ? offers.map((o, i) => `<div class="offer"><div><b>${esc(o.title)}</b><div class="muted" style="font-size:.8rem">🏪 ${esc(o.store)}${o.link ? ` · <a href="${esc(o.link)}" target="_blank" rel="noopener">voir ↗</a>` : ''}</div></div>
+        <div class="right" style="white-space:nowrap"><b>${money(o.price)}</b> <span class="muted">TTC</span><br><button type="button" class="btn small" data-i="${i}">Utiliser</button></div></div>`).join('') : '<p class="muted">Aucune offre trouvée.</p>';
+      $$('pfres').onclick = e => {
+        const b = e.target.closest('button[data-i]'); if (!b) return;
+        const o = offers[+b.dataset.i], g = guessContent(o.title);
+        $$('pfprice').value = o.price; $$('pfttc').value = '1';
+        if (g) { $$('pfqty').value = g.qty; $$('pfunit').value = g.unit; }
+        if (o.link) E.sourceUrl.value = o.link;
+        calc(); toast(g ? `Contenu détecté : ${g.qty} ${g.unit} — vérifiez-le` : 'Vérifiez le contenu vendu à ce prix');
+      };
+    } catch (err) { $$('pfres').innerHTML = `<p style="color:var(--danger)">${esc(err.message)}</p>`; }
   };
 }
 

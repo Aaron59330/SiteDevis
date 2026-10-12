@@ -194,9 +194,30 @@ async function handle(req, res, url) {
 /* ---------- Config publique ---------- */
 route('GET', '/api/config', 'none', () => ({
   siteName: db.settings.siteName, registrationOpen: db.settings.registrationOpen, trialDays: db.settings.trialDays,
-  mailConfigured: mail.configured(), stripe: !!stripeKey(), simulated: simulatedAllowed(),
+  mailConfigured: mail.configured(), priceSearch: !!process.env.SERPAPI_KEY, stripe: !!stripeKey(), simulated: simulatedAllowed(),
   plans: db.plans.filter(p => p.active)
 }));
+
+/* ---------- Recherche de prix en ligne (Google Shopping via SerpApi, clé SERPAPI_KEY) ---------- */
+function shoppingOffers(j) {
+  return ((j && j.shopping_results) || []).slice(0, 15).map(r => ({
+    title: str(r.title, 200), store: str(r.source, 80), priceText: str(r.price, 40),
+    price: Number.isFinite(Number(r.extracted_price)) ? Number(r.extracted_price) : null,
+    link: /^https?:\/\//.test(r.product_link || r.link || '') ? (r.product_link || r.link) : '', thumbnail: /^https?:\/\//.test(r.thumbnail || '') ? r.thumbnail : ''
+  })).filter(o => o.title && o.price != null);
+}
+route('GET', '/api/prices/search', 'user', async ctx => {
+  const key = process.env.SERPAPI_KEY;
+  if (!key) throw err(503, 'La recherche automatique de prix n\'est pas activée (clé SERPAPI_KEY absente).');
+  limit('prices:' + ctx.user.id, 30, 3600e3);
+  const q = str(ctx.query.q, 120);
+  if (q.length < 3) throw err(400, 'Saisissez au moins 3 caractères.');
+  let r;
+  try { r = await fetch('https://serpapi.com/search.json?' + new URLSearchParams({ engine: 'google_shopping', q, gl: 'fr', hl: 'fr', google_domain: 'google.fr', api_key: key })); }
+  catch (e) { throw err(502, 'Service de prix injoignable.'); }
+  if (!r.ok) throw err(502, 'Le service de prix a refusé la requête (' + r.status + ').');
+  return ok({ offers: shoppingOffers(await r.json()) });
+});
 
 /* ---------- Authentification ---------- */
 route('POST', '/api/auth/register', 'none', async ctx => {
@@ -634,4 +655,4 @@ function seedAdmin() {
   console.log('└──────────────────────────────────────────────────────────────┘\n');
 }
 
-module.exports = { handle, seedAdmin, reminders };
+module.exports = { handle, seedAdmin, reminders, shoppingOffers };
