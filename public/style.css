@@ -677,3 +677,39 @@ a.badge.info2 { text-decoration: none; cursor: pointer; }
 @media (max-width: 960px) { .ld-hero { grid-template-columns: minmax(0, 1fr); min-height: 0; } .ld-links, .docs-search { display: none; } .ld-nav-in { justify-content: space-between; } .ld-nav-in .theme-btn { margin-left: auto; } }
 @media (max-width: 560px) { .ld-main { padding: 0 16px 56px; gap: 44px; } .ld-nav-in { padding: 10px 16px; } .ld-card { padding: 30px 20px 24px; } }
 .ld-login { white-space: nowrap; }
+
+/* ===== Accueil : échelle typographique, rayons, pastilles et icônes unifiés ===== */
+.landing { --ld-r: 14px; --ld-h: 42px; --ld-fs: .95rem; --ld-fs-s: .84rem; --ld-ic: 20px; }
+.landing .ic { width: var(--ld-ic); height: var(--ld-ic); margin: 0; vertical-align: middle; stroke-width: 1.75; }
+.ld-nav-in > * { flex: none; } .ld-links { flex: 1; }
+.ld-links a { font-size: var(--ld-fs); font-weight: 600; opacity: .8; }
+.docs-search { height: var(--ld-h); width: min(300px, 26vw); border-radius: 999px; } .docs-search input { font-size: var(--ld-fs-s); padding: 0; }
+.docs-search .ld-ico .ic { width: 16px; height: 16px; }
+.docs-search kbd { font-size: .72rem; border-radius: 6px; }
+.landing .theme-btn { width: var(--ld-h); height: var(--ld-h); border-radius: 50%; display: grid; place-items: center; padding: 0; }
+.landing .theme-btn .ic { width: 18px; height: 18px; }
+.ld-login { height: var(--ld-h); border-radius: 999px; padding: 0 18px; font-size: var(--ld-fs-s); gap: 8px; }
+.ld-login .ic { width: 16px; height: 16px; }
+.ld-btn { font-size: var(--ld-fs); height: 54px; padding: 0 8px 0 26px; }
+.ld-btn.ghost { padding: 0 26px; }
+.ld-btn.main i { width: 38px; height: 38px; } .ld-btn.main i .ic { width: 18px; height: 18px; stroke-width: 2.2; }
+.eyebrow { font-size: .74rem; }
+.landing .chips span { font-size: var(--ld-fs-s); padding: 7px 14px; }
+.ld-copy .hero-sub { font-size: 1.1rem; line-height: 1.55; }
+.landing .docs-sec h2 { font-size: clamp(1.5rem, 2.4vw, 1.9rem); font-weight: 800; }
+.ld-tile { flex: none; width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: color-mix(in srgb, var(--accent) 14%, var(--input)); border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line)); color: var(--text); font-style: normal; font-weight: 800; font-size: 1rem; line-height: 1; }
+.docs-steps li > span.ld-tile { width: 40px; height: 40px; border-radius: 12px; background: color-mix(in srgb, var(--accent) 14%, var(--input)); color: var(--text); }
+.docs-steps li, .docs-card, .docs-faq details { border-radius: var(--ld-r); }
+.docs-steps li { padding: 16px 18px; gap: 16px; align-items: center; }
+.docs-card summary, .docs-faq summary { padding: 16px 18px; gap: 16px; align-items: center; }
+.docs-card summary b, .docs-steps b, .docs-faq summary { font-size: 1rem; font-weight: 700; }
+.docs-card summary span, .docs-steps p, .docs-card .docs-more, .docs-faq p { font-size: var(--ld-fs-s); line-height: 1.55; color: var(--muted); }
+.docs-card summary span { margin-top: 2px; }
+.docs-card .docs-more { padding: 0 18px 16px 74px; }
+.docs-faq p { padding: 0 18px 16px; }
+.docs-faq summary::after { font-size: 1.25rem; }
+.docs-card summary i .ic { width: var(--ld-ic); height: var(--ld-ic); }
+.ld-win-bar { font-size: var(--ld-fs-s); }
+.ld-x { width: 36px; height: 36px; display: grid; place-items: center; font-size: 1.25rem; padding: 0; }
+.ld-card { border-radius: 20px; }
+@media (max-width: 560px) { .ld-btn { height: 50px; } .docs-card .docs-more { padding-left: 18px; } }

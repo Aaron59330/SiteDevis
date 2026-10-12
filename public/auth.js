@@ -77,9 +77,9 @@ function renderAuth(mode, opts = {}) {
       <div class="ld-nav-in">
         <div class="brand big">${brandHtml(cfg.siteName)}</div>
         <nav class="ld-links" aria-label="Sommaire"><a href="#d-start">Démarrer</a><a href="#d-features">Fonctionnalités</a><a href="#d-faq">Questions</a><a href="#" data-act="hero-open">Vidéo</a></nav>
-        <label class="docs-search"><span aria-hidden="true">⌕</span><input type="search" id="docsQ" placeholder="Rechercher : facture, PDF, catalogue…" autocomplete="off" aria-label="Rechercher dans la présentation"><kbd>/</kbd></label>
+        <label class="docs-search"><span class="ld-ico" aria-hidden="true">${icon('search')}</span><input type="search" id="docsQ" placeholder="Rechercher : facture, PDF, catalogue…" autocomplete="off" aria-label="Rechercher dans la présentation"><kbd>/</kbd></label>
         <button class="theme-btn" id="themeBtn" title="Mode clair / sombre">🌙</button>
-        <button type="button" class="ld-login" data-act="auth-open"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4.5 4.5-6 8-6s7 1.500 8 6"/></svg>Se connecter</button>
+        <button type="button" class="ld-login" data-act="auth-open">${icon('user')}Se connecter</button>
       </div>
     </header>
     <div class="ld-main">
@@ -89,7 +89,7 @@ function renderAuth(mode, opts = {}) {
           <h1 class="rise" style="--d:.16s">Des devis qui <em>font signer</em>,<br>en quelques minutes.</h1>
           <p class="hero-sub rise" style="--d:.24s">Créez un devis complet, facturez chaque paiement, téléchargez le PDF : tout est prêt à envoyer à votre client.</p>
           <div class="ld-cta rise" style="--d:.32s">
-            <button type="button" class="ld-btn main" data-act="auth-open">Se connecter<i aria-hidden="true">→</i></button>
+            <button type="button" class="ld-btn main" data-act="auth-open">Se connecter<i aria-hidden="true">${icon('right')}</i></button>
             ${cfg.registrationOpen ? `<button type="button" class="ld-btn ghost" data-act="auth-go" data-mode="register">Créer un compte</button>` : ''}
           </div>
           <div class="chips rise" style="--d:.4s"><span>PDF en un clic</span><span>Clients remplis par SIRET</span><span>Une facture par paiement</span><span>Catalogue &amp; matériaux</span></div>
@@ -110,14 +110,14 @@ function renderAuth(mode, opts = {}) {
       <section id="d-start" class="docs-sec" data-doc>
         <h2>Démarrer en 3 étapes</h2>
         <ol class="docs-steps">
-          <li data-doc-item><span>1</span><div><b>Créez votre compte</b><p>Nom, email, mot de passe : c'est tout. Ajoutez ensuite votre entreprise (SIRET, logo, mentions légales) une seule fois.</p></div></li>
-          <li data-doc-item><span>2</span><div><b>Faites votre premier devis</b><p>Choisissez un client, ajoutez vos lignes depuis votre catalogue ou en saisie libre, et suivez le total en direct.</p></div></li>
-          <li data-doc-item><span>3</span><div><b>Envoyez et facturez</b><p>Téléchargez le PDF, puis générez une facture par échéance de paiement, reliée au devis.</p></div></li>
+          <li data-doc-item><span class="ld-tile">1</span><div><b>Créez votre compte</b><p>Nom, email, mot de passe : c'est tout. Ajoutez ensuite votre entreprise (SIRET, logo, mentions légales) une seule fois.</p></div></li>
+          <li data-doc-item><span class="ld-tile">2</span><div><b>Faites votre premier devis</b><p>Choisissez un client, ajoutez vos lignes depuis votre catalogue ou en saisie libre, et suivez le total en direct.</p></div></li>
+          <li data-doc-item><span class="ld-tile">3</span><div><b>Envoyez et facturez</b><p>Téléchargez le PDF, puis générez une facture par échéance de paiement, reliée au devis.</p></div></li>
         </ol>
       </section>
       <section id="d-features" class="docs-sec" data-doc>
         <h2>Fonctionnalités</h2>
-        <div class="docs-grid">${DOC_FEATURES.map(f => `<details class="docs-card" data-doc-item><summary><i aria-hidden="true">${f[0]}</i><div><b>${f[1]}</b><span>${f[2]}</span></div></summary><div class="docs-more">${f[3]}</div></details>`).join('')}</div>
+        <div class="docs-grid">${DOC_FEATURES.map(f => `<details class="docs-card" data-doc-item><summary><i class="ld-tile" aria-hidden="true">${f[0]}</i><div><b>${f[1]}</b><span>${f[2]}</span></div></summary><div class="docs-more">${f[3]}</div></details>`).join('')}</div>
       </section>
       <section id="d-faq" class="docs-sec" data-doc>
         <h2>Questions fréquentes</h2>
@@ -135,14 +135,14 @@ function renderAuth(mode, opts = {}) {
 }
 
 const DOC_FEATURES = [
-  ['📄', 'Devis professionnels', 'Mise en page soignée, plusieurs pages, TVA multi-taux', 'Lignes libres ou issues du catalogue, remises, acomptes, conditions de paiement et signature. Le devis se met en page automatiquement sur plusieurs pages, avec votre logo et vos mentions légales.'],
-  ['🧾', 'Une facture par paiement', 'Chaque échéance a sa facture, reliée au devis', 'Acompte, situation, solde : chaque facture reprend le détail du devis, affiche le montant de l\'échéance et le « reste à payer ». Vous retrouvez toutes les factures liées depuis le devis.'],
-  ['⬇️', 'PDF en un clic', 'Téléchargement direct, sans passer par l\'impression', 'Un vrai fichier PDF, prêt à envoyer à votre client par email ou messagerie.'],
-  ['📥', 'Import de devis existants', 'Un devis fait ailleurs ? Transférez le PDF', 'Toutes les pages sont lues et le devis est refait à l\'identique dans OptiDevis, que vous pouvez ensuite modifier et facturer.'],
-  ['🧱', 'Catalogue, matériaux, fournisseurs', 'Vos prix, vos marges, vos références', 'Saisissez une référence fournisseur : le site cherche la fiche exacte et reprend le prix quand elle est trouvée. Marge par fournisseur, prix de vente calculé.'],
-  ['📊', 'Statistiques', 'CA du mois, facturé, encaissé, impayé', 'Comparaison avec les mois précédents et courbe sur 12 mois, pour savoir où vous en êtes en un coup d\'œil.'],
-  ['🏗️', 'Chantiers', 'Regroupez devis et factures par chantier', 'Optionnel : suivez les heures et rattachez les documents à un chantier, avec un récapitulatif sur le document.'],
-  ['🛠️', 'Boîte à outils', 'Clients par SIRET, correcteur, calculs', 'Les informations de l\'entreprise de votre client se remplissent depuis son SIRET. Un correcteur d\'orthographe gratuit relit vos documents.']
+  [icon('file'), 'Devis professionnels', 'Mise en page soignée, plusieurs pages, TVA multi-taux', 'Lignes libres ou issues du catalogue, remises, acomptes, conditions de paiement et signature. Le devis se met en page automatiquement sur plusieurs pages, avec votre logo et vos mentions légales.'],
+  [icon('receipt'), 'Une facture par paiement', 'Chaque échéance a sa facture, reliée au devis', 'Acompte, situation, solde : chaque facture reprend le détail du devis, affiche le montant de l\'échéance et le « reste à payer ». Vous retrouvez toutes les factures liées depuis le devis.'],
+  [icon('download'), 'PDF en un clic', 'Téléchargement direct, sans passer par l\'impression', 'Un vrai fichier PDF, prêt à envoyer à votre client par email ou messagerie.'],
+  [icon('inbox'), 'Import de devis existants', 'Un devis fait ailleurs ? Transférez le PDF', 'Toutes les pages sont lues et le devis est refait à l\'identique dans OptiDevis, que vous pouvez ensuite modifier et facturer.'],
+  [icon('layers'), 'Catalogue, matériaux, fournisseurs', 'Vos prix, vos marges, vos références', 'Saisissez une référence fournisseur : le site cherche la fiche exacte et reprend le prix quand elle est trouvée. Marge par fournisseur, prix de vente calculé.'],
+  [icon('chart'), 'Statistiques', 'CA du mois, facturé, encaissé, impayé', 'Comparaison avec les mois précédents et courbe sur 12 mois, pour savoir où vous en êtes en un coup d\'œil.'],
+  [icon('hardhat'), 'Chantiers', 'Regroupez devis et factures par chantier', 'Optionnel : suivez les heures et rattachez les documents à un chantier, avec un récapitulatif sur le document.'],
+  [icon('tool'), 'Boîte à outils', 'Clients par SIRET, correcteur, calculs', 'Les informations de l\'entreprise de votre client se remplissent depuis son SIRET. Un correcteur d\'orthographe gratuit relit vos documents.']
 ];
 const DOC_FAQ = [
   ['Mes clients ont-ils besoin d\'un compte ?', 'Non. Vous créez le document et vous leur envoyez le PDF : ils n\'ont rien à installer.'],

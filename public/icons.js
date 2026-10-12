@@ -36,6 +36,7 @@
     calc: '<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8M8 10h.01M12 10h.01M16 10h.01M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"/>',
     sparkles: '<path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9zM19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8zM5 17l.6 1.4L7 19l-1.4.6L5 21l-.6-1.4L3 19l1.4-.6z"/>',
     menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
+    chart: '<path d="M3 3v18h18M7 15v3M12 9v9M17 5v13"/>', tool: '<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/>', inbox: '<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5.1 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.9A2 2 0 0 0 16.7 4H7.3a2 2 0 0 0-1.8 1.1z"/>', hardhat: '<path d="M2 18h20v2H2zM4 18a8 8 0 0 1 16 0M10 10V5h4v5M12 5V3"/>', receipt: '<path d="M4 2v20l3-2 2 2 3-2 3 2 2-2 3 2V2l-3 2-2-2-3 2-3-2-2 2zM8 8h8M8 12h8M8 16h5"/>',
     lock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>'
   };
   const MAP = { '＋': 'plus', '✓': 'check', '✔': 'check', '✅': 'check', '✕': 'x', '✖': 'x', '←': 'left', '→': 'right', '⇒': 'right', '↑': 'up', '↓': 'down', '⬇': 'download', '⬆': 'upload', '⧉': 'copy', '🗑': 'trash',
