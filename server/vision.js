@@ -25,6 +25,22 @@ async function pickModel(force) {
   if (!list.length) { const er = new Error('Aucun modèle Gemini utilisable avec cette clé. Vérifiez qu\'elle vient de aistudio.google.com/apikey.'); er.status = 502; er.expose = true; throw er; }
   autoModel = list[0]; return autoModel;
 }
+/* Modèles de secours (quand le premier est surchargé) : les autres « flash », puis les « flash-lite » */
+let backupModels = null;
+async function modelsInOrder() {
+  const first = await pickModel(false);
+  if (!backupModels) {
+    try {
+      const r = await fetch(GEMINI_BASE + 'models?pageSize=200', { headers: { 'x-goog-api-key': process.env.GEMINI_API_KEY }, signal: AbortSignal.timeout(20000) });
+      const ver = n => { const m = /gemini-(\d+(?:\.\d+)?)/.exec(n); return m ? parseFloat(m[1]) : 0; };
+      backupModels = r.ok ? ((await r.json()).models || []).filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
+        .map(m => String(m.name || '').replace(/^models\//, '')).filter(n => /flash/.test(n) && !/(tts|image|live|audio|embed|exp|8b|thinking)/.test(n) && ver(n) >= 2)
+        .sort((a, b) => (/lite/.test(a) ? 1 : 0) - (/lite/.test(b) ? 1 : 0) || ver(b) - ver(a) || (/preview/.test(a) ? 1 : 0) - (/preview/.test(b) ? 1 : 0)) : [];
+    } catch (e) { backupModels = []; }
+  }
+  return [first, ...backupModels.filter(m => m !== first)].slice(0, 4);
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 const geminiOk = () => !!process.env.GEMINI_API_KEY;
 let tessOk = false;
 try { const p = spawn('tesseract', ['--version'], { stdio: 'ignore' }); p.on('error', () => { tessOk = false; }); p.on('close', c => { tessOk = c === 0; }); } catch (e) { tessOk = false; }
@@ -46,9 +62,22 @@ async function gemini(imgs) {
       return await fetch(GEMINI_BASE + 'models/' + encodeURIComponent(model) + ':generateContent', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY }, body, signal: AbortSignal.timeout(90000) });
     } catch (e) { const er = new Error('Service de lecture injoignable.'); er.status = 502; er.expose = true; throw er; }
   };
+  /* 503 / 500 / 504 (surcharge passagère de Google) ou 429 (limite par minute) : on réessaie, puis on passe à un autre modèle */
+  const busy = st => st === 503 || st === 500 || st === 504 || st === 429;
   let model = await pickModel(false), r = await call(model);
   if (r.status === 404) { model = await pickModel(true); r = await call(model); }       // nom périmé : on choisit un modèle disponible
-  if (r.status === 429) { const er = new Error('Le service gratuit de lecture est saturé (limite atteinte). Réessayez dans une minute.'); er.status = 429; er.expose = true; throw er; }
+  if (busy(r.status)) {
+    const order = await modelsInOrder();
+    outer: for (const m of order) {
+      for (const wait of m === model ? [1500, 4000] : [0, 2500]) {
+        if (wait) await sleep(wait);
+        const r2 = await call(m); console.error('Gemini', m, 'nouvel essai :', r2.status);
+        if (!busy(r2.status) && r2.status !== 404) { r = r2; model = m; break outer; }
+        r = r2;
+      }
+    }
+  }
+  if (busy(r.status)) { console.error('Gemini saturé', model, r.status); const er = new Error(r.status === 429 ? 'La limite gratuite de lecture est atteinte pour le moment. Réessayez dans une minute.' : 'Le service gratuit de lecture de Google est momentanément surchargé. Réessayez dans quelques minutes.'); er.status = 503; er.expose = true; throw er; }
   if (!r.ok) { const txt = (await r.text()).slice(0, 300); console.error('Gemini', model, r.status, txt); const er = new Error(r.status === 400 || r.status === 403 ? 'Clé Gemini refusée ou invalide (erreur ' + r.status + '). Vérifiez GEMINI_API_KEY.' : 'Le service de lecture a refusé la requête (erreur ' + r.status + ').'); er.status = 502; er.expose = true; throw er; }
   const j = await r.json();
   const txt = (((j.candidates || [])[0] || {}).content || {}).parts;
