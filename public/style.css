@@ -1001,3 +1001,17 @@ a:not(.btn) { text-underline-offset: 3px; transition: color .15s, text-decoratio
 /* en-têtes de colonnes alignés comme leur contenu (montants à droite, centrés…) */
 table.list th.right, table.list td.right { text-align: right; }
 table.list th.center, table.list td.center { text-align: center; }
+/* Statistiques > Rentabilité : chiffres alignés et réguliers */
+.pf-stats { margin-bottom: 16px; }
+.pf-stat { display: flex; flex-direction: column; gap: 4px; }
+.pf-stat .l { order: -1; font-size: .74rem; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+.pf-stat .n { font-variant-numeric: tabular-nums; } .pf-stat .n small { font-size: .55em; font-weight: 600; color: var(--muted); }
+.pf-sub { font-size: .8rem; color: var(--muted); line-height: 1.35; }
+.pf-table table { table-layout: fixed; width: 100%; }
+.pf-table td { vertical-align: top; padding-top: 14px; padding-bottom: 14px; }
+.pf-table td.num, .pf-table td .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pf-table td b { font-weight: 650; }
+.pf-meta { font-size: .76rem; color: var(--muted); margin-top: 3px; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pf-num { font-weight: 700; }
+.pf-table td:last-child { vertical-align: top; } .pf-table td:last-child .pf-badge { display: inline-block; margin-top: -2px; }
+@media (max-width: 900px) { .pf-table table { table-layout: auto; } }

@@ -116,15 +116,24 @@
     const nb = st => list.filter(x => x.r.state === st).length;
     return `<h1 style="margin:0 0 12px">Statistiques</h1>__TABS__
       ${!hourCost() ? '<div class="notice">Renseignez votre <b>coût horaire</b> dans la carte « Rentabilité » d’un devis pour compter la main-d’œuvre.</div>' : ''}
-      <div class="stats" style="margin-bottom:16px"><div class="stat"><div class="n">${money(m)}</div><div class="l">Marge nette des devis suivis (${ht > 0 ? (m / ht * 100).toFixed(0) : 0} %)</div></div>
-        <div class="stat"><div class="n">${hFmt(h)}</div><div class="l">Temps passé</div></div>
-        <div class="stat"><div class="n">${h > 0 ? money(ht / h) + ' / h' : '—'}</div><div class="l">Taux horaire moyen${h > 0 ? ` · ${money((ht - sum('mat') - sum('fees')) / h)} / h après fournitures` : ''}</div></div>
-        <div class="stat"><div class="n">${nb('ok')} / ${tracked.length}</div><div class="l">Devis suivis rentables${nb('loss') ? ` · ${nb('loss')} à perte` : ''}${nb('todo') ? ` · ${nb('todo')} sans temps saisi` : ''}</div></div></div>
-      <div class="card">${list.length ? `<table class="list"><thead><tr><th>Devis</th><th>Client</th><th class="right">HT</th><th class="right">Temps</th><th class="right">Marge</th><th class="right">Taux horaire</th><th></th></tr></thead><tbody>
-        ${list.map(({ q, r }) => `<tr><td><a href="#" data-act="pf-open" data-id="${q.id}"><b>${esc(q.number)}</b></a><div class="muted" style="font-size:.78rem">${esc((q.title || '').slice(0, 60))}</div></td><td>${esc((q.clientText || '').split('\n')[0])}</td>
-          <td class="right">${money(r.ht)}</td><td class="right">${r.hours ? hFmt(r.hours) : '—'}${r.planned ? `<div class="muted" style="font-size:.75rem">prévu ${hFmt(r.planned)}</div>` : ''}</td>
-          <td class="right">${r.state === 'todo' ? '—' : `<b>${money(r.margin)}</b><div class="muted" style="font-size:.75rem">${r.ht > 0 ? r.pct.toFixed(0) + ' %' : ''}</div>`}</td><td class="right">${r.hours ? `<b>${money(r.rate)}</b><div class="muted" style="font-size:.75rem">net ${money(r.perHour)}</div>` : '—'}</td>
-          <td class="right"><span class="pf-badge ${VERDICT[r.state][0]}">${VERDICT[r.state][1]}</span></td></tr>`).join('')}</tbody></table>`
+      ${(() => { const net = h > 0 ? (ht - sum('mat') - sum('fees')) / h : 0, rate = h > 0 ? ht / h : 0;
+        const card = (n, l, sub) => `<div class="stat pf-stat"><div class="l">${l}</div><div class="n">${n}</div>${sub ? `<div class="pf-sub">${sub}</div>` : ''}</div>`;
+        return `<div class="stats pf-stats">
+          ${card(money(m), 'Marge nette', ht > 0 ? `${(m / ht * 100).toFixed(0)} % du chiffre d’affaires suivi` : '')}
+          ${card(hFmt(h), 'Temps passé', tracked.length ? `sur ${tracked.length} devis suivi${tracked.length > 1 ? 's' : ''}` : '')}
+          ${card(h > 0 ? money(rate) + '<small> / h</small>' : '—', 'Taux horaire moyen', h > 0 && Math.abs(net - rate) > 0.005 ? `${money(net)} / h après fournitures et frais` : h > 0 ? 'aucune fourniture ni frais déduits' : '')}
+          ${card(`${nb('ok')}<small> / ${tracked.length}</small>`, 'Devis rentables', [nb('low') && `${nb('low')} peu rentable${nb('low') > 1 ? 's' : ''}`, nb('loss') && `${nb('loss')} à perte`, nb('todo') && `${nb('todo')} sans temps saisi`].filter(Boolean).join(' · '))}
+        </div>`; })()}
+      <div class="card pf-table">${list.length ? `<table class="list"><colgroup><col style="width:34%"><col style="width:13%"><col style="width:12%"><col style="width:13%"><col style="width:14%"><col style="width:14%"></colgroup>
+        <thead><tr><th>Devis</th><th class="right">Montant HT</th><th class="right">Temps</th><th class="right">Marge</th><th class="right">Taux horaire</th><th class="right">Verdict</th></tr></thead><tbody>
+        ${list.map(({ q, r }) => { const client = (q.clientText || '').split('\n')[0], todo = r.state === 'todo';
+          return `<tr><td><a href="#" data-act="pf-open" data-id="${q.id}" class="pf-num">${esc(q.number)}</a>
+              <div class="pf-meta">${[client && esc(client), q.title && esc(q.title.slice(0, 60))].filter(Boolean).join(' · ') || '&nbsp;'}</div></td>
+            <td class="right num"><b>${money(r.ht)}</b><div class="pf-meta">&nbsp;</div></td>
+            <td class="right num"><b>${r.hours ? hFmt(r.hours) : '—'}</b><div class="pf-meta">${r.planned ? `prévu ${hFmt(r.planned)}` : '&nbsp;'}</div></td>
+            <td class="right num"><b>${todo ? '—' : money(r.margin)}</b><div class="pf-meta">${!todo && r.ht > 0 ? r.pct.toFixed(0) + ' %' : '&nbsp;'}</div></td>
+            <td class="right num"><b>${r.hours ? money(r.rate) + ' / h' : '—'}</b><div class="pf-meta">${r.hours && Math.abs(r.perHour - r.rate) > 0.005 ? `net ${money(r.perHour)} / h` : '&nbsp;'}</div></td>
+            <td class="right"><span class="pf-badge ${VERDICT[r.state][0]}">${VERDICT[r.state][1]}</span></td></tr>`; }).join('')}</tbody></table>`
         : '<div class="empty">Aucun devis suivi pour le moment. Ouvrez un devis et utilisez la carte « Rentabilité » (chrono, achats).</div>'}</div>`;
   }
   const baseStats = EXTRA.stats;
