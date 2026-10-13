@@ -79,18 +79,18 @@
     const linesHt = (base.lines || []).filter(l => l.t === 'item').reduce((s, l) => s + num(l.qty) * num(l.price), 0);
     const share = linesHt > 0 ? Math.min(1, totals(q).ht / (src ? totals(src).ht || linesHt : linesHt)) : 0;
     const real = src && src.profit ? src.profit.costs.filter(c => c.kind === 'mat').reduce((s, c) => s + num(c.amount), 0) : 0;
-    let est = real;
+    let est = real, atPrice = 0;
     if (!real) (base.lines || []).filter(l => l.t === 'item').forEach(l => {
       const c = db.catalog.find(x => (l.ref && x.ref && x.ref === l.ref) || (fold(x.desc) && fold(x.desc) === fold(l.desc)));
       const k = c && typeof itemCost === 'function' ? itemCost(c) : 0;
       if (k > 0) est += k * num(l.qty) * (micro ? 1.2 : 1);                         // prix d'achat connu (catalogue)
-      else if (lineNature(l) === 'vente') est += num(l.qty) * num(l.price);   // vente sans prix d'achat : déduite au montant facturé
+      else if (lineNature(l) === 'vente') atPrice += num(l.qty) * num(l.price);     // vente sans prix d'achat : déduite au montant facturé
     });
     if (real) est = real * (micro ? 1.2 : 1);
     // les matériaux suivent la répartition des ventes (priorité aux premières factures)
     let k = share;
     if (src) { const a = quoteAlloc(src)[q.id]; if (a && a.totalV > 0.005) k = Math.min(1, a.venteTtc / a.totalV); }
-    return est * k;   // micro : prix d'achat majoré de 20 % de TVA non récupérée
+    return { known: est * k, atPrice: atPrice * k };   // micro : prix d'achat majoré de 20 % de TVA non récupérée
   }
 
   function figures(p) {
@@ -107,12 +107,15 @@
     const vatDue = micro ? 0 : r2(vatOut - chVat);
     const recHt = micro ? R.ttc : R.ht;
     // matériaux : on ne compte que ce qui n'est pas déjà saisi en charges « achats de matériaux / marchandises »
-    const matEst = r2(R.cashed.reduce((s, q) => s + invoiceMatCost(q, micro), 0));
+    // part vente déduite au montant facturé : moins les cotisations déjà comptées dessus (sinon elles seraient retirées deux fois)
+    const mc = R.cashed.map(q => invoiceMatCost(q, micro));
+    const matEst = r2(mc.reduce((s, x) => s + x.known + x.atPrice * (micro ? 1 - rateV / 100 : 1), 0));
+    const atPrice = r2(mc.reduce((s, x) => s + x.atPrice, 0)), atCot = micro ? r2(atPrice * rateV / 100) : 0;
     const matCharged = r2(E.filter(e => MAT_CATS.includes(e.cat)).reduce((s, e) => s + num(micro ? e.ttc : e.ht), 0));
     const mat = r2(Math.max(0, matEst - matCharged));
     const result = r2(recHt - (micro ? chTtc : chHt) - mat - cotis);
     const cash = r2(R.ttc - chTtc - mat - Math.max(0, vatDue) - cotis);
-    return { R, E, chHt, chTtc, chVat, matEst, matCharged, mat, micro, act, sAct, rate: total, rateV, rateS, cotisV, cotisS, cotis, vatOut, vatDue, recHt, result, cash };
+    return { R, E, chHt, chTtc, chVat, matEst, matCharged, mat, atPrice, atCot, micro, act, sAct, rate: total, rateV, rateS, cotisV, cotisS, cotis, vatOut, vatDue, recHt, result, cash };
   }
 
   /* ---------- Affichage ---------- */
@@ -172,7 +175,7 @@
     <div class="stats">
       ${card(money(F.R.ttc), `Recettes encaissées (${F.R.cashed.length})`, (F.R.venteTtc > 0.005 && F.R.serviceTtc > 0.005) || F.R.venteTtc > 0.005 ? `Ventes ${money(F.micro ? F.R.venteTtc : F.R.venteHt)} · Services ${money(F.micro ? F.R.serviceTtc : F.R.serviceHt)}${F.micro ? '' : ' (HT)'}` : F.micro ? 'Prestations de services' : `dont ${money(F.R.ht)} HT`, cmp(F.R.ttc, PF.R.ttc, 'vs période préc.'))}
       ${card(money(F.micro ? F.chTtc : F.chHt), `Charges${F.micro ? '' : ' HT'} (${F.E.length})`, F.micro ? 'Dépenses de la période' : `dont ${money(F.chVat)} de TVA déductible`, cmp(F.micro ? F.chTtc : F.chHt, F.micro ? PF.chTtc : PF.chHt, 'vs période préc.', false))}
-      ${card(`<span style="color:${F.result < 0 ? 'var(--danger)' : 'inherit'}">${money(F.result)}</span>`, F.micro ? 'Reste après charges, matériaux et cotisations' : 'Résultat avant impôt', (F.micro ? 'Recettes − charges' : 'Recettes HT − charges HT') + (F.matEst > 0.005 ? ` − matériaux / part vente ${money(F.mat)}${F.matCharged > 0.005 ? ` (${money(F.matEst)}, dont ${money(F.matCharged)} déjà en charges)` : ''}` : '') + (F.micro ? ' − cotisations estimées' : ''), cmp(F.result, PF.result, 'vs période préc.'))}
+      ${card(`<span style="color:${F.result < 0 ? 'var(--danger)' : 'inherit'}">${money(F.result)}</span>`, F.micro ? 'Reste après charges, matériaux et cotisations' : 'Résultat avant impôt', (F.micro ? 'Recettes − charges' : 'Recettes HT − charges HT') + (F.matEst > 0.005 ? ` − matériaux / part vente ${money(F.mat)}${F.atCot > 0.005 ? ` (ventes ${money(F.atPrice)} − ${money(F.atCot)} de cotisations déjà comptées)` : ''}${F.matCharged > 0.005 ? ` (dont ${money(F.matCharged)} déjà en charges)` : ''}` : '') + (F.micro ? ' − cotisations estimées' : ''), cmp(F.result, PF.result, 'vs période préc.'))}
       ${F.micro ? card(money(F.cotis), 'Cotisations URSSAF estimées', [F.R.venteTtc > 0.005 && `${fmtNum.format(F.rateV)} % des ventes (${money(F.cotisV)})`, (F.R.serviceTtc > 0.005 || !(F.R.venteTtc > 0.005)) && `${fmtNum.format(F.rateS)} % des services (${money(F.cotisS)})`].filter(Boolean).join(' + ') + (c.vl ? ' — avec versement libératoire' : ''))
         : card(`<span style="color:${F.vatDue < 0 ? 'var(--ok)' : 'inherit'}">${money(Math.abs(F.vatDue))}</span>`, F.vatDue < 0 ? 'Crédit de TVA' : 'TVA à reverser', `Collectée ${money(F.vatOut)} − déductible ${money(F.chVat)}${db.company.vatDebits ? ' (sur les débits)' : ' (sur les encaissements)'}`)}
     </div>
