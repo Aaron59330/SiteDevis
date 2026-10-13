@@ -81,6 +81,7 @@
     save(); $('#modal').close(); ui.pick = {}; render();
     toast(`${ns} fournisseur${ns > 1 ? 's' : ''}${ui.items ? ` et ${ni} matériaux` : ''} ajouté${ns > 1 || ni > 1 ? 's' : ''}`);
   }
+  window.SUPPLIER_LIB = { S, BY, BY_SECTOR };
   window.supplierPackModal = () => { ui.trade = null; ui.pick = {}; packModal(); };
   Object.assign(actions, { 'mat-demo'() { window.supplierPackModal(); }, 'pack-add': packAdd });
 })();
