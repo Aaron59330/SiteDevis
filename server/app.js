@@ -9,6 +9,7 @@ const importer = require('./importer');
 const stores = require('./stores');
 const vision = require('./vision');
 const facturx = require('./facturx');
+const { zip } = require('./zip');
 const storefetch = require('./storefetch');
 const storefetchLookup = (...a) => storefetch.lookup(...a);
 let importFreeOk = false; importer.available().then(v => { importFreeOk = v; });
@@ -179,7 +180,7 @@ async function handle(req, res, url) {
       if (origin && new URL(origin).host !== req.headers.host) throw err(403, 'Origine refusée.');
     }
     if (req.method !== 'GET' && req.method !== 'HEAD') {
-      ctx.raw = await readBody(req, url.pathname === '/api/data' ? 12e6 : url.pathname === '/api/pdf' || url.pathname === '/api/facturx' ? 7e6 : url.pathname === '/api/send-document' ? 7e6 : url.pathname === '/api/import/pdf' ? 12e6 : url.pathname === '/api/import/photo' ? 22e6 : 1e6);
+      ctx.raw = await readBody(req, url.pathname === '/api/data' ? 12e6 : url.pathname === '/api/pdf' || url.pathname === '/api/facturx' ? 7e6 : url.pathname === '/api/send-document' ? 7e6 : url.pathname === '/api/pdf/batch' ? 40e6 : url.pathname === '/api/import/pdf' ? 12e6 : url.pathname === '/api/import/photo' ? 22e6 : 1e6);
       if (r.auth !== 'webhook' && ctx.raw) { try { ctx.body = JSON.parse(ctx.raw); } catch (e) { throw err(400, 'JSON invalide.'); } }
     }
     if (r.auth !== 'none' && r.auth !== 'webhook') {
@@ -188,6 +189,7 @@ async function handle(req, res, url) {
       if (r.auth === 'admin' && ctx.user.role !== 'admin') throw err(403, 'Accès réservé aux administrateurs.');
     }
     const out = await r.fn(ctx);
+    if (out && Buffer.isBuffer(out.zipFile)) return send(200, { 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="${out.filename}"`, 'Cache-Control': 'no-store' }, out.zipFile);
     if (out && Buffer.isBuffer(out.pdfFile)) return send(200, { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="${out.filename}"`, 'Cache-Control': 'no-store' }, out.pdfFile);
     const h = { 'Cache-Control': 'no-store' };
     if (ctx.setCookie) h['Set-Cookie'] = ctx.setCookie;
@@ -334,6 +336,30 @@ route('POST', '/api/facturx', 'user', async ctx => {
   try { buf = await pdf.toPdf({ html: b.html, label: str(b.label, 80), date: str(b.date, 60), accent: str(b.accent, 7) }); buf = await facturx.make(buf, b.xml, { title: str(b.title, 120), author: str(b.author, 120) }); }
   catch (e) { console.error('Factur-X :', e.message); throw err(502, 'Impossible de créer la facture électronique pour le moment.'); }
   return { pdfFile: buf, filename: name + '-facturx.pdf' };
+});
+
+/* ---------- Téléchargement groupé : tous les devis ou factures d'un mois dans une archive ZIP ---------- */
+route('POST', '/api/pdf/batch', 'user', async ctx => {
+  if (!pdf.available()) throw err(501, 'La création de PDF n\'est pas disponible sur ce serveur.');
+  if (!access(ctx.user).active) throw err(402, 'Un abonnement actif est nécessaire.', { code: 'payment_required' });
+  const b = ctx.body || {}, docs = Array.isArray(b.docs) ? b.docs : [];
+  if (!docs.length || docs.length > 60) throw err(400, 'Entre 1 et 60 documents par archive.');
+  limit('batch:' + ctx.user.id, 10, 3600e3); limit('pdf:' + ctx.user.id, 400, 3600e3);
+  const files = [], used = new Set();
+  for (const d of docs) {
+    if (!d || typeof d.html !== 'string' || d.html.length < 50 || d.html.length > 5.5e6) throw err(400, 'Document invalide.');
+    let name = String(d.filename || 'document').replace(/[^\w.\- ]+/g, '').trim().slice(0, 80) || 'document', n = name, i = 2;
+    while (used.has(n)) n = name + '-' + i++; used.add(n);
+    let buf;
+    try {
+      buf = await pdf.toPdf({ html: d.html, label: str(d.label, 80), date: str(d.date, 60), accent: str(d.accent, 7) });
+      if (d.xml && facturx.available() && facturx.checkXml(d.xml)) buf = await facturx.make(buf, d.xml, { title: str(d.label, 120), author: str(d.author, 120) });
+    } catch (e) { console.error('PDF groupé :', e.message); throw err(502, 'Impossible de créer les PDF pour le moment.'); }
+    files.push({ name: n + '.pdf', data: buf });
+  }
+  if (typeof b.csv === 'string' && b.csv.length < 2e6) files.push({ name: 'recapitulatif.csv', data: Buffer.from(b.csv, 'utf8') });
+  const zipName = String(b.name || 'documents').replace(/[^\w.\- ]+/g, '').trim().slice(0, 80) || 'documents';
+  return { zipFile: zip(files), filename: zipName + '.zip' };
 });
 
 /* ---------- Téléchargement PDF du devis ou de la facture ---------- */

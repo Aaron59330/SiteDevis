@@ -3,21 +3,25 @@
    Une facture est un document au même format qu'un devis (db.quotes, kind = 'facture'),
    ce qui permet de réutiliser l'éditeur, l'aperçu et l'impression PDF. */
 
-const invFilter = { q: '', status: '', quote: '' };
+const invFilter = { q: '', status: '', quote: '', month: '' };
 const INV_LABEL = { ...INV_STATUS, retard: 'En retard' };
 const invState = q => (q.status === 'envoye' && q.dueDate && q.dueDate < today() ? 'retard' : q.status);
 const invoices = () => db.quotes.filter(isInv);
 
+/* Factures affichées selon la recherche, l'état, le devis et le mois */
+function invList() {
+  return invoices().filter(q => {
+    const c = getClient(q.clientId);
+    const hay = `${q.number} ${q.title} ${c ? c.name : ''} ${q.fromNumber || ''}`.toLowerCase();
+    return (!invFilter.q || hay.includes(invFilter.q.toLowerCase())) && (!invFilter.status || invState(q) === invFilter.status) && (!invFilter.quote || q.fromQuoteId === invFilter.quote) && (!invFilter.month || (q.date || '').slice(0, 7) === invFilter.month);
+  }).sort((a, b) => (b.date + b.number).localeCompare(a.date + a.number));
+}
 EXTRA.invoices = function renderInvoices() {
   const all = invoices();
   const sumDue = l => l.reduce((s, q) => s + totals(q).due, 0);
   const pending = all.filter(q => q.status === 'envoye'), late = all.filter(q => invState(q) === 'retard');
   const paid = all.filter(q => q.status === 'payee');
-  const list = all.filter(q => {
-    const c = getClient(q.clientId);
-    const hay = `${q.number} ${q.title} ${c ? c.name : ''} ${q.fromNumber || ''}`.toLowerCase();
-    return (!invFilter.q || hay.includes(invFilter.q.toLowerCase())) && (!invFilter.status || invState(q) === invFilter.status) && (!invFilter.quote || q.fromQuoteId === invFilter.quote);
-  }).sort((a, b) => (b.date + b.number).localeCompare(a.date + a.number));
+  const list = invList();
 
   return `
   <div class="row between" style="margin-bottom:16px">
@@ -36,6 +40,8 @@ EXTRA.invoices = function renderInvoices() {
       <select id="invStatus" style="width:180px"><option value="">Tous les statuts</option>
         ${Object.entries(INV_LABEL).map(([k, v]) => `<option value="${k}" ${invFilter.status === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
       <select id="invQuote" style="width:230px"><option value="">Tous les devis</option>${db.quotes.filter(d => !isInv(d) && all.some(i => i.fromQuoteId === d.id)).map(d => `<option value="${d.id}" ${invFilter.quote === d.id ? 'selected' : ''}>${esc(d.number)}${d.title ? ' — ' + esc(d.title.slice(0, 28)) : ''}</option>`).join('')}</select>
+      <select id="invMonth" style="width:190px" title="Factures créées pendant ce mois"><option value="">Tous les mois</option>${docMonths(all).map(m => `<option value="${m}" ${invFilter.month === m ? 'selected' : ''}>${ymLabel(m).replace(/^./, c => c.toUpperCase())}</option>`).join('')}</select>
+      ${list.length ? `<button class="btn" data-act="bulk-dl" data-kind="facture" title="Télécharge toutes les factures affichées en PDF, dans une archive ZIP">⬇ Tout télécharger (${list.length})</button>` : ''}
     </div>
     ${list.length ? `<table class="list">
       <thead><tr><th>Numéro</th><th>Client</th><th>Devis</th><th>Émise le</th><th>Échéance</th><th>Statut</th><th class="right">Total TTC</th><th class="right">Reste dû</th><th></th></tr></thead>
@@ -155,7 +161,7 @@ document.addEventListener('input', e => {
     const s = $('#invSearch'); s.focus(); s.setSelectionRange(pos, pos);
   }, 200);
 });
-document.addEventListener('change', e => { if (e.target.id === 'invStatus') { invFilter.status = e.target.value; render(); } if (e.target.id === 'invQuote') { invFilter.quote = e.target.value; render(); } });
+document.addEventListener('change', e => { if (e.target.id === 'invStatus') { invFilter.status = e.target.value; render(); } if (e.target.id === 'invQuote') { invFilter.quote = e.target.value; render(); } if (e.target.id === 'invMonth') { invFilter.month = e.target.value; render(); } });
 
 /* ---------- Factures reliées à un devis : bouton, badge et fenêtre de suivi ---------- */
 const linkedInvoices = q => db.quotes.filter(i => isInv(i) && i.fromQuoteId === q.id).sort((a, b) => (a.date + a.number).localeCompare(b.date + b.number));

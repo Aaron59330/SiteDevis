@@ -34,7 +34,7 @@ let view = 'quotes';
 let editingId = null;
 let wide = false;
 let pane = 'form';
-let filter = { q: '', status: '' };
+let filter = { q: '', status: '', month: '' };
 
 function normalize(raw) {
   const d = defaults();
@@ -242,12 +242,20 @@ function updatePrintStyle(clear) {
 function renderQuotes() {
   const all = db.quotes.filter(q => !isInv(q));
   const sum = st => all.filter(q => q.status === st).reduce((s, q) => s + totals(q).ttc, 0);
-  const list = all.filter(q => {
+  const list = quoteList();
+  return renderQuotesWith(all, sum, list);
+}
+/* Devis affichés selon la recherche, le statut et le mois */
+function quoteList() {
+  return db.quotes.filter(q => !isInv(q)).filter(q => {
     const c = getClient(q.clientId);
     const hay = `${q.number} ${q.title} ${c ? c.name : ''}`.toLowerCase();
-    return (!filter.q || hay.includes(filter.q.toLowerCase())) && (!filter.status || q.status === filter.status);
+    return (!filter.q || hay.includes(filter.q.toLowerCase())) && (!filter.status || q.status === filter.status) && (!filter.month || (q.date || '').slice(0, 7) === filter.month);
   }).sort((a, b) => (b.date + b.number).localeCompare(a.date + a.number));
-
+}
+/* Mois présents dans une liste de documents (du plus récent au plus ancien) */
+const docMonths = l => [...new Set(l.map(q => (q.date || '').slice(0, 7)).filter(Boolean))].sort().reverse();
+function renderQuotesWith(all, sum, list) {
   return `
   <div class="row between" style="margin-bottom:16px">
     <h1>Mes devis</h1>
@@ -267,7 +275,10 @@ function renderQuotes() {
         <option value="">Tous les statuts</option>
         ${Object.entries(STATUS).map(([k, v]) => `<option value="${k}" ${filter.status === k ? 'selected' : ''}>${v}</option>`).join('')}
       </select>
+      <select id="quoteMonth" style="width:190px" title="Devis créés pendant ce mois"><option value="">Tous les mois</option>${docMonths(all).map(m => `<option value="${m}" ${filter.month === m ? 'selected' : ''}>${ymLabel(m).replace(/^./, c => c.toUpperCase())}</option>`).join('')}</select>
+      ${list.length ? `<button class="btn" data-act="bulk-dl" data-kind="devis" title="Télécharge tous les devis affichés en PDF, dans une archive ZIP">⬇ Tout télécharger (${list.length})</button>` : ''}
     </div>
+    ${filter.month ? `<p class="muted" style="margin:-4px 0 12px;font-size:.88rem"><b>${list.length}</b> devis en ${ymLabel(filter.month)} · total <b>${money(list.reduce((s, q) => s + totals(q).ttc, 0))}</b> TTC</p>` : ''}
     ${list.length ? `<table class="list">
       <thead><tr><th>Numéro</th><th>Client</th><th>Objet</th><th>Date</th><th>Statut</th><th class="right">Total TTC</th><th></th></tr></thead>
       <tbody>${list.map(q => {
@@ -963,6 +974,7 @@ document.addEventListener('input', e => {
   const t = e.target;
   if (t.id === 'search') { filter.q = t.value; const pos = t.selectionStart; render(); const s = $('#search'); s.focus(); s.setSelectionRange(pos, pos); return; }
   if (t.id === 'statusFilter') { filter.status = t.value; render(); return; }
+  if (t.id === 'quoteMonth') { filter.month = t.value; render(); return; }
   if (t.tagName === 'TEXTAREA' && (t.dataset.l === 'desc' || t.classList.contains('auto'))) { t.style.height = 'auto'; t.style.height = Math.max(34, t.scrollHeight + 2) + 'px'; }
 
   if (view === 'editor') {
