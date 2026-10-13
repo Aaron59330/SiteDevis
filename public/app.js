@@ -25,7 +25,8 @@ const defaults = () => ({
   suppliers: [],
   sites: [],
   catalog: [],
-  quotes: []
+  quotes: [],
+  expenses: []
 });
 
 let db = defaults();
@@ -44,7 +45,7 @@ function normalize(raw) {
   if (!c.bank && c.iban) c.bank = 'IBAN : ' + c.iban;
   if (!c.accent || c.accent === '#26323f') c.accent = '#263238';
   const out = { ...d, ...raw, company: { ...d.company, ...c }, settings: { ...d.settings, ...s } };
-  out.clients = out.clients || []; out.catalog = out.catalog || []; out.suppliers = out.suppliers || []; out.sites = (out.sites || []).map(normSite);
+  out.clients = out.clients || []; out.catalog = out.catalog || []; out.suppliers = out.suppliers || []; out.sites = (out.sites || []).map(normSite); out.expenses = Array.isArray(out.expenses) ? out.expenses : [];
   out.quotes = (out.quotes || []).map(q => normQuote(q, out));
   return out;
 }

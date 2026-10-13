@@ -775,3 +775,10 @@ a:not(.btn) { text-underline-offset: 3px; transition: color .15s, text-decoratio
 .link-card b { font-size: .95rem; } .link-card b span { color: var(--muted); font-weight: 400; }
 .link-card span { color: var(--muted); font-size: .84rem; line-height: 1.4; }
 .link-card i { font-style: normal; font-size: .76rem; color: var(--muted); opacity: .8; margin-top: 2px; }
+
+/* ===== Comptabilité ===== */
+.cat-bar { margin: 0 0 12px; } .cat-bar .row { font-size: .88rem; margin-bottom: 5px; gap: 10px; } .cat-bar b i { font-style: normal; font-weight: 500; color: var(--muted); margin-left: 6px; }
+.cb { height: 8px; border-radius: 999px; background: var(--input); overflow: hidden; } .cb i { display: block; height: 100%; border-radius: 999px; background: var(--accent); }
+.dl-row { display: flex; gap: 14px; padding: 8px 0; border-top: 1px solid var(--line); font-size: .88rem; } .dl-row b { min-width: 92px; } .dl-row span { color: var(--muted); }
+.chart .b-rec { fill: var(--accent); opacity: .85; } .chart .b-ch { fill: var(--muted); opacity: .45; } .chart .l-res { stroke: var(--ok); stroke-width: 2; } .chart .d-res { fill: var(--ok); }
+.lg.rec { background: var(--accent); } .lg.ch { background: var(--muted); opacity: .5; } .lg.res { background: var(--ok); border-radius: 50% !important; }
