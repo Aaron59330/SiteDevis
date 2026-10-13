@@ -30,7 +30,7 @@ function renderAuth(mode, opts = {}) {
         <div class="field"><label>Confirmation</label><input type="password" name="password2" autocomplete="new-password" required></div>
       </div>
       <p class="muted" style="margin:-4px 0 12px;font-size:.8rem">8 caractères minimum, avec des lettres et des chiffres.</p>
-      <label class="check"><input type="checkbox" name="terms" required> J'accepte les conditions d'utilisation et la politique de confidentialité.</label>
+      <label class="check"><input type="checkbox" name="terms" required> J'accepte les <a href="#/cgv" target="_blank" rel="noopener">conditions générales de vente et d'utilisation</a> et la <a href="#/confidentialite" target="_blank" rel="noopener">politique de confidentialité</a>.</label>
       <div class="form-err" hidden></div>
       <button class="btn primary block">Créer mon compte</button>
     </form>
@@ -145,12 +145,14 @@ function renderAuth(mode, opts = {}) {
           <div class="ask-foot"><span class="form-err" hidden></span><button class="ld-btn main" type="submit">Envoyer ma question</button></div>
         </form>
       </section>
+      ${window.legalSections ? legalSections() : ''}
       <div class="ld-next" data-page-cta>
         <b>Prêt à faire votre premier devis ?</b>
         <div class="row">${cfg.registrationOpen ? '<button type="button" class="ld-btn main" data-act="auth-go" data-mode="register">Créer un compte</button>' : ''}<button type="button" class="ld-btn ghost" data-act="auth-open">Se connecter</button></div>
       </div>
       <p class="docs-empty" id="docsEmpty" hidden>Aucun résultat. Essayez un autre mot, par exemple « facture » ou « PDF ».</p>
     </div>
+    ${window.legalFooter ? legalFooter() : ''}
     <div class="ld-modal" id="authModal" ${open ? '' : 'hidden'} role="dialog" aria-modal="true" aria-label="Connexion">
       <section class="auth-card ld-card"><button type="button" class="ld-x" data-act="auth-close" aria-label="Fermer">×</button><div class="brand big auth-brand-m" style="display:flex">${brandHtml(cfg.siteName)}</div>${card}</section>
     </div>
@@ -213,12 +215,13 @@ function initDocs() {
     const page = known ? pg : '';
     if (q.value) { q.value = ''; q.dispatchEvent(new Event('input')); }
     document.querySelectorAll('.landing section[data-page]').forEach(sec => { sec.hidden = sec.dataset.page !== page; });
-    const cta = document.querySelector('[data-page-cta]'); if (cta) cta.hidden = !page;
+    const cta = document.querySelector('[data-page-cta]'); if (cta) cta.hidden = !page || (window.LEGAL_PAGES || []).includes(page);
     const ld = document.querySelector('.landing'); if (ld) { ld.classList.toggle('sub', !!page); ld.dataset.pg = page; }
     document.querySelectorAll('.ld-links a[data-page]').forEach(a => a.classList.toggle('on', a.dataset.page === page));
     if (page !== 'video') { const v = document.getElementById('pageVideo'); if (v) v.pause(); }
     const hv = document.getElementById('heroVideo'); if (hv) { if (page) hv.pause(); else if (hv.dataset.ready && !hv.dataset.userPaused) hv.play().catch(() => {}); }
-    document.title = (page ? (document.querySelector(`.ld-links a[data-page="${page}"]`) || {}).textContent + ' · ' : '') + (session.config.siteName || 'OptiDevis');
+    const h = page && (document.querySelector(`.ld-links a[data-page="${page}"]`) || document.querySelector(`#d-${page} h2`));
+    document.title = (h ? h.textContent + ' · ' : '') + (session.config.siteName || 'OptiDevis');
     window.scrollTo({ top: 0 });
   };
   window.addEventListener('hashchange', route);
@@ -319,6 +322,7 @@ function updateTopbar() {
   else if (a.active) pill.innerHTML = `<span class="pill ok"><span class="lg">${a.source === 'trial' ? 'Essai' : '✓ Actif'} jusqu'au ${new Date(a.until).toLocaleDateString('fr-FR')}</span><span class="sh">${a.source === 'trial' ? 'Essai' : '✓ Actif'} · ${new Date(a.until).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' })}</span></span>`;
   else pill.innerHTML = '<button class="pill bad" data-act="goto-billing">Abonnement requis</button>';
   renderBottomNav(u);
+  const af = $('#appFoot'); if (af && window.appLegalFooter) { af.innerHTML = appLegalFooter(); af.hidden = false; }
   const initials = u.name.split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
   $('#userbox').innerHTML = `<button class="avatar" data-act="user-menu" title="${esc(u.email)}">${esc(initials)}</button>
     <div class="pop"><div class="pop-head"><b>${esc(u.name)}</b><span class="muted">${esc(u.email)}</span></div>

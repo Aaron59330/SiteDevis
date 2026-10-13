@@ -209,7 +209,8 @@ async function handle(req, res, url) {
 route('GET', '/api/config', 'none', () => ({
   siteName: db.settings.siteName, registrationOpen: db.settings.registrationOpen, trialDays: db.settings.trialDays,
   mailConfigured: mail.configured(), pdf: pdf.available(), einvoice: pdf.available() && facturx.available(), importFree: importFreeOk, importAi: ai.available() && db.settings.aiEnabled !== false, importPhoto: (ai.available() && db.settings.aiEnabled !== false) || vision.available(), photoKind: ai.available() && db.settings.aiEnabled !== false ? 'claude' : vision.kind(), priceSearch: true, ai: db.settings.aiEnabled !== false, aiKind: ai.available() ? 'claude' : 'free', stripe: !!stripeKey(), simulated: simulatedAllowed(),
-  plans: db.plans.filter(p => p.active)
+  plans: db.plans.filter(p => p.active),
+  legal: { name: db.settings.legalName || '', status: db.settings.legalStatus || '', address: db.settings.legalAddress || '', email: db.settings.supportEmail || '', creator: db.settings.creator || 'Aaron' }
 }));
 
 /* ---------- Recherche de prix en ligne (Google Shopping via SerpApi, clé SERPAPI_KEY) ---------- */
@@ -874,6 +875,7 @@ route('PATCH', '/api/admin/settings', A, ctx => {
   if (b.requireVerification !== undefined) s.requireVerification = !!b.requireVerification;
   if (b.supportEmail !== undefined) s.supportEmail = str(b.supportEmail, 254);
   if (b.aiEnabled !== undefined) s.aiEnabled = !!b.aiEnabled;
+  for (const [k, n] of [['legalName', 120], ['legalStatus', 200], ['legalAddress', 300], ['creator', 60]]) if (b[k] !== undefined) s[k] = str(b[k], n);
   audit(ctx.user, 'réglages modifiés', '', Object.keys(b).join(', ')); store.save();
   return ok({ settings: s });
 });

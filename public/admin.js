@@ -252,6 +252,12 @@ async function adminSettings() {
       <label class="check"><input type="checkbox" name="registrationOpen" ${s.registrationOpen ? 'checked' : ''}> Inscriptions ouvertes</label>
       <label class="check"><input type="checkbox" name="requireVerification" ${s.requireVerification ? 'checked' : ''}> Exiger la confirmation de l'email</label>
       <p class="muted" style="font-size:.8rem">L'essai gratuit est accordé à la confirmation de l'email (une seule fois par compte).</p>
+      <h3 style="margin:18px 0 6px">Informations légales</h3>
+      <p class="muted" style="font-size:.8rem;margin-top:0">Reprises dans les Mentions légales, les CGV et la Politique de confidentialité (pied de page de l'accueil).</p>
+      <div class="field"><label>Éditeur du site (nom ou raison sociale)</label><input name="legalName" value="${esc(s.legalName || '')}" placeholder="Ex : Aaron Dupont, entrepreneur individuel"></div>
+      <div class="field"><label>Statut, SIREN / SIRET, TVA</label><input name="legalStatus" value="${esc(s.legalStatus || '')}" placeholder="Ex : Micro-entreprise — SIRET 123 456 789 00012 — TVA non applicable, art. 293 B du CGI"></div>
+      <div class="field"><label>Adresse</label><input name="legalAddress" value="${esc(s.legalAddress || '')}" placeholder="Ex : 12 rue de la Paix, 59000 Lille"></div>
+      <div class="field"><label>Créateur du site (crédit en pied de page)</label><input name="creator" value="${esc(s.creator || 'Aaron')}"></div>
       <div class="form-err" hidden></div><button class="btn primary">Enregistrer</button></form></div>
     <div class="card"><h2>Intégrations</h2>
       ${st(env.ai, 'Assistant IA (Claude)', env.ai ? `Actif — modèle ${esc(env.aiModel)}, ${env.aiTotal} analyse(s) effectuée(s). Chaque analyse est facturée par Anthropic.` : 'Non configuré : renseignez ANTHROPIC_API_KEY dans .env (et lancez npm install).')}
@@ -263,8 +269,9 @@ async function adminSettings() {
 }
 forms.settings = f => withBusy(f, async () => {
   const r = await api('PATCH', '/api/admin/settings', { siteName: val(f, 'siteName'), trialDays: val(f, 'trialDays'), supportEmail: val(f, 'supportEmail'),
-    registrationOpen: f.elements.registrationOpen.checked, aiEnabled: f.elements.aiEnabled.checked, requireVerification: f.elements.requireVerification.checked });
-  session.config.siteName = r.settings.siteName; session.config.registrationOpen = r.settings.registrationOpen; formMsg(f, 'Réglages enregistrés ✓', true);
+    registrationOpen: f.elements.registrationOpen.checked, aiEnabled: f.elements.aiEnabled.checked, requireVerification: f.elements.requireVerification.checked,
+    legalName: val(f, 'legalName'), legalStatus: val(f, 'legalStatus'), legalAddress: val(f, 'legalAddress'), creator: val(f, 'creator') });
+  session.config.siteName = r.settings.siteName; session.config.registrationOpen = r.settings.registrationOpen; session.config.legal = Object.assign({}, session.config.legal, { name: r.settings.legalName, status: r.settings.legalStatus, address: r.settings.legalAddress, email: r.settings.supportEmail, creator: r.settings.creator || 'Aaron' }); formMsg(f, 'Réglages enregistrés ✓', true);
 });
 
 /* ----- Journal & emails ----- */
