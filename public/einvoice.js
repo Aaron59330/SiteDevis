@@ -200,10 +200,29 @@ function eiCard(q) {
     <div class="row" style="margin-top:12px;flex-wrap:wrap">
       <button class="btn primary" data-act="ei-facturx" ${c.ok && cfg.einvoice ? '' : 'disabled'} title="PDF/A-3 contenant le fichier XML de la facture">⬇ Télécharger le Factur-X</button>
       <button class="btn" data-act="ei-xml" ${c.ok ? '' : 'disabled'} title="Données structurées de la facture (CII, EN 16931)">⬇ XML seul</button>
+      <button class="btn" data-act="ei-pa" title="${paOf() ? 'Ouvrir ' + esc(paOf().name || paOf().url) : 'Choisir la plateforme agréée qui transmettra vos factures'}">↗ ${paOf() ? 'Envoyer sur ' + esc(paOf().name || 'ma plateforme') : 'Envoyer via une plateforme agréée'}</button>
     </div>
+    ${paOf() ? `<p class="muted" style="font-size:.8rem;margin:8px 0 0">Plateforme agréée : <b>${esc(paOf().name || paOf().url)}</b> · <a href="#" data-act="ei-pa-set">changer</a></p>` : ''}
     ${cfg.einvoice ? '' : '<p class="muted" style="font-size:.8rem;margin:8px 0 0">La création du Factur-X n’est pas disponible sur ce serveur (moteur PDF absent) : le XML seul reste téléchargeable.</p>'}
     <p class="muted" style="font-size:.8rem;margin:10px 0 0">À partir de l’obligation d’émission, la facture doit être transmise par une <b>plateforme agréée</b> par l’administration : déposez-y ce fichier Factur-X (ou envoyez-le si votre plateforme le récupère par email).</p>
   </div>`;
+}
+/* Plateforme agréée de l'utilisateur (enregistrée dans Mon entreprise) ; sinon lien vers la liste officielle */
+const PA_LIST = 'https://www.impots.gouv.fr/je-consulte-la-liste-des-plateformes-agreees';
+const paOf = () => { const u = (db.company.paUrl || '').trim(); return /^https?:\/\/\S+$/i.test(u) ? { url: u, name: (db.company.paName || '').trim() } : null; };
+function paModal() {
+  openModal(`<h2 style="margin-top:0">Ma plateforme agréée</h2>
+    <p class="muted" style="margin-top:0">Pour la facture électronique, vos factures sont transmises par une <b>plateforme agréée</b> par l’administration fiscale. Choisissez-en une dans la liste officielle, créez votre compte chez elle, puis enregistrez son adresse ici : le bouton vous y emmènera directement pour déposer le Factur-X.</p>
+    <p><a class="btn" href="${PA_LIST}" target="_blank" rel="noopener">↗ Voir la liste officielle des plateformes agréées (impots.gouv.fr)</a></p>
+    <form id="paForm">
+      <div class="field"><label>Nom de la plateforme</label><input name="name" value="${esc(db.company.paName || '')}" placeholder="Ex : le nom de votre plateforme" autocomplete="off"></div>
+      <div class="field"><label>Adresse de connexion (lien de votre espace)</label><input name="url" inputmode="url" value="${esc(db.company.paUrl || '')}" placeholder="https://…" autocomplete="off"></div>
+      <div class="row" style="justify-content:flex-end;margin-top:14px">${db.company.paUrl ? '<button type="button" class="btn danger" data-act="ei-pa-clear">Retirer</button>' : ''}<button type="button" class="btn" data-act="close-modal">Annuler</button><button class="btn primary">Enregistrer</button></div>
+    </form>`);
+  const f = $('#paForm');
+  f.onsubmit = e => { e.preventDefault(); const el = f.elements; let u = el.url.value.trim(); if (u && !/^https?:\/\//i.test(u)) u = 'https://' + u;
+    if (u && !/^https?:\/\/[^\s.]+\.[^\s]+$/i.test(u)) return toast('Adresse invalide (ex : https://app.maplateforme.fr)');
+    db.company.paUrl = u; db.company.paName = el.name.value.trim(); save(); $('#modal').close(); render(); toast(u ? 'Plateforme enregistrée' : 'Plateforme retirée'); };
 }
 function eiStatusHtml(c) {
   return (c.ok ? '<div class="notice ok" style="margin:6px 0">✓ Prête pour la facture électronique.</div>'
@@ -216,6 +235,9 @@ const fileName = q => `${q.opts.docLabel}-${q.number}`.replace(/[^\w.\- ]+/g, ''
 function saveBlob(blob, name) { const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000); }
 
 Object.assign(actions, {
+  'ei-pa'() { const pa = paOf(); if (pa) { window.open(pa.url, '_blank', 'noopener'); toast('Déposez-y le fichier Factur-X téléchargé'); } else paModal(); },
+  'ei-pa-set'() { paModal(); },
+  'ei-pa-clear'() { db.company.paUrl = ''; db.company.paName = ''; save(); $('#modal').close(); render(); toast('Plateforme retirée'); },
   'ei-xml'() { const q = getQuote(editingId); if (!q) return; const c = eiCheck(q); if (!c.ok) return toast('Complétez d’abord : ' + c.err[0]); saveBlob(new Blob([ciiXml(q)], { type: 'application/xml' }), fileName(q) + '-factur-x.xml'); toast('XML téléchargé'); },
   async 'ei-facturx'(t) {
     const q = getQuote(editingId); if (!q) return; const c = eiCheck(q); if (!c.ok) return toast('Complétez d’abord : ' + c.err[0]);
