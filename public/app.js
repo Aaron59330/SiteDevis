@@ -387,6 +387,7 @@ function renderEditor() {
         </details>
       </div>
       ${typeof eiCard === 'function' ? eiCard(q) : ''}
+      ${typeof profitCard === 'function' ? profitCard(q) : ''}
 
       <div class="card">
         <div class="row between"><h2>Prestations</h2>
