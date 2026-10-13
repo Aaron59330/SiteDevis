@@ -848,8 +848,8 @@ a:not(.btn) { text-underline-offset: 3px; transition: color .15s, text-decoratio
 .ld-home { text-decoration: none; color: var(--text); }
 .ld-links a.on { opacity: 1; }
 .ld-links a.on::after { transform: scaleX(1); }
-.landing section[data-page]:not(#d-intro) { padding-top: 48px; animation: ldPage .35s ease both; }
-.landing section[data-page] + section[data-page]:not(#d-intro) { padding-top: 8px; }
+.landing section[data-page]:not(#d-intro) { animation: ldPage .35s ease both; }
+.landing.sub .ld-main { padding-top: 64px; }
 @keyframes ldPage { from { opacity: 0; transform: translateY(8px); } }
 .ld-video-page { max-width: 1040px !important; }
 .ld-video-page video { width: 100%; border-radius: 14px; background: #000; border: 1px solid var(--line); box-shadow: 0 30px 80px -30px rgba(0,0,0,.7); }
@@ -861,9 +861,21 @@ a:not(.btn) { text-underline-offset: 3px; transition: color .15s, text-decoratio
   .ld-links { display: flex !important; order: 10; flex: 1 0 100% !important; gap: 18px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 4px 16px 6px; }
   .ld-links::-webkit-scrollbar { display: none; }
   .ld-links a { white-space: nowrap; font-size: .88rem; }
-  .landing section[data-page]:not(#d-intro) { padding-top: 24px; }
+  .landing.sub .ld-main { padding-top: 32px; }
 }
 @media (prefers-reduced-motion: reduce) { .landing section[data-page] { animation: none; } }
 @media (max-width: 960px) { .ld-nav-in { column-gap: 10px; } .ld-nav-in .ld-home { margin-right: auto; } }
 @media (max-width: 400px) { .ld-nav-in .ld-login { padding-left: 12px; padding-right: 12px; } }
 .plan-move { justify-content: space-between; align-items: center; margin: -6px 0 10px; font-size: .8rem; }
+/* Boutons d'accueil sans pastille d'icône : texte bien centré */
+.ld-btn { justify-content: center; }
+.ld-btn.main:not(:has(> i)) { padding: 0 26px; }
+@media (max-width: 560px) {
+  .ld-cta { flex-direction: column; align-items: stretch; width: 100%; align-self: stretch; justify-self: stretch; }
+  .ld-cta .ld-btn { width: 100%; }
+  .ld-cta .ld-btn.main { padding-left: 26px; justify-content: center; position: relative; } .ld-cta .ld-btn.main > i { position: absolute; right: 8px; }
+  .hv-bar { left: 8px; right: 8px; bottom: 8px; justify-content: center; flex-wrap: wrap; }
+  .hv-btn { padding: 6px 10px; font-size: .74rem; }
+  .ld-next { flex-direction: column; align-items: stretch; text-align: center; }
+  .ld-next .row { flex-direction: column; } .ld-next .ld-btn { width: 100%; }
+}

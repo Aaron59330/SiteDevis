@@ -77,7 +77,7 @@ function renderAuth(mode, opts = {}) {
       <div class="ld-nav-in">
         <a href="#/" class="brand big ld-home" data-page="" aria-label="Accueil">${brandHtml(cfg.siteName)}</a>
         <nav class="ld-links" aria-label="Pages"><a href="#/" data-page="">Accueil</a><a href="#/fonctionnalites" data-page="fonctionnalites">Fonctionnalités</a>${(cfg.plans || []).length ? '<a href="#/tarifs" data-page="tarifs">Tarifs</a>' : ''}<a href="#/questions" data-page="questions">Questions</a><a href="#/video" data-page="video">Vidéo</a></nav>
-        <label class="docs-search"><span class="ld-ico" aria-hidden="true">${icon('search')}</span><input type="search" id="docsQ" placeholder="Rechercher : facture, PDF, catalogue…" autocomplete="off" aria-label="Rechercher dans la présentation"><kbd>/</kbd></label>
+        <label class="docs-search"><span class="ld-ico" aria-hidden="true">${icon('search')}</span><input type="search" id="docsQ" placeholder="Rechercher…" autocomplete="off" aria-label="Rechercher dans la présentation"><kbd>/</kbd></label>
         <button class="theme-btn" id="themeBtn" title="Mode clair / sombre">🌙</button>
         <button type="button" class="ld-login" data-act="auth-open">${icon('user')}Se connecter</button>
       </div>
@@ -99,7 +99,7 @@ function renderAuth(mode, opts = {}) {
           <div class="hero-video" id="heroVideoBox">
             <video id="heroVideo" muted loop playsinline preload="metadata" poster="/media/optidevis-poster.jpg"></video>
             <div class="hv-bar">
-              <button type="button" class="hv-btn" data-act="hero-play" id="hvPlay" aria-label="Lecture / pause">Pause</button>
+              <button type="button" class="hv-btn" data-act="hero-play" id="hvPlay" aria-label="Lecture / pause">Lecture</button>
               <button type="button" class="hv-btn" data-act="hero-sound" id="hvSound" aria-label="Activer le son">Activer le son</button>
               <button type="button" class="hv-btn" data-act="hero-full" aria-label="Plein écran">Plein écran</button>
             </div>
@@ -151,11 +151,15 @@ function renderAuth(mode, opts = {}) {
 const DOC_FEATURES = [
   [icon('file'), 'Devis professionnels', 'Mise en page soignée, plusieurs pages, TVA multi-taux', 'Lignes libres ou issues du catalogue, remises, acomptes, conditions de paiement et signature. Le devis se met en page automatiquement sur plusieurs pages, avec votre logo et vos mentions légales.'],
   [icon('receipt'), 'Une facture par paiement', 'Chaque échéance a sa facture, reliée au devis', 'Acompte, situation, solde : chaque facture reprend le détail du devis, affiche le montant de l\'échéance et le « reste à payer ». Vous retrouvez toutes les factures liées depuis le devis.'],
-  [icon('download'), 'PDF en un clic', 'Téléchargement direct, sans passer par l\'impression', 'Un vrai fichier PDF, prêt à envoyer à votre client par email ou messagerie.'],
-  [icon('inbox'), 'Import de devis existants', 'Un devis fait ailleurs ? Transférez le PDF', 'Toutes les pages sont lues et le devis est refait à l\'identique dans OptiDevis, que vous pouvez ensuite modifier et facturer.'],
+  [icon('download'), 'PDF en un clic', 'Téléchargement direct, sans passer par l\'impression', 'Un vrai fichier PDF, prêt à envoyer à votre client par email ou messagerie. Téléchargez aussi tous les documents d\'un mois d\'un seul coup.'],
+  [icon('mail'), 'Envoi par email', 'Le devis ou la facture part directement chez votre client', 'Saisissez l\'adresse de votre client : il reçoit le PDF en pièce jointe, et les réponses arrivent dans votre boîte mail.'],
+  [icon('shield'), 'Facture électronique', 'Format Factur-X, prêt pour la réforme', 'Chaque facture peut être produite au format Factur-X (PDF + données XML, norme EN 16931) et déposée sur votre plateforme agréée.'],
+  [icon('inbox'), 'Import de devis existants', 'Un PDF ou une photo d\'un devis papier', 'Toutes les pages sont lues et le devis est refait à l\'identique dans OptiDevis, même à partir d\'une photo d\'un devis écrit à la main. Vous pouvez ensuite le modifier et le facturer.'],
   [icon('layers'), 'Catalogue, matériaux, fournisseurs', 'Vos prix, vos marges, vos références', 'Saisissez une référence fournisseur : le site cherche la fiche exacte et reprend le prix quand elle est trouvée. Marge par fournisseur, prix de vente calculé.'],
   [icon('clipboard'), 'Modèles par métier', 'Bâtiment, commerce, services, conseil, événementiel… un devis de départ', 'Choisissez votre métier : un devis complet et réaliste est créé en un clic, avec ses lignes, ses prix indicatifs et ses conditions. Vous adaptez, et vous pouvez ajouter les prestations à votre catalogue.'],
   [icon('chart'), 'Statistiques', 'CA du mois, facturé, encaissé, impayé', 'Comparaison avec les mois précédents et courbe sur 12 mois, pour savoir où vous en êtes en un coup d\'œil.'],
+  [icon('calc'), 'Comptabilité et bilan', 'Charges, recettes, URSSAF, TVA, bilan annuel', 'Notez vos charges, suivez votre résultat, vos cotisations et votre TVA. Le bilan de l\'année est préparé pour vous, avec où et quand envoyer chaque document.'],
+  [icon('bell'), 'Rappels', 'Factures impayées, devis à relancer, déclarations', 'Une cloche vous rappelle chaque jour ce qui attend : client qui n\'a pas encore payé, devis sans réponse, déclaration URSSAF, CFE… Par notification ou par email si vous le souhaitez.'],
   [icon('hardhat'), 'Chantiers et projets', 'Regroupez devis et factures par chantier ou par projet', 'Optionnel : suivez les heures et rattachez les documents à un chantier, avec un récapitulatif sur le document.'],
   [icon('tool'), 'Boîte à outils', 'Clients par SIRET, correcteur, calculs', 'Les informations de l\'entreprise de votre client se remplissent depuis son SIRET. Un correcteur d\'orthographe gratuit relit vos documents.']
 ];
@@ -163,6 +167,9 @@ const DOC_FAQ = [
   ['Mes clients ont-ils besoin d\'un compte ?', 'Non. Vous créez le document et vous leur envoyez le PDF : ils n\'ont rien à installer.'],
   ['Puis-je modifier le total d\'une facture ?', 'Oui. Vous pouvez ajuster le total d\'une facture sans que le devis ni les autres documents changent.'],
   ['Mes données sont-elles privées ?', 'Chaque compte a ses propres données, protégées par votre mot de passe. Les sauvegardes sont faites chaque jour.'],
+  ['Comment envoyer un devis à mon client ?', 'Depuis le devis, cliquez sur « Envoyer par email » et saisissez son adresse : il reçoit le PDF. Vous pouvez aussi télécharger le PDF et l\'envoyer vous-même.'],
+  ['Suis-je prêt pour la facture électronique ?', 'Oui : chaque facture peut être téléchargée au format Factur-X, accepté par les plateformes agréées. Il vous suffit de la déposer sur la plateforme que vous avez choisie.'],
+  ['Mon métier n\'est pas le bâtiment, est-ce adapté ?', 'Oui. Commerce, services, conseil, événementiel, beauté, transport… le vocabulaire et les modèles s\'adaptent à votre secteur, choisi dans Mon entreprise.'],
   ['Comment fonctionne l\'abonnement ?', 'Vous démarrez par un essai. Le paiement en ligne est sécurisé et vous pouvez l\'arrêter à tout moment depuis la page Abonnement.']
 ];
 
@@ -193,6 +200,7 @@ function initDocs() {
     if (q.value) { q.value = ''; q.dispatchEvent(new Event('input')); }
     document.querySelectorAll('.landing section[data-page]').forEach(sec => { sec.hidden = sec.dataset.page !== page; });
     const cta = document.querySelector('[data-page-cta]'); if (cta) cta.hidden = !page;
+    const ld = document.querySelector('.landing'); if (ld) ld.classList.toggle('sub', !!page);
     document.querySelectorAll('.ld-links a[data-page]').forEach(a => a.classList.toggle('on', a.dataset.page === page));
     if (page !== 'video') { const v = document.getElementById('pageVideo'); if (v) v.pause(); }
     const hv = document.getElementById('heroVideo'); if (hv) { if (page) hv.pause(); else if (hv.dataset.ready && !hv.dataset.userPaused) hv.play().catch(() => {}); }
@@ -353,11 +361,12 @@ function initHeroVideo() {
   const v = document.getElementById('heroVideo'); if (!v) return;
   const conn = navigator.connection || {};
   const wide = window.matchMedia('(min-width: 901px)').matches;
+  // le bouton dit toujours ce qu'il va faire (Lecture quand la vidéo est arrêtée, Pause quand elle tourne)
+  v.onplay = () => { const b = document.getElementById('hvPlay'); if (b) b.textContent = 'Pause'; };
+  v.onpause = () => { const b = document.getElementById('hvPlay'); if (b) b.textContent = 'Lecture'; };
   if (!wide || conn.saveData) { const box = document.getElementById('heroVideoBox'); if (box) box.classList.add('idle'); return; }
   loadHero(v); v.muted = true;
   v.play().catch(() => { document.getElementById('heroVideoBox').classList.add('idle'); });
-  v.onplay = () => { const b = document.getElementById('hvPlay'); if (b) b.textContent = 'Pause'; };
-  v.onpause = () => { const b = document.getElementById('hvPlay'); if (b) b.textContent = 'Lecture'; };
 }
 Object.assign(actions, {
   'hero-play'() { const v = $('#heroVideo'); if (!v) return; loadHero(v); if (v.paused) { delete v.dataset.userPaused; v.play().catch(() => {}); } else { v.dataset.userPaused = '1'; v.pause(); } $('#heroVideoBox').classList.remove('idle'); },
