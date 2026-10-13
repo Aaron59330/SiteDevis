@@ -191,16 +191,23 @@ actions['admin-new-pay'] = async () => {
 
 /* ----- Offres ----- */
 async function adminPlans() {
-  const { plans } = await api('GET', '/api/admin/plans');
+  const [{ plans }, { settings }] = await Promise.all([api('GET', '/api/admin/plans'), api('GET', '/api/admin/settings')]);
   if (!root()) return;
+  const td = Number(settings.trialDays) || 0;
   window._plans = plans;
   root().innerHTML = `<div class="row between" style="margin-bottom:12px"><p class="muted" style="margin:0">Les offres actives sont proposées sur la page d’accueil (Tarifs) et la page Abonnement, <b>dans cet ordre</b> : utilisez ← → pour les déplacer.</p><button class="btn primary" data-act="plan-edit">＋ Nouvelle offre</button></div>
-  <div class="plans">${plans.map((p, i) => `<div class="plan ${p.active ? '' : 'off'} ${planHot(p, plans) ? 'hot' : ''}">${planHot(p, plans) ? `<span class="ribbon">${esc(planRibbon(p, plans))}</span>` : ''}
+  <div class="plans"><div class="plan plan-trial ${td ? '' : 'off'}"><div class="row plan-move"><span class="muted">Toujours en premier</span></div>
+    <h3>Essai gratuit ${td ? '' : '<span class="badge brouillon">Désactivé</span>'}</h3><div class="price">0 €<small> / ${td || 0} jours</small></div>
+    <p class="muted">Donné automatiquement à chaque nouveau compte, dès la confirmation de son email. Affiché en premier sur la page Tarifs de l’accueil.</p>
+    <form id="trialForm" class="row" style="align-items:flex-end;gap:8px"><div class="field" style="margin:0;flex:1"><label>Durée (jours, 0 = pas d’essai)</label><input type="number" name="trialDays" min="0" max="365" value="${td}"></div><button class="btn small primary">Enregistrer</button></form></div>
+  ${plans.map((p, i) => `<div class="plan ${p.active ? '' : 'off'} ${planHot(p, plans) ? 'hot' : ''}">${planHot(p, plans) ? `<span class="ribbon">${esc(planRibbon(p, plans))}</span>` : ''}
     <div class="row plan-move"><button class="btn small" data-act="plan-move" data-id="${p.id}" data-dir="-1" ${i ? '' : 'disabled'} title="Placer avant">←</button><span class="muted">Position ${i + 1}</span><button class="btn small" data-act="plan-move" data-id="${p.id}" data-dir="1" ${i < plans.length - 1 ? '' : 'disabled'} title="Placer après">→</button></div>
     <h3>${esc(p.name)} ${p.active ? '' : '<span class="badge brouillon">Désactivée</span>'}</h3>
     <div class="price">${eur(p.priceCents)}<small> / ${planPer(p)}</small></div><p class="muted">${esc(p.description)}</p>
     <ul>${p.features.map(f => `<li>${esc(f)}</li>`).join('')}</ul>
     <div class="row"><button class="btn small" data-act="plan-edit" data-id="${p.id}">Modifier</button><button class="btn small danger" data-act="plan-del" data-id="${p.id}">Supprimer</button></div></div>`).join('')}</div>`;
+  const tf = $('#trialForm');
+  tf.onsubmit = async e => { e.preventDefault(); try { await api('PATCH', '/api/admin/settings', { trialDays: tf.elements.trialDays.value }); session.config.trialDays = Math.max(0, parseInt(tf.elements.trialDays.value, 10) || 0); toast('Essai gratuit enregistré'); adminLoad(); } catch (err) { toast(err.message); } };
 }
 actions['plan-edit'] = t => {
   const p = (window._plans || []).find(x => x.id === t.dataset.id) || { name: '', priceCents: 990, interval: 'month', description: '', features: [], active: true };
