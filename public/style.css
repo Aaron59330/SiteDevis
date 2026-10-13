@@ -785,3 +785,12 @@ a:not(.btn) { text-underline-offset: 3px; transition: color .15s, text-decoratio
 
 .bilan-prev { background: #fff; color: #111; border-radius: 12px; padding: 22px 24px; max-height: 62vh; overflow: auto; border: 1px solid var(--line); }
 .bilan-prev a { color: #111; }
+
+/* ===== Fournisseurs par défaut ===== */
+.pack-list { display: grid; gap: 8px; }
+.pack-row { display: flex; align-items: center; gap: 14px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--card2); cursor: pointer; margin: 0; }
+.pack-row:hover { border-color: var(--accent); } .pack-row.have { opacity: .6; cursor: default; }
+.pack-row input { width: 18px; height: 18px; flex: none; }
+.pack-row div { flex: 1; min-width: 0; } .pack-row b { font-size: .95rem; }
+.pack-row span:not(.badge) { display: block; color: var(--muted); font-size: .82rem; margin-top: 2px; }
+.pack-row i { font-style: normal; font-size: .76rem; color: var(--muted); } .pack-row em { font-style: normal; font-size: .8rem; color: var(--muted); white-space: nowrap; }

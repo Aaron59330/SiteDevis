@@ -84,11 +84,11 @@ function renderMaterials() {
   const chip = (v, label, n) => `<button class="cchip ${catUI.sup === v ? 'on' : ''}" data-act="sup-filter" data-sup="${esc(v)}">${label} <i>${n}</i></button>`;
   return `
   <div class="row between" style="margin-bottom:8px"><h1>Matériaux</h1>
-    <div class="row"><button class="btn" data-act="mat-demo" title="Ajoute des fournisseurs et matériaux d'exemple">📦 Exemples</button><button class="btn" data-act="mat-export">⬇ Export CSV</button><button class="btn" data-act="mat-import">⬆ Import CSV</button>
+    <div class="row"><button class="btn" data-act="mat-demo" title="Fournisseurs et matériaux proposés selon votre métier">📦 Fournisseurs par défaut</button><button class="btn" data-act="mat-export">⬇ Export CSV</button><button class="btn" data-act="mat-import">⬆ Import CSV</button>
       <button class="btn primary" data-act="new-mat">＋ Matériau</button></div></div>
   <p class="muted" style="margin-top:0">Enregistrez les matériaux de chacun de vos fournisseurs avec <b>leur prix d'achat</b>. Le prix de vente est calculé avec votre marge (réglable par fournisseur ou par matériau).
     Dans un devis : <b>Catalogue, onglet Matériaux</b>, vous choisissez le fournisseur, cherchez le matériau (ex : « gouttière 2 m 80 mm »), indiquez la quantité, et c'est calculé.</p>
-  ${!ss.length ? `<div class="card empty">Commencez par ajouter un fournisseur (ex : votre négoce habituel).<br><br><button class="btn primary" data-act="new-sup">＋ Ajouter un fournisseur</button> <button class="btn" data-act="mat-demo">📦 Charger des exemples</button></div>`
+  ${!ss.length ? `<div class="card empty">Commencez par ajouter un fournisseur (ex : votre négoce habituel).<br><br><button class="btn primary" data-act="new-sup">＋ Ajouter un fournisseur</button> <button class="btn" data-act="mat-demo">📦 Fournisseurs par défaut selon mon métier</button></div>`
   : `<div class="card">
     <div class="chips">${chip('', 'Tous', all.length)}${ss.map(s => chip(s.id, esc(s.name), all.filter(c => c.supplierId === s.id).length)).join('')}</div>
     <input id="catSearch" placeholder="🔍 Rechercher un matériau (ex : gouttière 80 mm)…" style="max-width:420px;margin:14px 0">
@@ -109,7 +109,7 @@ function renderMaterials() {
 function renderSuppliers() {
   const ss = sups();
   return `
-  <div class="row between" style="margin-bottom:8px"><h1>Fournisseurs</h1><button class="btn primary" data-act="new-sup">＋ Fournisseur</button></div>
+  <div class="row between" style="margin-bottom:8px"><h1>Fournisseurs</h1><div class="row"><button class="btn" data-act="mat-demo" title="Fournisseurs et matériaux proposés selon votre métier">📦 Fournisseurs par défaut</button><button class="btn primary" data-act="new-sup">＋ Fournisseur</button></div></div>
   <p class="muted" style="margin-top:0">Vos fournisseurs de matériaux (négoces, grandes surfaces de bricolage, grossistes…) avec leurs coordonnées et votre marge habituelle.</p>
   ${ss.length ? `<div class="sup-grid">${ss.map(s => { const n = db.catalog.filter(c => c.supplierId === s.id).length; return `<div class="card sup">
     <div class="row between"><h3 style="margin:0">${esc(s.name)}</h3><span class="badge brouillon">${n} matériau${n > 1 ? 'x' : ''}</span></div>
@@ -118,7 +118,7 @@ function renderSuppliers() {
     <div class="muted" style="font-size:.85rem">Marge par défaut : <b>${fmtNum.format(num(s.markup))} %</b></div>
     <div class="row"><button class="btn small" data-act="sup-open" data-id="${s.id}">🧱 Matériaux</button><button class="btn small" data-act="new-mat" data-sup="${s.id}">＋ Matériau</button>
       <button class="btn small" data-act="edit-sup" data-id="${s.id}">Modifier</button><button class="btn small danger" data-act="del-sup" data-id="${s.id}">🗑</button></div></div>`; }).join('')}</div>`
-  : '<div class="card empty">Aucun fournisseur.<br><br><button class="btn primary" data-act="new-sup">＋ Ajouter mon premier fournisseur</button></div>'}`;
+  : '<div class="card empty">Aucun fournisseur.<br><br><button class="btn primary" data-act="new-sup">＋ Ajouter mon premier fournisseur</button> <button class="btn" data-act="mat-demo">📦 Fournisseurs par défaut selon mon métier</button></div>'}`;
 }
 
 /* ================= FOURNISSEURS ================= */
