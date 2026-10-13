@@ -36,7 +36,8 @@ async function startApp(me, params) {
   if (p.get('reset')) { mode = 'reset'; token = p.get('reset'); }
   let me = null;
   try { me = await api('GET', '/api/me'); } catch (e) { /* non connecté */ }
-  history.replaceState({}, '', location.pathname);
+  // retire les paramètres (?verified, ?reset…) ; garde la page de l'accueil (#/tarifs…) quand on n'est pas connecté
+  history.replaceState({}, '', location.pathname + (me ? '' : (location.hash.match(/^#\/[\w-]*$/) || [''])[0]));
   if (!me || mode === 'reset') return renderAuth(mode, { banner, token });
   await startApp(me, p);
 })();

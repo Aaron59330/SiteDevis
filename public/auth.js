@@ -116,7 +116,11 @@ function renderAuth(mode, opts = {}) {
       </section>
       <section id="d-features" class="docs-sec" data-doc data-page="fonctionnalites">
         <h2>Fonctionnalités</h2>
-        <div class="docs-grid">${DOC_FEATURES.map(f => `<details class="docs-card" data-doc-item><summary><i class="ld-tile" aria-hidden="true">${f[0]}</i><div><b>${f[1]}</b><span>${f[2]}</span></div></summary><div class="docs-more">${f[3]}</div></details>`).join('')}</div>
+        <p class="muted" style="margin:0">Tout ce qu’il faut pour chiffrer, facturer et suivre votre activité, au même endroit.</p>
+        ${FEATURE_GROUPS.map(([title, idx]) => `<div class="ft-group" data-doc-item>
+          <h3 class="ft-h">${title}</h3>
+          <div class="ft-grid" style="--n:${idx.length}">${idx.map(i => { const f = DOC_FEATURES[i]; return `<div class="ft-card" title="${esc(f[3].replace(/<[^>]+>/g, ''))}"><span class="ft-ic" aria-hidden="true">${f[0]}</span><b>${f[1]}</b><span class="ft-sub">${f[2]}</span></div>`; }).join('')}</div>
+        </div>`).join('')}
       </section>
       <section id="d-trades" class="docs-sec" data-doc data-page="fonctionnalites">
         <h2>Pour tous les métiers</h2>
@@ -163,6 +167,8 @@ const DOC_FEATURES = [
   [icon('hardhat'), 'Chantiers et projets', 'Regroupez devis et factures par chantier ou par projet', 'Optionnel : suivez les heures et rattachez les documents à un chantier, avec un récapitulatif sur le document.'],
   [icon('tool'), 'Boîte à outils', 'Clients par SIRET, correcteur, calculs', 'Les informations de l\'entreprise de votre client se remplissent depuis son SIRET. Un correcteur d\'orthographe gratuit relit vos documents.']
 ];
+/* Fonctionnalités regroupées en 3 familles (indices dans DOC_FEATURES) */
+const FEATURE_GROUPS = [['Créer vos devis', [0, 5, 7, 6]], ['Envoyer et facturer', [1, 2, 3, 4]], ['Piloter votre activité', [8, 9, 10, 11, 12]]];
 const DOC_FAQ = [
   ['Mes clients ont-ils besoin d\'un compte ?', 'Non. Vous créez le document et vous leur envoyez le PDF : ils n\'ont rien à installer.'],
   ['Puis-je modifier le total d\'une facture ?', 'Oui. Vous pouvez ajuster le total d\'une facture sans que le devis ni les autres documents changent.'],
@@ -200,7 +206,7 @@ function initDocs() {
     if (q.value) { q.value = ''; q.dispatchEvent(new Event('input')); }
     document.querySelectorAll('.landing section[data-page]').forEach(sec => { sec.hidden = sec.dataset.page !== page; });
     const cta = document.querySelector('[data-page-cta]'); if (cta) cta.hidden = !page;
-    const ld = document.querySelector('.landing'); if (ld) ld.classList.toggle('sub', !!page);
+    const ld = document.querySelector('.landing'); if (ld) { ld.classList.toggle('sub', !!page); ld.dataset.pg = page; }
     document.querySelectorAll('.ld-links a[data-page]').forEach(a => a.classList.toggle('on', a.dataset.page === page));
     if (page !== 'video') { const v = document.getElementById('pageVideo'); if (v) v.pause(); }
     const hv = document.getElementById('heroVideo'); if (hv) { if (page) hv.pause(); else if (hv.dataset.ready && !hv.dataset.userPaused) hv.play().catch(() => {}); }
