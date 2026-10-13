@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="OptiDevis"><defs>
-<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9a6a1c"/><stop offset=".55" stop-color="#5e3f0f"/><stop offset="1" stop-color="#2b1c07"/></linearGradient>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e2a646"/><stop offset=".55" stop-color="#b9781f"/><stop offset="1" stop-color="#7c4c12"/></linearGradient>
 <radialGradient id="glow" cx=".35" cy=".25" r=".7"><stop offset="0" stop-color="#ffd27a" stop-opacity=".35"/><stop offset="1" stop-color="#ffd27a" stop-opacity="0"/></radialGradient>
 <linearGradient id="wh" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#fbeed6"/></linearGradient>
 <linearGradient id="au" x1="0" y1="0" x2=".4" y2="1"><stop offset="0" stop-color="#ffe2a6"/><stop offset="1" stop-color="#f0b257"/></linearGradient>
@@ -7,5 +7,5 @@
 <rect width="64" height="64" rx="15" fill="url(#bg)"/><rect width="64" height="64" rx="15" fill="url(#glow)"/>
 <rect x=".75" y=".75" width="62.5" height="62.5" rx="14.3" fill="none" stroke="#ffd27a" stroke-opacity=".22" stroke-width="1.5"/>
 <g filter="url(#sh)"><g transform="translate(29 32) skewX(-9) translate(-30.5 -32)" fill="none" stroke="url(#wh)" stroke-width="5.4" stroke-linecap="round" stroke-linejoin="round">
-<path d="M19.5 20.5a9.5 11.5 0 1 0 0.001 0"/><path d="M33.5 20.5v23h4a11.5 11.5 0 0 0 0-23z"/></g><g transform="translate(46 41)"><path d="M1.5 0h6l3.5 3.5V12a1.5 1.5 0 0 1-1.5 1.5h-8A1.5 1.5 0 0 1 0 12V1.5A1.5 1.5 0 0 1 1.5 0z" fill="url(#au)"/>
-<path d="M7.5 0v3.5H11z" fill="#9a6a1c" opacity=".55"/><path d="M2.6 6.6h5.2M2.6 9.4h3.4" stroke="#6a4510" stroke-width="1.1" stroke-linecap="round"/></g></g></svg>
+<path d="M19.5 20.5a9.5 11.5 0 1 0 0.001 0"/><path d="M33.5 20.5v23h4a11.5 11.5 0 0 0 0-23z"/></g><g transform="translate(46 41)"><path d="M1.5 0h6l3.5 3.5V12a1.5 1.5 0 0 1-1.5 1.5h-8A1.5 1.5 0 0 1 0 12V1.5A1.5 1.5 0 0 1 1.5 0z" fill="#fff7e8"/>
+<path d="M7.5 0v3.5H11z" fill="#c98626" opacity=".6"/><path d="M2.6 6.6h5.2M2.6 9.4h3.4" stroke="#b9781f" stroke-width="1.1" stroke-linecap="round"/></g></g></svg>
