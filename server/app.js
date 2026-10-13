@@ -120,7 +120,7 @@ function nextReceipt() {
   db.settings.receiptCounter += 1;
   return `R-${new Date().getFullYear()}-${String(db.settings.receiptCounter).padStart(4, '0')}`;
 }
-const planPeriod = plan => plan ? (plan.interval === 'year' ? { months: 12 } : { months: 1 }) : { days: 30 };
+const planPeriod = plan => plan ? { months: plan.interval === 'year' ? 12 : plan.interval === 'quarter' ? 3 : 1 } : { days: 30 };
 
 function completePayment(p, extra = {}) {
   if (p.status === 'paid') return p;
@@ -701,7 +701,7 @@ route('GET', '/api/admin/stats', A, () => {
   const mrr = activeSubs.reduce((s, u) => {
     const last = db.payments.filter(p => p.userId === u.id && p.status === 'paid').sort((a, b) => b.paidAt.localeCompare(a.paidAt))[0];
     const plan = last && db.plans.find(x => x.id === last.planId);
-    return s + (last ? (plan && plan.interval === 'year' ? last.amountCents / 12 : last.amountCents) : 0);
+    return s + (last ? (plan && plan.interval === 'year' ? last.amountCents / 12 : plan && plan.interval === 'quarter' ? last.amountCents / 3 : last.amountCents) : 0);
   }, 0);
   const months = [];
   for (let i = 5; i >= 0; i--) { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - i); months.push(d.toISOString().slice(0, 7)); }
@@ -838,7 +838,7 @@ const planFrom = (b, base = {}) => {
   const name = str(b.name, 60), price = Math.round(Number(b.price) * 100);
   if (!name) throw err(400, 'Nom de l\'offre requis.');
   if (!(price >= 50 && price < 1e7)) throw err(400, 'Prix invalide (minimum 0,50 €).');
-  return { ...base, name, priceCents: price, interval: b.interval === 'year' ? 'year' : 'month', description: str(b.description, 160),
+  return { ...base, name, priceCents: price, interval: ['year', 'quarter'].includes(b.interval) ? b.interval : 'month', description: str(b.description, 160),
     features: String(b.features || '').split('\n').map(x => x.trim()).filter(Boolean).slice(0, 12), active: !!b.active,
     featured: !!b.featured, badge: str(b.badge, 40) };
 };

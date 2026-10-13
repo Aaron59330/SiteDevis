@@ -901,3 +901,8 @@ a:not(.btn) { text-underline-offset: 3px; transition: color .15s, text-decoratio
 .landing[data-pg="fonctionnalites"] #d-trades, .landing[data-pg="fonctionnalites"] .ld-next { max-width: 1100px; }
 .ft-card { align-items: start; align-content: start; grid-template-rows: auto 1fr; }
 .ft-card b { align-self: end; padding-top: 1px; }
+.landing[data-pg="tarifs"] #d-pricing, .landing[data-pg="tarifs"] .ld-next { max-width: 1160px; }
+@media (min-width: 1000px) { .ld-plans { grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); grid-auto-flow: column; } }
+.plan-trial { border-style: dashed; }
+.plans .plan { display: flex; flex-direction: column; }
+.plans .plan > .btn.block:last-child, .plans .plan > .row:last-child { margin-top: auto; }

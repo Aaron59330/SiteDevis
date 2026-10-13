@@ -198,7 +198,7 @@ async function adminPlans() {
   <div class="plans">${plans.map((p, i) => `<div class="plan ${p.active ? '' : 'off'} ${planHot(p, plans) ? 'hot' : ''}">${planHot(p, plans) ? `<span class="ribbon">${esc(planRibbon(p, plans))}</span>` : ''}
     <div class="row plan-move"><button class="btn small" data-act="plan-move" data-id="${p.id}" data-dir="-1" ${i ? '' : 'disabled'} title="Placer avant">←</button><span class="muted">Position ${i + 1}</span><button class="btn small" data-act="plan-move" data-id="${p.id}" data-dir="1" ${i < plans.length - 1 ? '' : 'disabled'} title="Placer après">→</button></div>
     <h3>${esc(p.name)} ${p.active ? '' : '<span class="badge brouillon">Désactivée</span>'}</h3>
-    <div class="price">${eur(p.priceCents)}<small> / ${p.interval === 'year' ? 'an' : 'mois'}</small></div><p class="muted">${esc(p.description)}</p>
+    <div class="price">${eur(p.priceCents)}<small> / ${planPer(p)}</small></div><p class="muted">${esc(p.description)}</p>
     <ul>${p.features.map(f => `<li>${esc(f)}</li>`).join('')}</ul>
     <div class="row"><button class="btn small" data-act="plan-edit" data-id="${p.id}">Modifier</button><button class="btn small danger" data-act="plan-del" data-id="${p.id}">Supprimer</button></div></div>`).join('')}</div>`;
 }
@@ -207,7 +207,7 @@ actions['plan-edit'] = t => {
   const m = modalForm(`<form id="plForm"><h2>${t.dataset.id ? 'Modifier' : 'Nouvelle'} offre</h2>
     <div class="field"><label>Nom</label><input name="name" value="${esc(p.name)}" required></div>
     <div class="grid2"><div class="field"><label>Prix (€)</label><input name="price" type="number" step="0.01" min="0.5" value="${p.priceCents / 100}" required></div>
-    <div class="field"><label>Durée d'accès par paiement</label><select name="interval"><option value="month" ${p.interval === 'month' ? 'selected' : ''}>1 mois</option><option value="year" ${p.interval === 'year' ? 'selected' : ''}>1 an</option></select></div></div>
+    <div class="field"><label>Durée d'accès par paiement</label><select name="interval"><option value="month" ${p.interval === 'month' ? 'selected' : ''}>1 mois</option><option value="quarter" ${p.interval === 'quarter' ? 'selected' : ''}>3 mois (trimestre)</option><option value="year" ${p.interval === 'year' ? 'selected' : ''}>1 an</option></select></div></div>
     <div class="field"><label>Description</label><input name="description" value="${esc(p.description)}"></div>
     <div class="field"><label>Avantages (un par ligne)</label><textarea name="features" rows="5">${esc(p.features.join('\n'))}</textarea></div>
     <label class="check"><input type="checkbox" name="active" ${p.active ? 'checked' : ''}> Offre active (visible par les utilisateurs)</label>

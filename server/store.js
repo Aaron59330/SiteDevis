@@ -13,9 +13,10 @@ const defaults = () => ({
   users: [], sessions: [], tokens: [], payments: [], audit: [], outbox: [], reminders: {},
   plans: [
     { id: 'monthly', name: 'Mensuel', priceCents: 990, interval: 'month', description: 'Sans engagement, renouvelable à la demande', features, active: true },
+    { id: 'quarterly', name: 'Trimestriel', priceCents: 2690, interval: 'quarter', description: '3 mois d\'accès, environ 10 % moins cher', features, active: true },
     { id: 'yearly', name: 'Annuel', priceCents: 9900, interval: 'year', description: '2 mois offerts', features, active: true }
   ],
-  settings: { siteName: 'OptiDevis', trialDays: 0, registrationOpen: true, requireVerification: true, supportEmail: '', receiptCounter: 0 }
+  settings: { siteName: 'OptiDevis', trialDays: 7, registrationOpen: true, requireVerification: true, supportEmail: '', receiptCounter: 0 }
 });
 
 let db;
@@ -24,6 +25,16 @@ try {
   db = { ...defaults(), ...raw };
   db.settings = { ...defaults().settings, ...raw.settings };
   if (db.settings.siteName === 'Mes Devis') db.settings.siteName = 'OptiDevis';
+  /* une seule fois : offre trimestrielle (placée après le mensuel) et essai gratuit de 7 jours */
+  if (!db.settings.seedQuarter) {
+    db.settings.seedQuarter = true;
+    if (!db.plans.some(p => p.interval === 'quarter')) {
+      const q = defaults().plans.find(p => p.id === 'quarterly'), m = db.plans.find(p => p.interval === 'month');
+      if (m && m.features && m.features.length) q.features = m.features.slice();
+      const i = db.plans.indexOf(m); db.plans.splice(i < 0 ? 0 : i + 1, 0, q);
+    }
+    if (!(db.settings.trialDays > 0)) db.settings.trialDays = 7;
+  }
 } catch (e) { db = defaults(); }
 db.sessions = db.sessions.filter(s => s.exp > Date.now());
 db.tokens = db.tokens.filter(t => t.exp > Date.now());

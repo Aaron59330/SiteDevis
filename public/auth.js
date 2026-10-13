@@ -324,8 +324,11 @@ document.addEventListener('click', e => {
 });
 
 /* Offre mise en avant : choisie dans Administration > Offres ; à défaut, l'offre annuelle */
+/* Libellés des durées d'offre et prix ramené au mois */
+const PLAN_PER = { month: 'mois', quarter: 'trimestre', year: 'an' }, PLAN_MONTHS = { month: 1, quarter: 3, year: 12 };
+const planPer = p => PLAN_PER[p.interval] || 'mois';
 const planHot = p => 'featured' in p ? !!p.featured : p.interval === 'year';
-const planRibbon = (p, plans) => { const m = plans.find(x => x.interval === 'month'), s = p.interval === 'year' && m ? Math.round((1 - p.priceCents / (m.priceCents * 12)) * 100) : 0;
+const planRibbon = (p, plans) => { const m = plans.find(x => x.interval === 'month'), k = PLAN_MONTHS[p.interval] || 1, s = k > 1 && m ? Math.round((1 - p.priceCents / (m.priceCents * k)) * 100) : 0;
   return p.badge || `${s > 0 ? `−${s} % · ` : ''}Le plus avantageux`; };
 
 /* Tarifs sur la page d'accueil : les offres actives (réglées dans Administration > Offres) */
@@ -338,15 +341,20 @@ function pricingHtml(cfg) {
   return `<section id="d-pricing" class="docs-sec" data-doc data-page="tarifs">
         <h2>Tarifs</h2>
         <p class="muted" style="margin:0 0 18px">${trial ? `<b style="color:var(--text)">${trial}</b>, sans carte bancaire. ` : ''}Toutes les fonctionnalités sont incluses dans chaque offre, sans engagement : vos données restent à vous.</p>
-        <div class="plans ld-plans">${plans.map(p => {
-          const year = p.interval === 'year', hot = planHot(p, plans);
+        <div class="plans ld-plans">${cfg.trialDays > 0 && cfg.registrationOpen ? `<div class="plan plan-trial" data-doc-item>
+            <h3>Essai gratuit</h3><div class="price">0 €<small> / ${cfg.trialDays} jours</small></div>
+            <div class="muted">sans carte bancaire</div>
+            <p class="muted">Essayez tout ${esc(cfg.siteName || 'OptiDevis')} pendant ${cfg.trialDays} jours, puis choisissez une offre si cela vous convient.</p>
+            <ul><li>Toutes les fonctionnalités</li><li>Aucun engagement</li><li>Vos données conservées</li></ul>
+            <button type="button" class="btn block" data-act="auth-go" data-mode="register">Commencer l’essai gratuit</button></div>` : ''}${plans.map(p => {
+          const k = PLAN_MONTHS[p.interval] || 1, hot = planHot(p, plans);
           return `<div class="plan ${hot ? 'hot' : ''}" data-doc-item>
             ${hot ? `<span class="ribbon">${esc(planRibbon(p, plans))}</span>` : ''}
-            <h3>${esc(p.name)}</h3><div class="price">${eur(p.priceCents)}<small> / ${year ? 'an' : 'mois'}</small></div>
-            ${year ? `<div class="muted">soit ${eur(Math.round(p.priceCents / 12))} / mois</div>` : /engagement/i.test(p.description || '') ? '' : '<div class="muted">sans engagement</div>'}
+            <h3>${esc(p.name)}</h3><div class="price">${eur(p.priceCents)}<small> / ${planPer(p)}</small></div>
+            ${k > 1 ? `<div class="muted">soit ${eur(Math.round(p.priceCents / k))} / mois</div>` : /engagement/i.test(p.description || '') ? '' : '<div class="muted">sans engagement</div>'}
             ${p.description ? `<p class="muted">${esc(p.description)}</p>` : ''}
             ${(p.features || []).length ? `<ul>${p.features.map(f => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
-            <button type="button" class="btn ${hot ? 'primary' : ''} block" ${cta}>${trial && cfg.registrationOpen ? 'Commencer l’essai gratuit' : cfg.registrationOpen ? 'Créer mon compte' : 'Se connecter'}</button></div>`;
+            <button type="button" class="btn ${hot ? 'primary' : ''} block" ${cta}>${cfg.registrationOpen ? 'Choisir cette offre' : 'Se connecter'}</button></div>`;
         }).join('')}</div>
         <p class="muted" style="font-size:.82rem;margin:4px 0 0">Après ${trial ? 'l’essai' : 'la création du compte'}, choisissez votre offre dans <b>Abonnement</b>. Paiement sécurisé, reçu téléchargeable.</p>
       </section>`;
