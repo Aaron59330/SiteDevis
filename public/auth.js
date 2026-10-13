@@ -103,7 +103,6 @@ function renderAuth(mode, opts = {}) {
               <button type="button" class="hv-btn" data-act="hero-sound" id="hvSound" aria-label="Activer le son">Activer le son</button>
               <button type="button" class="hv-btn" data-act="hero-full" aria-label="Plein écran">Plein écran</button>
             </div>
-            <div class="hero-card"><div class="hc-row"><span>Cloison BA13</span><b>480,00 €</b></div><div class="hc-row"><span>Doublage</span><b>1 204,00 €</b></div><div class="hc-row tot"><span>Total TTC</span><b>1 684,00 €</b></div></div>
           </div>
         </div>
       </section>
