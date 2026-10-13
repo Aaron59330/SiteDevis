@@ -108,7 +108,7 @@ const photos = [];
 async function shrink(file) {
   let bmp; try { bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
   catch (e) { bmp = await new Promise((ok, ko) => { const i = new Image(), u = URL.createObjectURL(file); i.onload = () => { URL.revokeObjectURL(u); ok(i); }; i.onerror = () => ko(new Error('Photo illisible')); i.src = u; }); }
-  const w = bmp.width || bmp.naturalWidth, h = bmp.height || bmp.naturalHeight, k = Math.min(1, 2200 / Math.max(w, h));
+  const w = bmp.width || bmp.naturalWidth, h = bmp.height || bmp.naturalHeight, k = Math.min(1, 1800 / Math.max(w, h));
   const c = document.createElement('canvas'); c.width = Math.round(w * k); c.height = Math.round(h * k); c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
   const blob = await new Promise(ok => c.toBlob(ok, 'image/jpeg', .86));
   if (!blob) throw new Error('Photo illisible');
