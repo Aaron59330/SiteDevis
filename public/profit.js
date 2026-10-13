@@ -37,11 +37,12 @@
   window.profitCalc = calc;
   const VERDICT = { ok: ['ok', '✓ Rentable'], low: ['warn', 'Peu rentable'], loss: ['bad', '✕ À perte'], todo: ['', 'Temps à saisir'], none: ['', '—'] };
 
+  const enabled = () => db.settings.profit !== false;
   window.profitCard = function (q) {
-    if (!q || (isInv(q) && q.fromQuoteId)) return '';      // une facture issue d'un devis : la rentabilité se suit sur le devis
+    if (!q || !enabled() || (isInv(q) && q.fromQuoteId)) return '';      // une facture issue d'un devis : la rentabilité se suit sur le devis
     const r = calc(q), p = pr(q), v = VERDICT[r.state], hc = hourCost();
     const bar = r.planned > 0 ? Math.min(100, r.hours / r.planned * 100) : 0;
-    return `<div class="card no-print pf-card" id="pfCard"><div class="row between"><h2 style="margin:0">Rentabilité</h2>${r.ht > 0 ? `<span class="pf-badge ${v[0]}">${v[1]}</span>` : ''}</div>
+    return `<div class="card no-print pf-card" id="pfCard"><div class="row between"><h2 style="margin:0">Rentabilité</h2><div class="row" style="gap:8px">${r.ht > 0 ? `<span class="pf-badge ${v[0]}">${v[1]}</span>` : ''}<button class="btn small" data-act="pf-off" title="Masquer le suivi de rentabilité (réactivable dans Mon entreprise)">Désactiver</button></div></div>
       <p class="muted" style="margin:4px 0 12px;font-size:.82rem">Pour vous seulement : rien de cela n’apparaît sur le document.</p>
       <div class="pf-grid">
         <div><span>Montant HT</span><b>${money(r.ht)}</b></div>
@@ -76,7 +77,7 @@
     const d = document.createElement('div'); d.innerHTML = profitCard(q); if (d.firstElementChild) el.replaceWith(d.firstElementChild); }, 0);
   let tick = null;
   const prevEd = AFTER.editor;
-  AFTER.editor = function () { if (prevEd) prevEd.apply(this, arguments); clearInterval(tick); const q = getQuote(editingId); if (q && pr(q).timerStart) tick = setInterval(() => { if (view !== 'editor') return clearInterval(tick); refresh(); }, 30000); };
+  AFTER.editor = function () { if (prevEd) prevEd.apply(this, arguments); clearInterval(tick); const q = getQuote(editingId); if (q && enabled() && pr(q).timerStart) tick = setInterval(() => { if (view !== 'editor') return clearInterval(tick); refresh(); }, 30000); };
 
   document.addEventListener('change', e => {
     const t = e.target; if (view !== 'editor') return;
@@ -92,7 +93,9 @@
     'pf-del-time'(t) { const q = getQuote(editingId), p = pr(q); p.time = p.time.filter(x => x.id !== t.dataset.id); save(); refresh(); },
     'pf-add-cost'() { const a = num($('#pfAmt').value); if (!(a > 0)) return toast('Indiquez un montant'); const q = getQuote(editingId); pr(q).costs.push({ id: uid(), kind: $('#pfKind').value, label: $('#pfLabel').value.trim(), amount: a, date: today() }); save(); refresh(); },
     'pf-del-cost'(t) { const q = getQuote(editingId), p = pr(q); p.costs = p.costs.filter(x => x.id !== t.dataset.id); save(); refresh(); },
-    'pf-open'(t) { go('editor', t.dataset.id); }
+    'pf-open'(t) { go('editor', t.dataset.id); },
+    'pf-off'() { if (!confirm('Masquer le suivi de rentabilité ?\nVos temps et coûts sont gardés. Vous pourrez le réactiver dans Mon entreprise > Rentabilité.')) return;
+      db.settings.profit = false; clearInterval(tick); save(); if (statUI.tab === 'profit') statUI.tab = 'activity'; render(); toast('Suivi de rentabilité désactivé'); }
   });
 
   /* Statistiques > Rentabilité : tous les devis acceptés ou avec du temps saisi */
@@ -117,6 +120,7 @@
   }
   const baseStats = EXTRA.stats;
   EXTRA.stats = function () {
+    if (!enabled()) { if (statUI.tab === 'profit') statUI.tab = 'activity'; return baseStats.apply(this, arguments); }
     const btn = `<button data-act="stat-tab" data-t="profit" class="${statUI.tab === 'profit' ? 'on' : ''}">Rentabilité</button>`;
     if (statUI.tab === 'profit') {
       statUI.tab = 'activity'; const html = baseStats.apply(this, arguments); statUI.tab = 'profit';

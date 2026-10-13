@@ -861,6 +861,10 @@ function renderCompany() {
         <div class="field"><label><input type="checkbox" data-s="useSites" ${s.useSites ? 'checked' : ''} style="width:auto"> Activer la gestion des chantiers (optionnel)</label></div>
         <p class="muted" style="margin:-4px 0 0;font-size:.82rem">Ajoute l'onglet « Chantiers » : lieu, ville, dates, heures prévues et réalisées, et le rattachement des devis et factures. Rien ne change tant que vous ne l'utilisez pas.</p>
       </div>
+      <div class="card"><h2>Rentabilité</h2>
+        <div class="field"><label><input type="checkbox" data-s="profit" ${s.profit !== false ? 'checked' : ''} style="width:auto"> Suivre la rentabilité des devis (temps passé, marge)</label></div>
+        <p class="muted" style="margin:-4px 0 0;font-size:.82rem">Affiche la carte « Rentabilité » dans chaque devis et l'onglet Statistiques &gt; Rentabilité. Décochez pour tout masquer : vos données sont gardées.</p>
+      </div>
       <div class="card"><h2>Réglages des devis</h2>
         <div class="grid2">
           <div class="field"><label>Modèle de numérotation</label><input data-s="numberPattern" value="${esc(s.numberPattern)}"></div>
