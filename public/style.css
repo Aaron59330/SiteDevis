@@ -998,3 +998,6 @@ a:not(.btn) { text-underline-offset: 3px; transition: color .15s, text-decoratio
 .pf-rate.ok { border-color: rgba(22,163,74,.55); } .pf-rate.ok .pf-rate-r small { color: #16a34a; }
 .pf-rate.bad { border-color: rgba(229,72,77,.6); } .pf-rate.bad .pf-rate-r small { color: #e5484d; }
 @media (max-width: 600px) { .pf-rate { grid-template-columns: 1fr; } }
+/* en-têtes de colonnes alignés comme leur contenu (montants à droite, centrés…) */
+table.list th.right, table.list td.right { text-align: right; }
+table.list th.center, table.list td.center { text-align: center; }
