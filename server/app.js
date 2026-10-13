@@ -549,7 +549,8 @@ route('PATCH', '/api/me', 'user', ctx => {
 const PREF_ENUMS = { mode: ['dark', 'light', 'auto'], bg: ['bronze', 'black', 'graphite', 'navy', 'forest'], radius: ['sharp', 'normal', 'round'], size: ['normal', 'large', 'xl'], density: ['comfortable', 'compact'], sound: ['on', 'off'], hover: ['on', 'off'], sfx: ['soft', 'crystal', 'pop', 'retro'], vol: ['low', 'mid', 'high'] };
 route('PATCH', '/api/me/prefs', 'user', ctx => {
   const b = ctx.body || {}, cur = { ...(ctx.user.prefs || {}) };
-  if (b.accent !== undefined) { if (b.accent !== '' && !/^#[0-9a-fA-F]{6}$/.test(String(b.accent))) throw err(400, 'Couleur invalide.'); cur.accent = b.accent; }
+  if (b.accent !== undefined) { if (b.accent !== '' && b.accent !== 'none' && !/^#[0-9a-fA-F]{6}$/.test(String(b.accent))) throw err(400, 'Couleur invalide.'); cur.accent = b.accent; }
+  if (b.v2) cur.v2 = 1;
   for (const [k, list] of Object.entries(PREF_ENUMS)) if (b[k] !== undefined) { if (!list.includes(b[k])) throw err(400, 'Réglage invalide.'); cur[k] = b[k]; }
   ctx.user.prefs = cur; store.save();
   return ok({ prefs: cur });

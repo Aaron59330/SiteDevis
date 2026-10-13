@@ -1,11 +1,11 @@
 'use strict';
 /* Personnalisation de l'interface : couleur, mode, fond, formes, taille du texte, densité (par compte, sur tous les appareils). */
-const ACCENTS = [['', 'Neutre'], ['#e3a04b', 'Or'], ['#3b82f6', 'Bleu'], ['#6366f1', 'Indigo'], ['#8b5cf6', 'Violet'], ['#ec4899', 'Rose'], ['#ef4444', 'Rouge'], ['#f97316', 'Orange'], ['#f59e0b', 'Ambre'], ['#22c55e', 'Vert'], ['#14b8a6', 'Turquoise'], ['#06b6d4', 'Cyan']];
+const ACCENTS = [['#e3a04b', 'Or (par défaut)'], ['none', 'Neutre'], ['#3b82f6', 'Bleu'], ['#6366f1', 'Indigo'], ['#8b5cf6', 'Violet'], ['#ec4899', 'Rose'], ['#ef4444', 'Rouge'], ['#f97316', 'Orange'], ['#f59e0b', 'Ambre'], ['#22c55e', 'Vert'], ['#14b8a6', 'Turquoise'], ['#06b6d4', 'Cyan']];
 const DOC_COLORS = ['#26323f', '#1e3a5f', '#0f766e', '#166534', '#7c2d12', '#9f1239', '#4c1d95', '#111111'];
 const BGS = [['black', 'Noir', '#070707'], ['bronze', 'Bronze', '#0d0a07'], ['graphite', 'Anthracite', '#131417'], ['navy', 'Bleu nuit', '#0a1020'], ['forest', 'Vert forêt', '#0a120e']];
 let prefTimer;
 const curPrefs = () => window.currentPrefs || PREF_DEFAULTS;
-const prefsBody = p => ({ accent: p.accent || '', mode: p.mode, bg: p.bg, radius: p.radius, size: p.size, density: p.density, sound: p.sound, hover: p.hover, sfx: p.sfx, vol: p.vol });
+const prefsBody = p => ({ accent: p.accent || '', mode: p.mode, bg: p.bg, radius: p.radius, size: p.size, density: p.density, sound: p.sound, hover: p.hover, sfx: p.sfx, vol: p.vol, v2: 1 });
 function hexLum(h) { const n = parseInt(h.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255].map((v, i) => { v /= 255; v = v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); return v * [0.2126, 0.7152, 0.0722][i]; }).reduce((a, b) => a + b, 0); }
 
 function savePrefs(patch) {
@@ -18,7 +18,8 @@ function savePrefs(patch) {
 }
 function initPrefs(server) {
   let local = null; try { local = JSON.parse(localStorage.getItem('sitedevis.prefs') || 'null'); } catch (e) { /* ignore */ }
-  if (server && server.accent === '#e3a04b' && server.bg === 'bronze') { server = Object.assign({}, server, { accent: '', bg: 'black' }); api('PATCH', '/api/me/prefs', { accent: '', bg: 'black' }).catch(() => {}); }
+  /* ancien défaut noir et blanc enregistré sur le compte → nouveau défaut or + bronze */
+  if (server && !server.v2 && (server.accent || '') === '' && (server.bg || 'black') === 'black') { server = Object.assign({}, server, { accent: '#e3a04b', bg: 'bronze' }); api('PATCH', '/api/me/prefs', { accent: '#e3a04b', bg: 'bronze', v2: 1 }).catch(() => {}); }
   const p = server ? Object.assign({}, PREF_DEFAULTS, server) : local;
   if (p) { applyPrefs(p); try { localStorage.setItem('sitedevis.prefs', JSON.stringify(prefsBody(curPrefs()))); } catch (e) { /* ignore */ } }
   if (!server && local) api('PATCH', '/api/me/prefs', prefsBody(curPrefs())).catch(() => {});
@@ -33,7 +34,7 @@ EXTRA.custom = function renderCustom() {
   <div class="pref-grid">
     <div class="card"><h2>Couleur principale</h2>
       <p class="muted" style="margin-top:0">Boutons, onglets actifs, éléments mis en avant.</p>
-      <div class="swatches" id="swatches">${ACCENTS.map(([c, n]) => `<button class="sw ${c ? '' : 'neutral'}" ${c ? `style="background:${c}"` : ''} data-act="pref" data-k="accent" data-v="${c}" title="${n}" aria-label="${n}">✓</button>`).join('')}
+      <div class="swatches" id="swatches">${ACCENTS.map(([c, n]) => `<button class="sw ${c === 'none' ? 'neutral' : ''}" ${c !== 'none' ? `style="background:${c}"` : ''} data-act="pref" data-k="accent" data-v="${c}" title="${n}" aria-label="${n}">✓</button>`).join('')}
         <label class="sw" id="swCustom" style="background:conic-gradient(red,yellow,lime,aqua,blue,magenta,red);overflow:hidden;position:relative" title="Couleur personnalisée"><input type="color" id="prefColor" value="${/^#[0-9a-f]{6}$/i.test(p.accent) ? p.accent : '#3b82f6'}" style="position:absolute;inset:-8px;width:60px;height:60px;opacity:0;cursor:pointer"></label></div>
       <p class="muted" id="prefWarn" style="font-size:.82rem;margin:12px 0 0"></p></div>
 
@@ -78,7 +79,7 @@ AFTER.custom = () => markPrefs();
 function markPrefs() {
   const p = curPrefs();
   document.querySelectorAll('[data-act=pref]').forEach(b => b.classList.toggle('on', (p[b.dataset.k] || '') === b.dataset.v));
-  const preset = ACCENTS.some(([c]) => c === (p.accent || ''));
+  const preset = ACCENTS.some(([c]) => c === (p.accent || '#e3a04b'));
   const cs = document.getElementById('swCustom'); if (cs) cs.classList.toggle('on', !preset);
   const docC = (db.company.accent || '#26323f').toLowerCase();
   document.querySelectorAll('[data-act=doc-color]').forEach(b => b.classList.toggle('on', b.dataset.v === docC));

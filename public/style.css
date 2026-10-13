@@ -879,3 +879,6 @@ a:not(.btn) { text-underline-offset: 3px; transition: color .15s, text-decoratio
   .ld-next { flex-direction: column; align-items: stretch; text-align: center; }
   .ld-next .row { flex-direction: column; } .ld-next .ld-btn { width: 100%; }
 }
+/* Titre d'accueil : seul « font signer » prend la couleur du site, le reste reste blanc */
+#app .landing .ld-copy h1 { color: #fff; }
+:root[data-theme="light"] #app .landing .ld-copy h1 { color: var(--text); }
