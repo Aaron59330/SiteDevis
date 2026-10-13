@@ -767,3 +767,11 @@ a:not(.btn) { text-underline-offset: 3px; transition: color .15s, text-decoratio
 @media (max-width: 900px) { .bottomnav button { position: relative; } .bottomnav button::before { content: ""; position: absolute; top: 0; left: 28%; right: 28%; height: 2px; background: var(--bar); transform: scaleX(0); transition: transform .25s; } .bottomnav button.active::before { transform: scaleX(1); } }
 
 .dmeta.ei-meta { margin-top: 2px; }
+
+/* ===== Boîte à outils : liens utiles ===== */
+.links-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.link-card { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--card2); color: var(--text); text-decoration: none; transition: border-color .2s, transform .2s; }
+.link-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+.link-card b { font-size: .95rem; } .link-card b span { color: var(--muted); font-weight: 400; }
+.link-card span { color: var(--muted); font-size: .84rem; line-height: 1.4; }
+.link-card i { font-style: normal; font-size: .76rem; color: var(--muted); opacity: .8; margin-top: 2px; }

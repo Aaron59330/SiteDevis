@@ -15,7 +15,7 @@ EXTRA.tools = function renderTools() {
   <div id="toolsBody">${toolsBody()}</div>`;
 };
 AFTER.tools = () => { if (toolsUI.tab === 'calc') calcAll(); if (toolsUI.tab === 'guide') { simAll(); guideCheck(); } if (toolsUI.tab === 'files') { imgRender(); pdfRender(); } };
-const toolsBody = () => ({ guide: guideHtml, files: filesHtml, calc: calcHtml, tips: tipsHtml }[toolsUI.tab])();
+const toolsBody = () => ({ guide: guideHtml, files: filesHtml, calc: calcHtml, tips: tipsHtml, links: () => window.linksHtml() }[toolsUI.tab] || guideHtml)();
 
 /* ================= FICHIERS & IMAGES ================= */
 const img = { items: [] }, pdf = { items: [] };
