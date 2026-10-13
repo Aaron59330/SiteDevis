@@ -41,17 +41,17 @@ const CUES = { pop: [], click: [], whoosh: [], swish: [], chime: [], hit: [], ti
 /* scènes : durée, titre (2 lignes), segment, caméra départ/arrivée [x, y, échelle, rotX, rotY, rotZ], zooms [[t, fx, fy, échelle]] */
 const S = [
   { k: 'intro', d: 5.5, h: ['Vos devis et factures,', 'sans prise de tête.'] },
-  { k: 's1', d: 7.5, h: ['Tous vos devis,', 'sur une seule page.'], c: [[330, 330, .92, 22, -16, 2], [250, 260, 1, 14, -8, 0]], z: [[0, .32, .03, 1.9], [2.6, .32, .03, 1.9], [4.2, .5, .3, 1]] },
-  { k: 's2', d: 7.5, h: ['Votre métier,', 'un devis prêt en un clic.'], c: [[420, 300, .95, 10, 12, -1], [300, 250, 1.02, 16, -6, 0]], z: [[0, .5, .4, 1], [4, .5, .35, 1.25], [7.5, .5, .35, 1.25]] },
-  { k: 's3', d: 6.8, h: ['Chaque ligne,', 'calculée en direct.'], c: [[260, 330, .95, 20, -10, 1], [240, 250, 1, 10, -4, 0]], z: [[0, .2, .3, 1.35], [2.6, .2, .3, 1.35], [4.4, .78, .55, 1.6], [6.8, .78, .55, 1.6]] },
-  { k: 's4', d: 6, h: ['Chaque paiement,', 'sa facture.'], c: [[380, 290, .96, 14, 10, -1], [280, 250, 1, 12, -6, 0]], z: [[0, .3, .6, 1.25], [2.4, .3, .6, 1.25], [3.6, .76, .5, 1.45], [6, .76, .5, 1.45]] },
-  { k: 's5', d: 6, h: ['Votre client,', 'le reçoit par email.'], c: [[300, 320, .94, 18, -12, 1], [270, 250, 1, 10, -6, 0]], z: [[0, .5, .45, 1.3], [6, .5, .45, 1.45]] },
-  { k: 's6', d: 9, h: ['Un devis manuscrit ?', 'Une photo suffit.'], c: [[400, 300, .95, 12, 12, -1], [270, 250, 1, 14, -6, 0]], z: [[0, .5, .4, 1.2], [5, .5, .45, 1.3], [9, .5, .5, 1.1]] },
-  { k: 's7', d: 6.2, h: ['Votre chiffre d’affaires,', 'en temps réel.'], c: [[280, 330, .95, 22, -12, 1], [250, 250, 1, 12, -6, 0]], z: [[0, .4, .25, 1.35], [2.4, .4, .25, 1.35], [3.8, .5, .45, 1.05], [6.2, .5, .5, 1.12]] },
-  { k: 's8', d: 6, h: ['Vos chantiers,', 'sous contrôle.'], c: [[380, 300, .95, 12, 12, -1], [270, 250, 1, 14, -6, 0]], z: [[0, .4, .3, 1.3], [6, .45, .4, 1.15]] },
-  { k: 's9', d: 7.5, h: ['Vos prix,', 'toujours à portée.'], c: [[300, 320, .94, 20, -12, 1], [260, 250, 1, 12, -6, 0]], z: [[0, .15, .3, 1.7], [3.4, .15, .3, 1.7], [5, .4, .3, 1.2], [7.5, .4, .3, 1.2]] },
-  { k: 's10', d: 6.2, h: ['Vos couleurs,', 'votre interface.'], c: [[380, 300, .95, 12, 12, -1], [270, 250, 1, 14, -6, 0]], z: [[0, .45, .3, 1.5], [6.2, .45, .35, 1.4]] },
-  { k: 's11', d: 8, h: ['Dix rubriques.', 'Un seul site.'], c: [[280, 340, .95, 24, -14, 1], [250, 250, 1, 10, -4, 0]], z: [[0, .3, .02, 2.2], [5.4, .5, .02, 2.2], [7, .5, .3, 1], [8, .5, .3, 1]] },
+  { k: 's1', d: 7.5, h: ['Tous vos devis,', 'sur une seule page.'], c: [[192, 300, 0.9, 10, -5, 0], [192, 252, 0.94, 6, -2, 0]], z: [[0, 0.5, 0.35, 1], [7.5, 0.5, 0.35, 1.05]] },
+  { k: 's2', d: 7.5, h: ['Votre métier,', 'un devis prêt en un clic.'], c: [[192, 300, 0.9, 10, 5, 0], [192, 252, 0.94, 6, 2, 0]], z: [[0, 0.5, 0.4, 1], [7.5, 0.5, 0.4, 1.06]] },
+  { k: 's3', d: 6.8, h: ['Chaque ligne,', 'calculée en direct.'], c: [[192, 300, 0.9, 10, -5, 0], [192, 252, 0.94, 6, -2, 0]], z: [[0, 0.5, 0.4, 1], [2.8, 0.5, 0.4, 1.02], [4.8, 0.72, 0.6, 1.18], [6.8, 0.72, 0.6, 1.2]] },
+  { k: 's4', d: 6, h: ['Chaque paiement,', 'sa facture.'], c: [[192, 300, 0.9, 10, 5, 0], [192, 252, 0.94, 6, 2, 0]], z: [[0, 0.5, 0.45, 1], [3, 0.5, 0.45, 1.02], [4.6, 0.72, 0.5, 1.14], [6, 0.72, 0.5, 1.15]] },
+  { k: 's5', d: 6, h: ['Votre client,', 'le reçoit par email.'], c: [[192, 300, 0.9, 10, -5, 0], [192, 252, 0.94, 6, -2, 0]], z: [[0, 0.5, 0.45, 1], [6, 0.5, 0.45, 1.06]] },
+  { k: 's6', d: 9, h: ['Un devis manuscrit ?', 'Une photo suffit.'], c: [[192, 300, 0.9, 10, 5, 0], [192, 252, 0.94, 6, 2, 0]], z: [[0, 0.5, 0.4, 1], [9, 0.5, 0.45, 1.06]] },
+  { k: 's7', d: 6.2, h: ['Votre chiffre d’affaires,', 'en temps réel.'], c: [[192, 300, 0.9, 10, -5, 0], [192, 252, 0.94, 6, -2, 0]], z: [[0, 0.5, 0.3, 1], [6.2, 0.5, 0.4, 1.05]] },
+  { k: 's8', d: 6, h: ['Vos chantiers,', 'sous contrôle.'], c: [[192, 300, 0.9, 10, 5, 0], [192, 252, 0.94, 6, 2, 0]], z: [[0, 0.5, 0.35, 1], [6, 0.5, 0.4, 1.05]] },
+  { k: 's9', d: 7.5, h: ['Vos prix,', 'toujours à portée.'], c: [[192, 300, 0.9, 10, -5, 0], [192, 252, 0.94, 6, -2, 0]], z: [[0, 0.3, 0.35, 1], [7.5, 0.3, 0.35, 1.06]] },
+  { k: 's10', d: 6.2, h: ['Vos couleurs,', 'votre interface.'], c: [[192, 300, 0.9, 10, 5, 0], [192, 252, 0.94, 6, 2, 0]], z: [[0, 0.5, 0.35, 1], [6.2, 0.5, 0.35, 1.05]] },
+  { k: 's11', d: 8, h: ['Dix rubriques.', 'Un seul site.'], c: [[192, 300, 0.9, 10, -5, 0], [192, 252, 0.94, 6, -2, 0]], z: [[0, 0.5, 0, 1.06], [8, 0.5, 0, 1.08]] },
   { k: 'outro', d: 7.8, h: ['Essayez-le,', 'dès aujourd’hui.'] }
 ];
 let acc = 0; S.forEach(s => { s.a = acc; acc += s.d; });
@@ -79,7 +79,7 @@ window.frame = async t => {
     if (lt > 1.05 && lt < 2.4) { rect.style.display = 'block'; rect.style.left = x0 + 'px'; rect.style.top = y0 + 'px'; rect.style.width = (M(x0, x1, dp) - x0) + 'px'; rect.style.height = (M(y0, y1, dp) - y0) + 'px'; rect.style.opacity = 1 - P(lt, 2.1, 2.4); }
     const g = P(lt, 2.1, 3.2, E.x);
     win.style.opacity = g; win.style.filter = `blur(${(1 - g) * 12}px)`;
-    win.style.transform = cam([M(520, 330, g), M(340, 330, g), M(.73, .92, g), M(0, 22, g), M(0, -16, g), M(0, 2, g)]);
+    win.style.transform = cam([M(520, 192, g), M(340, 300, g), M(.73, .9, g), M(0, 10, g), M(0, -5, g), 0]);
     zoom.style.transform = 'none'; vt = SEG.s1;
   } else if (s.k === 'outro') {
     const q = P(lt, 0, .9, E.io);
@@ -94,9 +94,9 @@ window.frame = async t => {
     const seg0 = SEG[s.k], seg1 = SEG[S[S.indexOf(s) + 1].k] || SEG.end, rate = (seg1 - seg0 - .1) / s.d;
     vt = seg0 + lt * rate;
     const p = P(lt, 0, s.d, E.io), c = s.c[0].map((x, i) => M(x, s.c[1][i], p));
-    const tin = P(lt, 0, .55, E.x), tout = P(lt, s.d - .4, s.d, E.io);
-    c[1] += (1 - tin) * 160 - tout * 60; c[3] += (1 - tin) * 14;
-    win.style.opacity = 1; win.style.filter = `blur(${(1 - tin) * 10 + tout * 10}px)`; win.style.transform = cam(c);
+    const tin = P(lt, 0, .7, E.o), tout = P(lt, s.d - .45, s.d, E.io);
+    c[1] += (1 - tin) * 50 - tout * 30; c[2] *= 1 - (1 - tin) * .03;
+    win.style.opacity = 1; win.style.opacity = M(.0, 1, tin) * (1 - tout * .9); win.style.filter = `blur(${(1 - tin) * 4 + tout * 4}px)`; win.style.transform = cam(c);
     const [fx, fy, zs] = zAt(s.z, lt); zoom.style.transformOrigin = `${fx * 100}% ${fy * 100}%`; zoom.style.transform = `scale(${zs})`;
   }
   if (Math.abs(v.currentTime - vt) > .001) { v.currentTime = vt; await new Promise(r => v.addEventListener('seeked', r, { once: true })); }
