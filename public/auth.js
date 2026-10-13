@@ -76,7 +76,7 @@ function renderAuth(mode, opts = {}) {
     <header class="ld-nav">
       <div class="ld-nav-in">
         <div class="brand big">${brandHtml(cfg.siteName)}</div>
-        <nav class="ld-links" aria-label="Sommaire"><a href="#d-start">Démarrer</a><a href="#d-features">Fonctionnalités</a><a href="#d-faq">Questions</a><a href="#" data-act="hero-open">Vidéo</a></nav>
+        <nav class="ld-links" aria-label="Sommaire"><a href="#d-start">Démarrer</a><a href="#d-features">Fonctionnalités</a><a href="#d-pricing">Tarifs</a><a href="#d-faq">Questions</a><a href="#" data-act="hero-open">Vidéo</a></nav>
         <label class="docs-search"><span class="ld-ico" aria-hidden="true">${icon('search')}</span><input type="search" id="docsQ" placeholder="Rechercher : facture, PDF, catalogue…" autocomplete="off" aria-label="Rechercher dans la présentation"><kbd>/</kbd></label>
         <button class="theme-btn" id="themeBtn" title="Mode clair / sombre">🌙</button>
         <button type="button" class="ld-login" data-act="auth-open">${icon('user')}Se connecter</button>
@@ -123,6 +123,7 @@ function renderAuth(mode, opts = {}) {
         <p class="muted" style="margin:0">Bâtiment, commerce, services, conseil, restauration, beauté, transport, auto… des devis de départ prêts à adapter, avec des prix indicatifs.</p>
         <div class="chips trades" data-doc-item>${(typeof TRADES !== 'undefined' ? TRADES : []).map(t => `<span>${t.name}</span>`).join('')}</div>
       </section>
+      ${pricingHtml(cfg)}
       <section id="d-faq" class="docs-sec" data-doc>
         <h2>Questions fréquentes</h2>
         <div class="docs-faq">${DOC_FAQ.map(f => `<details data-doc-item><summary>${f[0]}</summary><p>${f[1]}</p></details>`).join('')}</div>
@@ -282,6 +283,31 @@ document.addEventListener('click', e => {
   const b = e.target.closest('#bottomnav button[data-view], #moreSheet button[data-view]');
   if (b) { $('#moreSheet').hidden = true; go(b.dataset.view); }
 });
+
+/* Tarifs sur la page d'accueil : les offres actives (réglées dans Administration > Offres) */
+function pricingHtml(cfg) {
+  const plans = (cfg.plans || []).slice().sort((a, b) => (a.interval === 'year') - (b.interval === 'year') || a.priceCents - b.priceCents);
+  if (!plans.length) return '';
+  const eur = c => (c / 100).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: c % 100 ? 2 : 0 });
+  const monthly = plans.find(p => p.interval === 'month');
+  const trial = cfg.trialDays > 0 ? `${cfg.trialDays} jour${cfg.trialDays > 1 ? 's' : ''} d’essai gratuit` : '';
+  const cta = cfg.registrationOpen ? `data-act="auth-go" data-mode="register"` : `data-act="auth-open"`;
+  return `<section id="d-pricing" class="docs-sec" data-doc>
+        <h2>Tarifs</h2>
+        <p class="muted" style="margin:0 0 18px">${trial ? `<b style="color:var(--text)">${trial}</b>, sans carte bancaire. ` : ''}Toutes les fonctionnalités sont incluses dans chaque offre, sans engagement : vos données restent à vous.</p>
+        <div class="plans ld-plans">${plans.map(p => {
+          const year = p.interval === 'year', save = year && monthly ? Math.round((1 - p.priceCents / (monthly.priceCents * 12)) * 100) : 0;
+          return `<div class="plan ${year ? 'hot' : ''}" data-doc-item>
+            ${year ? `<span class="ribbon">${save > 0 ? `−${save} % · ` : ''}Le plus avantageux</span>` : ''}
+            <h3>${esc(p.name)}</h3><div class="price">${eur(p.priceCents)}<small> / ${year ? 'an' : 'mois'}</small></div>
+            ${year ? `<div class="muted">soit ${eur(Math.round(p.priceCents / 12))} / mois</div>` : /engagement/i.test(p.description || '') ? '' : '<div class="muted">sans engagement</div>'}
+            ${p.description ? `<p class="muted">${esc(p.description)}</p>` : ''}
+            ${(p.features || []).length ? `<ul>${p.features.map(f => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
+            <button type="button" class="btn ${year ? 'primary' : ''} block" ${cta}>${trial && cfg.registrationOpen ? 'Commencer l’essai gratuit' : cfg.registrationOpen ? 'Créer mon compte' : 'Se connecter'}</button></div>`;
+        }).join('')}</div>
+        <p class="muted" style="font-size:.82rem;margin:4px 0 0">Après ${trial ? 'l’essai' : 'la création du compte'}, choisissez votre offre dans <b>Abonnement</b>. Paiement sécurisé, reçu téléchargeable.</p>
+      </section>`;
+}
 
 /* Logo + nom du site (« OptiDevis » en deux graisses) */
 const LOGO_MARK = '<img class="logo-mark" src="/logo.svg" alt="" width="30" height="30">';

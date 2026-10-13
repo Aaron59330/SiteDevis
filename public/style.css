@@ -840,3 +840,6 @@ a:not(.btn) { text-underline-offset: 3px; transition: color .15s, text-decoratio
 .card.sup { position: relative; }
 .card.sup.sel { box-shadow: inset 0 0 0 2px #e5484d; }
 .cb-sup { display: inline-flex; vertical-align: -2px; margin-right: 10px; }
+.ld-plans { margin-bottom: 8px; }
+.ld-plans .plan { display: flex; flex-direction: column; }
+.ld-plans .plan .btn.block { margin-top: auto; }
