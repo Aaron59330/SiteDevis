@@ -1,8 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="OptiDevis">
-  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f7c883"/><stop offset="1" stop-color="#c9822f"/></linearGradient></defs>
-  <rect width="64" height="64" rx="15" fill="url(#g)"/>
-  <path d="M19 12h19l9 9v29a3 3 0 0 1-3 3H19a3 3 0 0 1-3-3V15a3 3 0 0 1 3-3z" fill="#fff"/>
-  <path d="M38 12v6a3 3 0 0 0 3 3h6z" fill="#c9822f" opacity=".28"/>
-  <path d="M22 28h12M22 34h8" stroke="#c9822f" stroke-opacity=".45" stroke-width="3" stroke-linecap="round"/>
-  <path d="M25 43l6 6 13-15" fill="none" stroke="#b9701c" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.9" y2="1"><stop offset="0" stop-color="#f9cf8a"/><stop offset=".55" stop-color="#e6a046"/><stop offset="1" stop-color="#bd7020"/></linearGradient>
+    <linearGradient id="gl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".45"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+    <linearGradient id="pg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#fbf3e6"/></linearGradient>
+    <filter id="sh" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="1.6" stdDeviation="1.6" flood-color="#6b3a08" flood-opacity=".35"/></filter>
+  </defs>
+  <rect width="64" height="64" rx="15" fill="url(#bg)"/>
+  <path d="M0 15A15 15 0 0 1 15 0h34a15 15 0 0 1 15 15v9C44 30 20 30 0 24z" fill="url(#gl)"/>
+  <g filter="url(#sh)">
+    <path d="M20 11h17.5L46 19.5V49a4 4 0 0 1-4 4H20a4 4 0 0 1-4-4V15a4 4 0 0 1 4-4z" fill="url(#pg)"/>
+    <path d="M37.5 11v5.5a3 3 0 0 0 3 3H46z" fill="#e9c08a"/>
+  </g>
+  <rect x="21" y="25" width="13" height="3" rx="1.5" fill="#e8b878"/>
+  <rect x="21" y="31" width="9" height="3" rx="1.5" fill="#f0cfa2"/>
+  <circle cx="44" cy="45" r="11" fill="#1d150c"/>
+  <path d="M38.8 45.2l3.6 3.6 7-7.6" fill="none" stroke="#f3b55e" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
