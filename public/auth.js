@@ -245,10 +245,13 @@ function updateTopbar() {
   const u = session.user, a = session.access;
   if (!u) return;
   const bd = $('#topbar .brand'); if (bd) bd.innerHTML = brandHtml(session.config.siteName);
-  const items = [['quotes', 'Devis'], ['invoices', 'Factures'], ['stats', 'Statistiques', 'Stats'], ['clients', 'Clients'], ['catalog', 'Catalogue'], ['tools', 'Boîte à outils', 'Outils'], ['company', 'Mon entreprise', 'Entreprise'], ['custom', 'Personnalisation', 'Style'], ['billing', 'Abonnement']];
+  /* Ordre du travail au quotidien (devis → factures → clients → chantiers → catalogue → chiffres → outils),
+     puis, séparés, les réglages ; Personnalisation / Abonnement / Administration restent aussi dans le menu du compte (avatar)
+     et ne s'affichent dans la barre que sur les grands écrans, pour que rien ne soit coupé */
+  const items = [['quotes', 'Devis'], ['invoices', 'Factures'], ['clients', 'Clients'], ['catalog', 'Catalogue'], ['stats', 'Statistiques', 'Stats'], ['tools', 'Boîte à outils', 'Outils'], ['company', 'Mon entreprise', 'Entreprise'], ['custom', 'Personnalisation', 'Style'], ['billing', 'Abonnement']];
   if (db.settings.useSites) items.splice(3, 0, ['sites', 'Chantiers']);
   if (u.role === 'admin') items.push(['admin', 'Administration', 'Admin']);
-  $('#nav').innerHTML = items.map(([v, l, s]) => `<button data-view="${v}"><span class="lg">${l}</span><span class="sh">${s || l}</span></button>`).join('');
+  $('#nav').innerHTML = items.map(([v, l, s]) => `<button data-view="${v}" class="${v === 'company' ? 'nav-sep' : ''}${['custom', 'billing', 'admin'].includes(v) ? ' nav-acct' : ''}"><span class="lg">${l}</span><span class="sh">${s || l}</span></button>`).join('');
   document.querySelectorAll('#nav button').forEach(b =>
     b.classList.toggle('active', b.dataset.view === navFor()));
   const pill = $('#accessPill');
@@ -273,7 +276,7 @@ function renderBottomNav(u) {
   if (db.settings.useSites) more.unshift(['sites', 'Chantiers']);
   if (u.role === 'admin') more.push(['admin', 'Administration']);
   $('#moreSheet').innerHTML = `<div class="sheet-bg" data-act="more-menu"></div><div class="sheet"><div class="pop-head"><b>${esc(u.name)}</b><span class="muted">${esc(u.email)}</span></div>` +
-    more.map(([v, l]) => `<button data-view="${v}">${l}</button>`).join('') + '<button data-act="logout" class="danger">Déconnexion</button></div>';
+    more.map(([v, l]) => `<button data-view="${v}"${v === 'company' ? ' class="nav-sep"' : ''}>${l}</button>`).join('') + '<button data-act="logout" class="danger">Déconnexion</button></div>';
 }
 actions['more-menu'] = () => { const s = $('#moreSheet'); s.hidden = !s.hidden; };
 document.addEventListener('click', e => {

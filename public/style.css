@@ -818,3 +818,11 @@ a:not(.btn) { text-underline-offset: 3px; transition: color .15s, text-decoratio
 .np-seen { align-self: center; font-size: .72rem; color: var(--muted); margin-right: 10px; }
 .np-foot { border-top: 1px solid var(--line); margin-top: 6px; padding: 10px 6px 4px; font-size: .8rem; }
 @media (max-width: 700px) { .notif-pop { position: fixed; top: 60px; right: 12px; left: 12px; width: auto; } }
+
+/* Séparateur entre le travail (devis, factures…) et les réglages du compte */
+#nav button.nav-sep { margin-left: 13px; }
+#nav button.nav-sep::before { content: ""; position: absolute; left: -9px; top: 50%; width: 1px; height: 18px; margin-top: -9px; background: var(--line); pointer-events: none; }
+.sheet button.nav-sep { border-top: 6px solid var(--line); }
+@media (max-width: 1919px) { #nav button.nav-acct { display: none; } }
+.notif-count { background: var(--text); color: var(--bg); }
+.notif-count.d { background: #e5484d; color: #fff; }
