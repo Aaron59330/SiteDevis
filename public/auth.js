@@ -136,6 +136,14 @@ function renderAuth(mode, opts = {}) {
       <section id="d-faq" class="docs-sec" data-doc data-page="questions">
         <h2>Questions fréquentes</h2>
         <div class="docs-faq">${DOC_FAQ.map(f => `<details data-doc-item><summary>${f[0]}</summary><p>${f[1]}</p></details>`).join('')}</div>
+        <form class="ask-card" id="askForm" data-doc-item novalidate>
+          <div><h3>Vous ne trouvez pas votre réponse ?</h3><p class="muted">Posez votre question : elle arrive directement à notre équipe, et nous vous répondons par email.</p></div>
+          <div class="ask-grid"><div class="field"><label for="askName">Votre nom</label><input id="askName" name="name" autocomplete="name" maxlength="80" required></div>
+            <div class="field"><label for="askEmail">Votre email</label><input id="askEmail" name="email" type="email" autocomplete="email" maxlength="254" required></div></div>
+          <div class="field"><label for="askText">Votre question</label><textarea id="askText" name="question" rows="4" maxlength="3000" required placeholder="Ex : Puis-je importer mes anciens devis ? Comment ajouter mon logo ?"></textarea></div>
+          <input name="website" tabindex="-1" autocomplete="off" class="hp" aria-hidden="true">
+          <div class="ask-foot"><span class="form-err" hidden></span><button class="ld-btn main" type="submit">Envoyer ma question</button></div>
+        </form>
       </section>
       <div class="ld-next" data-page-cta>
         <b>Prêt à faire votre premier devis ?</b>
@@ -227,6 +235,19 @@ async function withBusy(form, fn) {
   try { await fn(); } catch (e) { formMsg(form, e.message); } finally { if (btn) btn.disabled = false; }
 }
 const val = (f, k) => (f.elements[k] ? f.elements[k].value : '').trim();
+
+document.addEventListener('submit', async e => {
+  const f = e.target; if (f.id !== 'askForm') return; e.preventDefault();
+  const v = k => (f.elements[k].value || '').trim(), msg = f.querySelector('.form-err'), btn = f.querySelector('button[type=submit]');
+  const show = (t, good) => { msg.hidden = !t; msg.textContent = t; msg.className = 'form-err' + (good ? ' good' : ''); };
+  if (v('name').length < 2) return show('Indiquez votre nom.');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v('email'))) return show('Adresse email invalide.');
+  if (v('question').length < 10) return show('Votre question est trop courte.');
+  btn.disabled = true; show('');
+  try { await api('POST', '/api/contact', { name: v('name'), email: v('email'), question: v('question'), website: v('website') });
+    f.elements.question.value = ''; show('Merci ! Votre question a bien été envoyée. Nous vous répondons par email.', true); }
+  catch (err) { show(err.message); } finally { btn.disabled = false; }
+});
 
 forms.login = f => withBusy(f, async () => {
   const email = val(f, 'email');

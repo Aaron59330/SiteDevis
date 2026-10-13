@@ -2,20 +2,20 @@
 /* Panneau d'administration */
 let adminTab = 'dashboard';
 const adminState = { q: '', filter: '', page: 1, pq: '', pstatus: '' };
-const ADMIN_TABS = [['dashboard', 'Tableau de bord'], ['users', 'Utilisateurs'], ['payments', 'Paiements'], ['plans', 'Offres'], ['settings', 'Réglages'], ['audit', 'Journal'], ['outbox', 'Emails']];
+const ADMIN_TABS = [['dashboard', 'Tableau de bord'], ['users', 'Utilisateurs'], ['payments', 'Paiements'], ['plans', 'Offres'], ['messages', 'Questions'], ['settings', 'Réglages'], ['audit', 'Journal'], ['outbox', 'Emails']];
 const dtt = iso => iso ? new Date(iso).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : '—';
 const root = () => $('#adminRoot');
 const loading = '<p class="muted">Chargement…</p>';
 
 EXTRA.admin = () => `<h1>🛡 Administration</h1>
-  <div class="tabs">${ADMIN_TABS.map(([k, l]) => `<button data-act="admin-tab" data-tab="${k}" class="${k === adminTab ? 'on' : ''}">${l}</button>`).join('')}</div>
+  <div class="tabs">${ADMIN_TABS.map(([k, l]) => `<button data-act="admin-tab" data-tab="${k}" class="${k === adminTab ? 'on' : ''}">${l}${k === 'messages' && window.__adminUnread ? ` <b class="tab-count">${window.__adminUnread}</b>` : ''}</button>`).join('')}</div>
   <div id="adminRoot">${loading}</div>`;
 AFTER.admin = () => { adminLoad(); };
 actions['admin-tab'] = t => { adminTab = t.dataset.tab; render(); };
 
 async function adminLoad() {
   try {
-    const fn = { dashboard: adminDashboard, users: adminUsers, payments: adminPayments, plans: adminPlans, settings: adminSettings, audit: adminAudit, outbox: adminOutbox }[adminTab];
+    const fn = { dashboard: adminDashboard, users: adminUsers, payments: adminPayments, plans: adminPlans, messages: adminMessages, settings: adminSettings, audit: adminAudit, outbox: adminOutbox }[adminTab];
     await fn();
   } catch (e) { if (root()) root().innerHTML = `<div class="notice bad">${esc(e.message)}</div>`; }
 }
@@ -273,3 +273,30 @@ async function adminOutbox() {
   root().innerHTML = `<div class="card"><h2>Emails envoyés</h2>${configured ? '' : '<div class="devbox" style="margin-top:0">Mode démo : ces emails n\'ont pas été réellement envoyés. Configurez Resend pour les envoyer.</div>'}
     ${rows.length ? rows.map(r => `<details class="mail"><summary><b>${esc(r.subject)}</b> <span class="muted">→ ${esc(r.to)} · ${dtt(r.at)} · ${esc(r.status)}</span></summary><pre>${link(r.text)}${r.error ? '\n\nErreur : ' + esc(r.error) : ''}</pre></details>`).join('') : '<div class="empty">Aucun email.</div>'}</div>`;
 }
+
+/* ----- Questions des visiteurs (page Questions de l'accueil) ----- */
+const MSG_ST = { new: ['envoye', 'Nouvelle'], read: ['brouillon', 'Lue'], done: ['accepte', 'Répondue'] };
+async function adminMessages() {
+  const { rows, unread } = await api('GET', '/api/admin/messages');
+  if (!root()) return;
+  window.__adminUnread = unread; if (window.notifRefresh) window.notifRefresh();
+  root().innerHTML = `<p class="muted" style="margin-top:0">Questions posées depuis la page <b>Questions</b> de l'accueil. Vous recevez aussi chaque question par email : vous pouvez y répondre directement depuis votre messagerie.</p>
+  ${rows.length ? rows.map(m => `<div class="card msg ${m.status === 'new' ? 'unread' : ''}" id="m-${m.id}">
+    <div class="row between" style="align-items:flex-start"><div><b>${esc(m.name)}</b> <a class="muted" href="mailto:${esc(m.email)}">${esc(m.email)}</a><div class="muted" style="font-size:.8rem">${dtt(m.at)}</div></div>
+      <span class="badge ${MSG_ST[m.status][0]}">${MSG_ST[m.status][1]}</span></div>
+    <p class="msg-text">${esc(m.text)}</p>
+    ${(m.replies || []).map(r => `<div class="msg-reply"><div class="muted" style="font-size:.78rem">Votre réponse · ${dtt(r.at)}</div>${esc(r.text)}</div>`).join('')}
+    <div class="row" style="flex-wrap:wrap"><button class="btn small primary" data-act="msg-reply" data-id="${m.id}">✉ Répondre</button>
+      ${m.status === 'new' ? `<button class="btn small" data-act="msg-st" data-id="${m.id}" data-st="read">Marquer comme lue</button>` : m.status === 'read' ? `<button class="btn small" data-act="msg-st" data-id="${m.id}" data-st="done">Marquer comme traitée</button>` : `<button class="btn small" data-act="msg-st" data-id="${m.id}" data-st="new">Marquer non lue</button>`}
+      <button class="btn small danger" data-act="msg-del" data-id="${m.id}">Supprimer</button></div></div>`).join('')
+  : '<div class="card empty">Aucune question pour le moment.</div>'}`;
+}
+actions['msg-st'] = async t => { try { await api('PATCH', '/api/admin/messages/' + t.dataset.id, { status: t.dataset.st }); adminLoad(); } catch (e) { toast(e.message); } };
+actions['msg-del'] = async t => { if (!confirm('Supprimer cette question ?')) return; try { await api('DELETE', '/api/admin/messages/' + t.dataset.id); adminLoad(); } catch (e) { toast(e.message); } };
+actions['msg-reply'] = t => {
+  const m = modalForm(`<form id="mrForm"><h2>Répondre</h2><p class="muted" style="margin-top:0">La réponse est envoyée par email ; la question est rappelée en dessous.</p>
+    <div class="field"><label>Votre réponse</label><textarea name="text" rows="7" required></textarea></div>
+    <div class="form-err" hidden></div><div class="row" style="justify-content:flex-end"><button type="button" class="btn" data-act="close-modal">Annuler</button><button class="btn primary">Envoyer</button></div></form>`);
+  const f = $('#mrForm'); f.elements.text.focus();
+  f.onsubmit = e => { e.preventDefault(); withBusy(f, async () => { await api('POST', '/api/admin/messages/' + t.dataset.id + '/reply', { text: f.elements.text.value }); m.close(); toast('Réponse envoyée'); adminLoad(); }); };
+};

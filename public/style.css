@@ -906,3 +906,17 @@ a:not(.btn) { text-underline-offset: 3px; transition: color .15s, text-decoratio
 .plan-trial { border-style: dashed; }
 .plans .plan { display: flex; flex-direction: column; }
 .plans .plan > .btn.block:last-child, .plans .plan > .row:last-child { margin-top: auto; }
+
+/* ---------- Questions : formulaire de l'accueil et onglet d'administration ---------- */
+.ask-card { margin-top: 18px; padding: 22px 24px; border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); border-radius: var(--ld-r, 14px); background: var(--card); display: grid; gap: 12px; }
+.ask-card h3 { margin: 0 0 4px; font-size: 1.15rem; } .ask-card p { margin: 0; }
+.ask-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.ask-card .field { margin: 0; }
+.ask-foot { display: flex; align-items: center; justify-content: flex-end; gap: 14px; flex-wrap: wrap; }
+.ask-foot .form-err { margin: 0 auto 0 0; }
+.hp { position: absolute !important; left: -9999px !important; width: 1px; height: 1px; opacity: 0; }
+@media (max-width: 600px) { .ask-grid { grid-template-columns: 1fr; } .ask-foot .ld-btn { width: 100%; } }
+.tab-count { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; margin-left: 4px; border-radius: 9px; background: #e5484d; color: #fff; font-size: .7rem; }
+.card.msg { margin-bottom: 12px; } .card.msg.unread { border-color: var(--accent); }
+.msg-text { white-space: pre-wrap; margin: 12px 0; line-height: 1.5; }
+.msg-reply { white-space: pre-wrap; margin: 0 0 12px; padding: 10px 12px; border-left: 3px solid var(--accent); background: var(--card2); border-radius: 6px; font-size: .9rem; }

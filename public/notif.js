@@ -31,6 +31,9 @@
           out.push({ id: 'cp-' + d + '-' + t.slice(0, 40), lvl: n <= 3 ? 'warn' : 'info', ico: 'calc', title: `${t.split(' — ')[0]}`, text: `À faire avant le ${fdate(d)} (${inDays(n)}).`, go: ['stats', 'compta'], sort: 40 + n }); });
       } catch (e) { /* ignore */ }
     }
+    // administrateur : questions des visiteurs pas encore lues
+    if (session.user && session.user.role === 'admin' && window.__adminUnread > 0) { const n = window.__adminUnread;
+      out.push({ id: 'msg-' + n, lvl: 'warn', ico: 'mail', title: `${n} nouvelle${n > 1 ? 's' : ''} question${n > 1 ? 's' : ''} de visiteurs`, text: 'Posée' + (n > 1 ? 's' : '') + ' depuis la page Questions. Répondez-y dans Administration > Questions.', go: ['admin', 'messages'], sort: -100 }); }
     // abonnement
     const a = session.access || {};
     if (a.active && a.until && session.user && session.user.role !== 'admin') { const n = dayDiff(String(a.until).slice(0, 10)); if (n >= 0 && n <= 5) out.push({ id: 'sub-' + String(a.until).slice(0, 10), lvl: 'warn', ico: 'lock', title: 'Votre abonnement se termine bientôt', text: `Accès jusqu’au ${fdate(String(a.until).slice(0, 10))} (${inDays(n)}). Renouvelez-le pour continuer à travailler.`, go: ['billing'], sort: 50 }); }
@@ -73,7 +76,7 @@
     }
   }
   const base = window.updateTopbar;
-  window.updateTopbar = updateTopbar = function () { base.apply(this, arguments); bell(); setTimeout(daily, 1200); };
+  window.updateTopbar = updateTopbar = function () { base.apply(this, arguments); bell(); setTimeout(daily, 1200); if (lastUnread == null) setTimeout(pollAdmin, 800); };
   setInterval(() => { bell(); daily(); }, 30 * 60e3);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { bell(); daily(); } });
   const close = () => { const p = document.getElementById('notifPop'); if (p) p.hidden = true; };
@@ -82,11 +85,26 @@
     'notif-open'() { const p = document.getElementById('notifPop'); if (!p) return; if (p.hidden) { panel(); p.hidden = false; } else p.hidden = true; },
     'notif-seen'(t) { seen()[t.dataset.id] = today(); save(); bell(); },
     'notif-all'() { compute().forEach(n => { seen()[n.id] = today(); }); save(); bell(); },
-    'notif-go'(t) { const n = compute().find(x => x.id === t.dataset.id); close(); if (!n) return; seen()[n.id] = today(); save(); if (n.go[0] === 'stats') { statUI.tab = n.go[1]; go('stats'); } else go(n.go[0], n.go[1]); bell(); },
+    'notif-go'(t) { const n = compute().find(x => x.id === t.dataset.id); close(); if (!n) return; seen()[n.id] = today(); save(); if (n.go[0] === 'stats') { statUI.tab = n.go[1]; go('stats'); } else if (n.go[0] === 'admin') { adminTab = n.go[1]; go('admin'); } else go(n.go[0], n.go[1]); bell(); },
     async 'notif-perm'() { try { const r = await Notification.requestPermission(); toast(r === 'granted' ? 'Notifications activées sur cet appareil' : 'Notifications refusées'); } catch (e) { /* ignore */ } panel(); }
   });
   // la cloche se met à jour quand les données changent (facture payée, devis accepté…)
   const baseSave = window.save;
   if (typeof baseSave === 'function') window.save = save = function () { const r = baseSave.apply(this, arguments); clearTimeout(window.__nb); window.__nb = setTimeout(bell, 300); return r; };
   window.notifCompute = compute;
+  /* administrateur : compte des questions non lues (toutes les 5 minutes) ; notification sur l'appareil quand une nouvelle arrive */
+  let lastUnread = null;
+  async function pollAdmin() {
+    if (!session.user || session.user.role !== 'admin') return;
+    try { const r = await api('GET', '/api/admin/messages'); const n = r.unread;
+      if (lastUnread != null && n > lastUnread) { const m = r.rows.find(x => x.status === 'new');
+        toast(`❓ Nouvelle question de ${m ? m.name : 'un visiteur'}`);
+        if ('Notification' in window && Notification.permission === 'granted') try { new Notification('OptiDevis — nouvelle question', { body: m ? `${m.name} : ${m.text.slice(0, 140)}` : '', icon: '/icon-192.png' }); } catch (e) { /* ignore */ } }
+      lastUnread = n; window.__adminUnread = n; bell();
+      document.querySelectorAll('[data-tab=messages]').forEach(b => { const c = b.querySelector('.tab-count'); if (n && !c) b.insertAdjacentHTML('beforeend', ` <b class="tab-count">${n}</b>`); else if (c) { if (n) c.textContent = n; else c.remove(); } });
+    } catch (e) { /* ignore */ }
+  }
+  window.notifRefresh = () => { lastUnread = window.__adminUnread; bell(); };
+  setTimeout(pollAdmin, 1500); setInterval(pollAdmin, 5 * 60e3);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) pollAdmin(); });
 })();

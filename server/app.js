@@ -877,6 +877,36 @@ route('PATCH', '/api/admin/settings', A, ctx => {
   audit(ctx.user, 'réglages modifiés', '', Object.keys(b).join(', ')); store.save();
   return ok({ settings: s });
 });
+/* ---------- Questions envoyées depuis la page Questions de l'accueil ---------- */
+route('POST', '/api/contact', 'none', ctx => {
+  limit('contact:' + ctx.ip, 5, 3600e3);
+  const b = ctx.body || {}, name = str(b.name, 80), email = str(b.email, 254).toLowerCase(), text = str(b.question, 3000);
+  if (b.website) return ok();                                   // champ piège anti-robots
+  if (name.length < 2 || !isEmail(email)) throw err(400, 'Indiquez votre nom et une adresse email valide.');
+  if (text.length < 10) throw err(400, 'Votre question est trop courte (10 caractères minimum).');
+  const m = { id: store.uuid(), at: now(), name, email, text, status: 'new', ip: ctx.ip };
+  db.messages = db.messages || []; db.messages.unshift(m); db.messages = db.messages.slice(0, 2000);
+  audit(null, 'question reçue', email); store.save();
+  for (const a of db.users.filter(u => u.role === 'admin' && !u.suspended))
+    mail.send(a.email, `❓ Nouvelle question de ${name} — ${db.settings.siteName}`,
+      `${name} <${email}> a posé une question depuis la page Questions :\n\n${text}\n\nRépondez directement à cet email, ou depuis Administration > Questions :\n${APP_URL()}/`, { replyTo: email }).catch(() => {});
+  return ok();
+});
+route('GET', '/api/admin/messages', A, () => ({ rows: (db.messages || []).slice(0, 500), unread: (db.messages || []).filter(m => m.status === 'new').length }));
+route('PATCH', '/api/admin/messages/:id', A, ctx => {
+  const m = (db.messages || []).find(x => x.id === ctx.params.id); if (!m) throw err(404, 'Question introuvable.');
+  if (['new', 'read', 'done'].includes(ctx.body.status)) m.status = ctx.body.status;
+  store.save(); return ok({ message: m });
+});
+route('POST', '/api/admin/messages/:id/reply', A, async ctx => {
+  const m = (db.messages || []).find(x => x.id === ctx.params.id); if (!m) throw err(404, 'Question introuvable.');
+  const text = str(ctx.body.text, 5000); if (text.length < 2) throw err(400, 'Réponse vide.');
+  await mail.send(m.email, `Réponse à votre question — ${db.settings.siteName}`,
+    `Bonjour ${m.name},\n\n${text}\n\n— L'équipe ${db.settings.siteName}\n\nVotre question :\n> ${m.text.replace(/\n/g, '\n> ')}`, { replyTo: ctx.user.email });
+  m.replies = (m.replies || []).concat({ at: now(), by: ctx.user.email, text }); m.status = 'done';
+  audit(ctx.user, 'réponse à une question', m.email); store.save(); return ok({ message: m });
+});
+route('DELETE', '/api/admin/messages/:id', A, ctx => { db.messages = (db.messages || []).filter(x => x.id !== ctx.params.id); store.save(); return ok(); });
 route('GET', '/api/admin/audit', A, () => ({ rows: db.audit.slice(0, 300) }));
 route('GET', '/api/admin/outbox', A, () => ({ rows: db.outbox.slice(0, 100), configured: mail.configured() }));
 

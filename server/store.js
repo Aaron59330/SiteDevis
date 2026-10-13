@@ -10,7 +10,7 @@ const FILE = path.join(DIR, 'db.json');
 
 const features = ['Devis illimités', 'Clients et catalogue de prestations', 'Export PDF multi-pages', 'Recherche d\'entreprise par SIRET', 'Support par email'];
 const defaults = () => ({
-  users: [], sessions: [], tokens: [], payments: [], audit: [], outbox: [], reminders: {},
+  users: [], sessions: [], tokens: [], payments: [], audit: [], outbox: [], reminders: {}, messages: [],
   plans: [
     { id: 'monthly', name: 'Mensuel', priceCents: 990, interval: 'month', description: 'Sans engagement, renouvelable à la demande', features, active: true },
     { id: 'quarterly', name: 'Trimestriel', priceCents: 2690, interval: 'quarter', description: '3 mois d\'accès, environ 10 % moins cher', features, active: true },
