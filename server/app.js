@@ -886,6 +886,8 @@ function reminders() {
   }
 }
 setInterval(reminders, 3600e3).unref();
+const notify = require('./notify');
+setInterval(() => { try { notify.run({ db, store, mail, siteName: db.settings.siteName, url: APP_URL() }); } catch (e) { console.error('rappels', e.message); } }, 3600e3).unref();
 
 function seedAdmin() {
   if (db.users.some(u => u.role === 'admin')) return;

@@ -794,3 +794,27 @@ a:not(.btn) { text-underline-offset: 3px; transition: color .15s, text-decoratio
 .pack-row div { flex: 1; min-width: 0; } .pack-row b { font-size: .95rem; }
 .pack-row span:not(.badge) { display: block; color: var(--muted); font-size: .82rem; margin-top: 2px; }
 .pack-row i { font-style: normal; font-size: .76rem; color: var(--muted); } .pack-row em { font-style: normal; font-size: .8rem; color: var(--muted); white-space: nowrap; }
+
+/* ---------- Rappels (cloche) ---------- */
+#notifbox { position: relative; display: flex; }
+.notif-btn { position: relative; display: inline-flex; align-items: center; justify-content: center; }
+.notif-btn .ic { width: 18px; height: 18px; }
+.notif-count { position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--accent); color: #111; font-size: .68rem; font-weight: 700; line-height: 18px; text-align: center; box-shadow: 0 0 0 2px var(--bg); }
+.notif-count.d { background: #e5484d; color: #fff; animation: notifPulse 2s ease-in-out infinite; }
+@keyframes notifPulse { 50% { box-shadow: 0 0 0 2px var(--bg), 0 0 0 6px rgba(229,72,77,.25); } }
+.notif-pop { position: absolute; top: calc(100% + 10px); right: 0; z-index: 60; width: min(380px, calc(100vw - 24px)); max-height: min(70vh, 560px); overflow: auto; background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 18px 50px -12px rgba(0,0,0,.55); padding: 8px; }
+.np-head { display: flex; align-items: center; justify-content: space-between; padding: 6px 6px 10px; border-bottom: 1px solid var(--line); margin-bottom: 6px; }
+.np-item { display: flex; align-items: flex-start; gap: 6px; border-radius: 9px; border-left: 3px solid var(--line); margin: 4px 0; }
+.np-item.danger { border-left-color: #e5484d; } .np-item.warn { border-left-color: var(--accent); } .np-item.info { border-left-color: #4c8dff; }
+.np-item.read { opacity: .55; }
+.np-go { flex: 1; display: flex; gap: 10px; text-align: left; background: none; border: 0; color: var(--text); padding: 9px 6px 9px 8px; cursor: pointer; border-radius: 8px; font: inherit; }
+.np-go:hover { background: rgba(127,127,127,.08); }
+.np-go b { display: block; font-size: .88rem; margin-bottom: 2px; }
+.np-go span span { display: block; font-size: .8rem; color: var(--muted); line-height: 1.35; }
+.np-ico .ic { width: 16px; height: 16px; margin: 2px 0 0; }
+.np-item.danger .np-ico { color: #e5484d; }
+.np-ok { align-self: center; background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 7px; font-size: .72rem; padding: 3px 8px; margin-right: 6px; cursor: pointer; }
+.np-ok:hover { border-color: var(--accent); color: var(--text); }
+.np-seen { align-self: center; font-size: .72rem; color: var(--muted); margin-right: 10px; }
+.np-foot { border-top: 1px solid var(--line); margin-top: 6px; padding: 10px 6px 4px; font-size: .8rem; }
+@media (max-width: 700px) { .notif-pop { position: fixed; top: 60px; right: 12px; left: 12px; width: auto; } }

@@ -89,6 +89,7 @@
     S.forEach((s, i) => { o += `<circle cx="${pad.l + i * bw + bw / 2}" cy="${y(s.res)}" r="3.5" class="d-res"><title>Résultat ${ymLabel(s.m)} : ${money(s.res)}</title></circle>`; });
     return o + '</svg>';
   }
+  window.comptaDeadlines = () => deadlines();
   function deadlines() {
     const c = cfg(), now = today(), out = [], y = Number(now.slice(0, 4)), m = Number(now.slice(5, 7));
     const end = (yy, mm) => new Date(yy, mm, 0).toISOString().slice(0, 10);
