@@ -56,7 +56,7 @@ function payModal(s) {
     e.preventDefault(); $('#payBtn').disabled = true;
     try {
       const r = await api('POST', '/api/billing/simulate', { paymentId: s.paymentId });
-      session.access = r.access; updateTopbar(); m.close(); toast('✓ Paiement confirmé, merci !');
+      session.access = r.access; updateTopbar(); m.close(); if (window.celebrate) celebrate(); toast('✓ Paiement confirmé, merci !');
       if (view === 'billing') render();
     } catch (err) { toast(err.message); $('#payBtn').disabled = false; }
   };

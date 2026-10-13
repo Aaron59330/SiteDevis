@@ -18,7 +18,7 @@ async function startApp(me, params) {
     try {
       const r = await api('GET', '/api/billing/confirm?session_id=' + encodeURIComponent(params.get('session_id')));
       session.access = r.access; updateTopbar();
-      toast(r.status === 'paid' ? '✓ Paiement confirmé, merci !' : 'Paiement en attente de confirmation…');
+      if (r.status === 'paid' && window.celebrate) celebrate(); toast(r.status === 'paid' ? '✓ Paiement confirmé, merci !' : 'Paiement en attente de confirmation…');
     } catch (e) { toast(e.message); }
   } else if (params && params.get('checkout') === 'cancel') { view = 'billing'; toast('Paiement annulé'); }
   render();

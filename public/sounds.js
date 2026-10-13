@@ -61,6 +61,7 @@
   document.addEventListener('click', e => {
     const el = e.target.closest('button, a[data-act], [data-view], summary, .opt, .sw, .bgsw, .cchip');
     if (!el || el.disabled || el.closest('[data-nosound]')) return;
+    if (el.matches('.ld-links a[href^="#/"], .ld-foot a[href^="#/"], a.ld-home') || /^auth-(open|go|close)$/.test(el.dataset.act || '')) return;
     const act = el.dataset.act || '';
     if (act === 'sound-test' || act === 'pref') return;
     if (/^(del|rm|remove|line-del|log-del)|delete/.test(act) || el.classList.contains('danger')) return playSound('delete');
@@ -87,10 +88,64 @@
   if (typeof baseToast === 'function') {
     window.toast = function (msg) {
       baseToast.apply(this, arguments);
+      if (window.__quietToast > Date.now()) return;   // le jingle d'achat joue déjà
       playSound(/impossible|erreur|invalide|incorrect|manque|indiquez|choisissez|d'abord|précède|déjà|refus|échec|requis|trop/i.test(String(msg)) ? 'error' : 'success');
     };
     try { toast = window.toast; } catch (e) { /* ignore */ }
   }
+
+  /* ---------- Sons « motion design » ---------- */
+  // souffle filtré (transition de page) : bruit blanc passé dans un filtre qui balaie les fréquences
+  window.playWhoosh = function (dir) {
+    const p = prefs(); if (p.sound === 'off') return;
+    const c = audio(); if (!c || c.state !== 'running') return;
+    const vol = (VOL[p.vol] || VOL.mid) * .5, t0 = c.currentTime + .005, dur = .42;
+    const buf = c.createBuffer(1, Math.floor(c.sampleRate * dur), c.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    const src = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
+    src.buffer = buf; f.type = 'bandpass'; f.Q.value = 1.4;
+    f.frequency.setValueAtTime(dir < 0 ? 2600 : 420, t0); f.frequency.exponentialRampToValueAtTime(dir < 0 ? 420 : 2600, t0 + dur * .8);
+    g.gain.setValueAtTime(.0001, t0); g.gain.exponentialRampToValueAtTime(.16 * vol, t0 + .12); g.gain.exponentialRampToValueAtTime(.0001, t0 + dur);
+    src.connect(f); f.connect(g); g.connect(c.destination); src.start(t0); src.stop(t0 + dur + .02);
+    // petite note cristalline à la fin du souffle
+    const o = c.createOscillator(), a = c.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(dir < 0 ? 660 : 990, t0 + .22);
+    a.gain.setValueAtTime(.0001, t0 + .22); a.gain.exponentialRampToValueAtTime(.05 * vol, t0 + .23); a.gain.exponentialRampToValueAtTime(.0001, t0 + .5);
+    o.connect(a); a.connect(c.destination); o.start(t0 + .22); o.stop(t0 + .52);
+  };
+  // jingle d'achat : arpège montant + accord tenu + scintillement
+  const JINGLE = [[523.25, 0, .16, 'triangle', .16], [659.25, .1, .16, 'triangle', .16], [783.99, .2, .16, 'triangle', .16], [1046.5, .3, .9, 'sine', .15],
+    [523.25, .3, 1, 'sine', .07], [659.25, .3, 1, 'sine', .06], [783.99, .3, 1, 'sine', .06], [130.81, .3, .9, 'sine', .12],
+    [2093, .42, .18, 'sine', .035], [2637, .52, .18, 'sine', .03], [3136, .62, .26, 'sine', .025]];
+  let pendingJingle = false;
+  function jingle() {
+    const p = prefs(); if (p.sound === 'off') return;
+    const c = audio(); if (!c) return;
+    if (c.state !== 'running') { pendingJingle = true; return; }   // le navigateur attend un premier geste
+    const vol = VOL[p.vol] || VOL.mid, t0 = c.currentTime + .01;
+    for (const [f, at, dur, type, gg] of JINGLE) { const o = c.createOscillator(), a = c.createGain(); o.type = type; o.frequency.setValueAtTime(f, t0 + at);
+      a.gain.setValueAtTime(.0001, t0 + at); a.gain.exponentialRampToValueAtTime(gg * vol, t0 + at + .012); a.gain.exponentialRampToValueAtTime(.0001, t0 + at + dur);
+      o.connect(a); a.connect(c.destination); o.start(t0 + at); o.stop(t0 + at + dur + .02); }
+  }
+  document.addEventListener('pointerdown', () => { if (pendingJingle) { pendingJingle = false; setTimeout(jingle, 60); } }, true);
+  // célébration : jingle + confettis aux couleurs du site
+  window.celebrate = function () {
+    window.__quietToast = Date.now() + 800; jingle();
+    if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const box = document.createElement('div'); box.className = 'confetti'; box.setAttribute('aria-hidden', 'true');
+    const cols = ['var(--accent)', '#ffffff', '#f7d08a', '#e3a04b', '#22c55e'];
+    for (let i = 0; i < 70; i++) { const s = document.createElement('i'); const x = (Math.random() - .5) * 2;
+      s.style.cssText = `--x:${x * 46}vw;--r:${(Math.random() * 720 - 360) | 0}deg;--d:${(.9 + Math.random() * .9).toFixed(2)}s;--w:${(5 + Math.random() * 6) | 0}px;left:50%;background:${cols[i % cols.length]};animation-delay:${(Math.random() * .25).toFixed(2)}s`;
+      box.appendChild(s); }
+    document.body.appendChild(box); setTimeout(() => box.remove(), 2600);
+  };
+
+  /* Accueil : souffle à chaque changement de page, sons d'ouverture / fermeture de la connexion */
+  let lastPg = location.hash;
+  window.addEventListener('hashchange', () => { if (!document.querySelector('.landing')) return; const back = location.hash === '' || location.hash === '#/'; playWhoosh(back ? -1 : 1); lastPg = location.hash; });
+  document.addEventListener('click', e => {
+    const a = e.target.closest('.landing [data-act=auth-open], .landing [data-act=auth-go]'); if (a) setTimeout(() => playSound('open', false), 0);
+    const x = e.target.closest('.landing [data-act=auth-close]'); if (x) playSound('close');
+  }, true);
 
   /* Fenêtres modales : ouverture / fermeture */
   const dlg = document.getElementById('modal');

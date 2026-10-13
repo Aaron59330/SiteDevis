@@ -964,3 +964,8 @@ a:not(.btn) { text-underline-offset: 3px; transition: color .15s, text-decoratio
 .switch input:checked + span { background: var(--accent); }
 .switch input:checked + span::after { transform: translateX(18px); }
 @media (max-width: 700px) { .mem-strip { flex-wrap: wrap; } .mem-m .mem-src { display: none; } }
+
+/* Confettis après un achat */
+.confetti { position: fixed; inset: 0; pointer-events: none; z-index: 9999; overflow: hidden; }
+.confetti i { position: absolute; top: 38%; width: var(--w); height: calc(var(--w) * .45); border-radius: 2px; opacity: 0; animation: confetti var(--d) cubic-bezier(.2, .6, .35, 1) forwards; }
+@keyframes confetti { 0% { opacity: 1; transform: translate(-50%, 0) rotate(0); } 30% { opacity: 1; transform: translate(calc(-50% + var(--x) * .55), -26vh) rotate(calc(var(--r) * .4)); } 100% { opacity: 0; transform: translate(calc(-50% + var(--x)), 55vh) rotate(var(--r)); } }
