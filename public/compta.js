@@ -82,12 +82,15 @@
     let est = real;
     if (!real) (base.lines || []).filter(l => l.t === 'item').forEach(l => {
       const c = db.catalog.find(x => (l.ref && x.ref && x.ref === l.ref) || (fold(x.desc) && fold(x.desc) === fold(l.desc)));
-      if (c && typeof itemCost === 'function') est += itemCost(c) * num(l.qty);
+      const k = c && typeof itemCost === 'function' ? itemCost(c) : 0;
+      if (k > 0) est += k * num(l.qty) * (micro ? 1.2 : 1);                         // prix d'achat connu (catalogue)
+      else if (lineNature(l) === 'vente') est += num(l.qty) * num(l.price);   // vente sans prix d'achat : déduite au montant facturé
     });
+    if (real) est = real * (micro ? 1.2 : 1);
     // les matériaux suivent la répartition des ventes (priorité aux premières factures)
     let k = share;
     if (src) { const a = quoteAlloc(src)[q.id]; if (a && a.totalV > 0.005) k = Math.min(1, a.venteTtc / a.totalV); }
-    return est * k * (micro ? 1.2 : 1);       // micro : la TVA payée sur les achats n'est pas récupérée (20 % en général)
+    return est * k;   // micro : prix d'achat majoré de 20 % de TVA non récupérée
   }
 
   function figures(p) {
@@ -169,7 +172,7 @@
     <div class="stats">
       ${card(money(F.R.ttc), `Recettes encaissées (${F.R.cashed.length})`, (F.R.venteTtc > 0.005 && F.R.serviceTtc > 0.005) || F.R.venteTtc > 0.005 ? `Ventes ${money(F.micro ? F.R.venteTtc : F.R.venteHt)} · Services ${money(F.micro ? F.R.serviceTtc : F.R.serviceHt)}${F.micro ? '' : ' (HT)'}` : F.micro ? 'Prestations de services' : `dont ${money(F.R.ht)} HT`, cmp(F.R.ttc, PF.R.ttc, 'vs période préc.'))}
       ${card(money(F.micro ? F.chTtc : F.chHt), `Charges${F.micro ? '' : ' HT'} (${F.E.length})`, F.micro ? 'Dépenses de la période' : `dont ${money(F.chVat)} de TVA déductible`, cmp(F.micro ? F.chTtc : F.chHt, F.micro ? PF.chTtc : PF.chHt, 'vs période préc.', false))}
-      ${card(`<span style="color:${F.result < 0 ? 'var(--danger)' : 'inherit'}">${money(F.result)}</span>`, F.micro ? 'Reste après charges, matériaux et cotisations' : 'Résultat avant impôt', (F.micro ? 'Recettes − charges' : 'Recettes HT − charges HT') + (F.matEst > 0.005 ? ` − matériaux ${money(F.mat)}${F.matCharged > 0.005 ? ` (${money(F.matEst)} estimés, dont ${money(F.matCharged)} déjà en charges)` : ' (prix d’achat)'}` : '') + (F.micro ? ' − cotisations estimées' : ''), cmp(F.result, PF.result, 'vs période préc.'))}
+      ${card(`<span style="color:${F.result < 0 ? 'var(--danger)' : 'inherit'}">${money(F.result)}</span>`, F.micro ? 'Reste après charges, matériaux et cotisations' : 'Résultat avant impôt', (F.micro ? 'Recettes − charges' : 'Recettes HT − charges HT') + (F.matEst > 0.005 ? ` − matériaux / part vente ${money(F.mat)}${F.matCharged > 0.005 ? ` (${money(F.matEst)}, dont ${money(F.matCharged)} déjà en charges)` : ''}` : '') + (F.micro ? ' − cotisations estimées' : ''), cmp(F.result, PF.result, 'vs période préc.'))}
       ${F.micro ? card(money(F.cotis), 'Cotisations URSSAF estimées', [F.R.venteTtc > 0.005 && `${fmtNum.format(F.rateV)} % des ventes (${money(F.cotisV)})`, (F.R.serviceTtc > 0.005 || !(F.R.venteTtc > 0.005)) && `${fmtNum.format(F.rateS)} % des services (${money(F.cotisS)})`].filter(Boolean).join(' + ') + (c.vl ? ' — avec versement libératoire' : ''))
         : card(`<span style="color:${F.vatDue < 0 ? 'var(--ok)' : 'inherit'}">${money(Math.abs(F.vatDue))}</span>`, F.vatDue < 0 ? 'Crédit de TVA' : 'TVA à reverser', `Collectée ${money(F.vatOut)} − déductible ${money(F.chVat)}${db.company.vatDebits ? ' (sur les débits)' : ' (sur les encaissements)'}`)}
     </div>
@@ -321,7 +324,7 @@
       <table style="width:100%;border-collapse:collapse"><thead><tr><th ${th}>Poste</th><th ${thr}>Montant${micro ? '' : ' HT'}</th></tr></thead><tbody>
         <tr><td ${td}><b>Chiffre d’affaires (factures encaissées)</b></td><td ${tdr}><b>${money(F.recHt)}</b></td></tr>
         ${cats.map(([k, v]) => `<tr><td ${td}>&nbsp;&nbsp;− ${esc(k)}</td><td ${tdr}>${money(v)}</td></tr>`).join('')}
-        ${F.mat > 0.005 ? `<tr><td ${td}>&nbsp;&nbsp;− Matériaux des factures encaissées (prix d’achat, non saisis en charges)</td><td ${tdr}>${money(F.mat)}</td></tr>` : ''}
+        ${F.mat > 0.005 ? `<tr><td ${td}>&nbsp;&nbsp;− Matériaux / part vente des factures encaissées (prix d’achat ou montant vendu, hors charges déjà saisies)</td><td ${tdr}>${money(F.mat)}</td></tr>` : ''}
         ${micro ? `<tr><td ${td}>&nbsp;&nbsp;− Cotisations URSSAF estimées</td><td ${tdr}>${money(F.cotis)}</td></tr>` : ''}
         <tr><td ${totl}>${micro ? 'Reste' : 'Résultat'}</td><td ${tot}>${money(F.result)}</td></tr></tbody></table>
       <div ${h2}>${micro ? (c.declPeriod === 'quarter' ? 'Par trimestre (à déclarer à l’URSSAF)' : 'Par mois (à déclarer à l’URSSAF)') : 'Par mois'}</div>
