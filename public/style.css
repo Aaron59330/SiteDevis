@@ -1015,3 +1015,7 @@ table.list th.center, table.list td.center { text-align: center; }
 .pf-num { font-weight: 700; }
 .pf-table td:last-child { vertical-align: top; } .pf-table td:last-child .pf-badge { display: inline-block; margin-top: -2px; }
 @media (max-width: 900px) { .pf-table table { table-layout: auto; } }
+/* Mes devis : 6 indicateurs (payé et reste à payer à côté des devis acceptés) */
+@media (min-width: 1200px) { .stats.six { grid-template-columns: repeat(6, minmax(0, 1fr)); } .stats.six .stat .n { font-size: 1.45rem; } }
+@media (min-width: 701px) and (max-width: 1199px) { .stats.six { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.stat-paid .n { color: #16a34a !important; } .stat-due .n { color: #d97706 !important; }

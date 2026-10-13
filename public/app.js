@@ -282,10 +282,14 @@ function renderQuotesWith(all, sum, list) {
     <div class="row"><button class="btn" data-act="import-pdf" title="Importer un devis ou une facture (PDF ou photo)">Importer (PDF / photo)</button><button class="btn" data-act="tpl-open" title="Devis de départ pour votre métier : couvreur, plaquiste, plombier…">Modèles par métier</button><button class="btn primary" data-act="new-quote">＋ Nouveau devis</button></div>
   </div>
   ${!db.company.name ? `<div class="card" style="border-color:var(--warn)">👋 Commencez par renseigner <a href="#" data-act="goto-company">votre entreprise</a> (logo, coordonnées, IBAN, mentions légales) : tout sera repris automatiquement sur vos devis. Vous pouvez aussi <a href="#" data-act="demo">charger un exemple</a> pour voir le résultat.</div>` : ''}
-  <div class="stats">
+  <div class="stats six">
     <div class="stat"><div class="n">${all.length}</div><div class="l">Devis au total</div></div>
     <div class="stat"><div class="n">${money(sum('envoye'))}</div><div class="l">En attente de réponse</div></div>
     <div class="stat"><div class="n">${money(sum('accepte'))}</div><div class="l">Acceptés</div></div>
+    ${(() => { const acc = all.filter(q => q.status === 'accepte'); let paid = 0, rest = 0;
+      acc.forEach(q => { const b = quoteBilling(q); paid += Math.min(b.paid, b.total); rest += b.remaining; });
+      return `<div class="stat stat-paid"><div class="n">${money(paid)}</div><div class="l">Payé (devis acceptés)</div></div>
+    <div class="stat stat-due"><div class="n">${money(rest)}</div><div class="l">Reste à payer</div></div>`; })()}
     <div class="stat"><div class="n">${all.length ? Math.round(all.filter(q => q.status === 'accepte').length / all.length * 100) : 0} %</div><div class="l">Taux d'acceptation</div></div>
   </div>
   <div class="card">
