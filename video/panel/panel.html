@@ -94,9 +94,9 @@ window.frame = async t => {
     const seg0 = SEG[s.k], seg1 = SEG[S[S.indexOf(s) + 1].k] || SEG.end, rate = (seg1 - seg0 - .1) / s.d;
     vt = seg0 + lt * rate;
     const p = P(lt, 0, s.d, E.io), c = s.c[0].map((x, i) => M(x, s.c[1][i], p));
-    const tin = P(lt, 0, .7, E.o), tout = P(lt, s.d - .45, s.d, E.io);
+    const tin = P(lt, 0, .45, E.o), tout = P(lt, s.d - .3, s.d, E.io);
     c[1] += (1 - tin) * 50 - tout * 30; c[2] *= 1 - (1 - tin) * .03;
-    win.style.opacity = 1; win.style.opacity = M(.0, 1, tin) * (1 - tout * .9); win.style.filter = `blur(${(1 - tin) * 4 + tout * 4}px)`; win.style.transform = cam(c);
+    win.style.opacity = 1; win.style.opacity = M(.45, 1, tin) * (1 - tout * .5); win.style.filter = `blur(${(1 - tin) * 4 + tout * 4}px)`; win.style.transform = cam(c);
     const [fx, fy, zs] = zAt(s.z, lt); zoom.style.transformOrigin = `${fx * 100}% ${fy * 100}%`; zoom.style.transform = `scale(${zs})`;
   }
   if (Math.abs(v.currentTime - vt) > .001) { v.currentTime = vt; await new Promise(r => v.addEventListener('seeked', r, { once: true })); }
