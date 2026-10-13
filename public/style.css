@@ -826,3 +826,17 @@ a:not(.btn) { text-underline-offset: 3px; transition: color .15s, text-decoratio
 @media (max-width: 1919px) { #nav button.nav-acct { display: none; } }
 .notif-count { background: var(--text); color: var(--bg); }
 .notif-count.d { background: #e5484d; color: #fff; }
+
+/* ---------- Catalogue : sélection multiple ---------- */
+.bulk-bar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 8px 12px; margin: 0 0 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--card2); font-size: .88rem; }
+.bulk-bar .bb-all { margin: 0; font-weight: 500; }
+.bulk-bar .bb-act { margin-left: auto; display: none; gap: 8px; }
+.bulk-bar.on { border-color: #e5484d; background: rgba(229,72,77,.06); position: sticky; top: 70px; z-index: 5; }
+.bulk-bar.on .bb-act { display: flex; }
+.bulk-bar.on .bb-n { color: var(--text); font-weight: 600; }
+.cb-cell { width: 34px; padding-right: 0 !important; }
+.cb-row, #cbAll { width: 17px; height: 17px; accent-color: #e5484d; cursor: pointer; vertical-align: middle; }
+#catTable tbody tr.sel td { background: rgba(229,72,77,.06); }
+.card.sup { position: relative; }
+.card.sup.sel { box-shadow: inset 0 0 0 2px #e5484d; }
+.cb-sup { display: inline-flex; vertical-align: -2px; margin-right: 10px; }
