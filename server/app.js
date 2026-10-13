@@ -129,7 +129,7 @@ function completePayment(p, extra = {}) {
   if (u) {
     p.periodEnd = extendAccess(u, p.days ? { days: p.days } : planPeriod(plan), 'subscription');
     mail.send(u.email, `Reçu de paiement ${p.receiptNo}`,
-      `Bonjour ${u.name},\n\nNous avons bien reçu votre paiement de ${money(p.amountCents)} (${p.planName}).\nVotre accès est actif jusqu'au ${new Date(p.periodEnd).toLocaleDateString('fr-FR')}.\n\nVotre reçu : ${APP_URL()}/receipt/${p.id}\n\nMerci de votre confiance,\n${db.settings.siteName}`);
+      `Bonjour ${u.name},\n\nNous avons bien reçu votre paiement de ${money(p.amountCents)} (${p.planName}).\nVotre accès est actif jusqu'au ${new Date(p.periodEnd).toLocaleDateString('fr-FR')}.\n\n${APP_URL()}/receipt/${p.id}\n\nMerci de votre confiance,\n${db.settings.siteName}`);
   }
   audit(u, 'paiement', u ? u.email : p.userEmail, `${money(p.amountCents)} — ${p.planName} (${p.provider})`);
   store.save();
@@ -472,7 +472,7 @@ route('POST', '/api/auth/register', 'none', async ctx => {
   if (!db.settings.requireVerification) { onVerified(u); startSession(ctx, u); store.save(); return ok({ user: publicUser(u) }); }
   const link = `${APP_URL()}/api/auth/verify?token=${newToken(u.id, 'verify', 24 * 3600e3)}`;
   await mail.send(email, `Confirmez votre adresse email — ${db.settings.siteName}`,
-    `Bonjour ${name},\n\nBienvenue sur ${db.settings.siteName} ! Confirmez votre adresse email en cliquant sur ce lien (valable 24 heures) :\n\n${link}\n\nSi vous n'êtes pas à l'origine de cette inscription, ignorez simplement ce message.`);
+    `Bonjour ${name},\n\nBienvenue sur ${db.settings.siteName} ! Confirmez votre adresse email en cliquant sur le bouton ci-dessous (valable 24 heures) :\n\n${link}\n\nSi vous n'êtes pas à l'origine de cette inscription, ignorez simplement ce message.`);
   store.save();
   return ok({ needsVerification: true, devLink: mail.configured() ? undefined : link });
 });
@@ -520,7 +520,7 @@ route('POST', '/api/auth/forgot', 'none', async ctx => {
   if (u && !u.suspended) {
     const link = `${APP_URL()}/?reset=${newToken(u.id, 'reset', 3600e3)}`;
     await mail.send(u.email, `Réinitialisation de votre mot de passe — ${db.settings.siteName}`,
-      `Bonjour ${u.name},\n\nPour choisir un nouveau mot de passe, cliquez sur ce lien (valable 1 heure) :\n\n${link}\n\nSi vous n'avez rien demandé, ignorez ce message : votre mot de passe reste inchangé.`);
+      `Bonjour ${u.name},\n\nPour choisir un nouveau mot de passe, cliquez sur le bouton ci-dessous (valable 1 heure) :\n\n${link}\n\nSi vous n'avez rien demandé, ignorez ce message : votre mot de passe reste inchangé.`);
     if (!mail.configured()) devLink = link;
   }
   return ok({ devLink });
@@ -921,7 +921,7 @@ function reminders() {
     if (t > Date.now() && t < soon && db.reminders[u.id] !== u.accessUntil) {
       db.reminders[u.id] = u.accessUntil;
       mail.send(u.email, `Votre accès expire bientôt — ${db.settings.siteName}`,
-        `Bonjour ${u.name},\n\nVotre accès expire le ${new Date(u.accessUntil).toLocaleDateString('fr-FR')}. Renouvelez-le pour continuer à créer vos devis :\n\n${APP_URL()}/\n\nVos données sont conservées.`);
+        `Bonjour ${u.name},\n\nVotre accès expire le ${new Date(u.accessUntil).toLocaleDateString('fr-FR')}. Renouvelez-le pour continuer à créer vos devis :\n\n${APP_URL()}/\n\nVos données sont conservées.`, { button: 'Renouveler mon accès' });
       store.save();
     }
   }
