@@ -136,6 +136,26 @@ function clientBlock(c) {
   return [c.name, c.address, pro && c.contact && `À l'attention de : ${c.contact}`, pro && c.siret && `N° SIRET : ${c.siret}`,
     pro && c.vatNumber && `N° TVA : ${c.vatNumber}`, c.phone && `Port. : ${c.phone}`, c.email].filter(Boolean).join('\n');
 }
+/* Informations de « Mon entreprise » recopiées dans un document : ce qui a changé depuis */
+const LOCKED_INV = q => isInv(q) && q.status !== 'brouillon';
+const bulkSyncable = q => isInv(q) ? q.status === 'brouillon' : ['brouillon', 'envoye'].includes(q.status);
+function companyDiff(q) {
+  const out = [], norm = v => String(v || '').trim();
+  if (norm(q.issuerText) !== norm(issuerBlock(db.company))) out.push(['issuerText', 'coordonnées de l’entreprise', issuerBlock(db.company)]);
+  if (norm(q.footer) !== norm(makeFooter())) out.push(['footer', 'pied de page / mentions', makeFooter()]);
+  if (norm(q.bank) !== norm(db.company.bank)) out.push(['bank', 'coordonnées bancaires (RIB)', db.company.bank || '']);
+  return out;
+}
+const companySig = () => issuerBlock(db.company) + '|' + makeFooter() + '|' + (db.company.bank || '');
+function companyBanner(q) {
+  const d = companyDiff(q); if (!d.length || q.companyIgnore === companySig()) return '';
+  const label = isInv(q) ? 'la facture' : 'le devis';
+  return `<div class="notice co-sync no-print"><div><b>Mon entreprise a été modifiée.</b> Ce document contient encore les anciennes informations : ${d.map(x => x[1]).join(', ')}.
+    ${LOCKED_INV(q) ? '<br><span class="muted">Attention : cette facture a déjà été émise. Ne la modifiez que pour corriger une erreur.</span>' : ''}</div>
+    <div class="row" style="flex-wrap:nowrap"><button class="btn small primary" data-act="co-sync">↻ Mettre à jour ${label}</button><button class="btn small" data-act="co-ignore" title="Garder les informations actuelles de ce document">Garder</button></div></div>`;
+}
+function applyCompany(q) { companyDiff(q).forEach(([k, , v]) => { q[k] = v; }); delete q.companyIgnore; }
+
 function makeFooter(base) {
   base = base || db;
   let f = (base.settings.defaultFooter || '').replace(/\{entreprise\}/g, base.company.name || 'l\'entreprise');
@@ -330,6 +350,7 @@ function renderEditor() {
       <button class="btn" data-act="print" title="Ouvre la fenêtre d'impression du navigateur">🖨 Imprimer</button>
     </div>
   </div>
+  ${companyBanner(q)}
   <div class="pane-switch no-print"><button data-act="pane" data-pane="form" class="${pane === 'form' ? 'on' : ''}">Édition</button><button data-act="pane" data-pane="doc" class="${pane === 'doc' ? 'on' : ''}">Aperçu du document</button></div>
   <div class="editor ${wide ? 'wide' : ''}" id="editor" data-pane="${pane}">
     <div class="form no-print">
@@ -795,11 +816,22 @@ function clientModal(id, afterSave) {
 }
 
 /* ---------- Mon entreprise ---------- */
+/* Mon entreprise : proposer de reporter les changements sur les devis et factures brouillon existants */
+function coSyncAll() {
+  const el = $('#coSyncAll'); if (!el) return;
+  const list = db.quotes.filter(q => bulkSyncable(q) && companyDiff(q).length);
+  const nd = list.filter(q => !isInv(q)).length, nf = list.length - nd;
+  el.innerHTML = list.length ? `<div class="notice co-sync"><div><b>${list.length} document${list.length > 1 ? 's' : ''} n’${list.length > 1 ? 'ont' : 'a'} pas encore ces informations</b> <span class="muted">(${[nd && `${nd} devis`, nf && `${nf} facture${nf > 1 ? 's' : ''} brouillon`].filter(Boolean).join(', ')} — les devis acceptés et les factures émises ne sont pas modifiés).</span></div>
+    <button class="btn small primary" data-act="co-sync-all">↻ Mettre à jour ${list.length > 1 ? 'ces documents' : 'ce document'}</button></div>` : '';
+}
+AFTER.company = (prev => function () { if (prev) prev.apply(this, arguments); coSyncAll(); })(AFTER.company);
+
 function renderCompany() {
   const co = db.company, s = db.settings;
   return `
   <h1>Mon entreprise</h1>
   <p class="muted">Ces informations sont recopiées dans chaque <b>nouveau</b> devis, où vous pouvez ensuite tout modifier.</p>
+  <div id="coSyncAll"></div>
   <div class="editor" style="grid-template-columns:1fr 1fr">
     <div>
       <div class="card"><h2>Coordonnées</h2>
@@ -966,6 +998,10 @@ const actions = {
   'line-down'(t) { moveLine(+t.closest('.line').dataset.i, 1); },
   'add-pay'() { getQuote(editingId).payments.push({ id: uid(), invoiceId: '', pct: 0, label: '' }); save(); refreshPayments(); },
   'del-pay'(t) { const q = getQuote(editingId), i = +t.closest('.pay').dataset.i; if (q.payments[i].invoiceId && getQuote(q.payments[i].invoiceId) && !confirm('Une facture existe pour cette échéance. La retirer de l\'échéancier ?')) return; q.payments.splice(i, 1); save(); refreshPayments(); },
+  'co-sync'() { const q = getQuote(editingId); if (!q) return; const n = companyDiff(q).length; applyCompany(q); save(); render(); toast(`${isInv(q) ? 'Facture' : 'Devis'} mis à jour avec Mon entreprise (${n} élément${n > 1 ? 's' : ''})`); },
+  'co-ignore'() { const q = getQuote(editingId); if (!q) return; q.companyIgnore = companySig(); save(); render(); },
+  'co-sync-all'() { const list = db.quotes.filter(q => bulkSyncable(q) && companyDiff(q).length);
+    if (!list.length) return; list.forEach(applyCompany); save(); coSyncAll(); toast(`${list.length} document${list.length > 1 ? 's' : ''} mis à jour`); },
   'reset-issuer'() { const q = getQuote(editingId); q.issuerText = issuerBlock(db.company); $('[data-f=issuerText]').value = q.issuerText; save(); refreshPreview(); autosize(); },
   'reset-client'() { const q = getQuote(editingId); q.clientText = clientBlock(getClient(q.clientId)); $('[data-f=clientText]').value = q.clientText; save(); refreshPreview(); autosize(); },
   'new-client': () => clientModal(null, () => render()),
@@ -1043,7 +1079,7 @@ document.addEventListener('input', e => {
       save(); refreshPreview();
     }
   } else if (view === 'company') {
-    if (t.dataset.c) { db.company[t.dataset.c] = t.type === 'checkbox' ? t.checked : t.value; save(); }
+    if (t.dataset.c) { db.company[t.dataset.c] = t.type === 'checkbox' ? t.checked : t.value; save(); clearTimeout(window.__coT); window.__coT = setTimeout(coSyncAll, 400); }
     if (t.dataset.s) { db.settings[t.dataset.s] = t.type === 'checkbox' ? t.checked : t.type === 'number' || t.dataset.s === 'defaultVat' ? num(t.value) : t.value; save(); if (t.dataset.s === 'useSites') updateTopbar(); }
   }
 });
