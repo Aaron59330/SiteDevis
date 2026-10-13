@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<style>
+@font-face{font-family:Caveat;src:url(file:///home/user/SiteDevis/public/fonts/caveat-latin-700-normal.woff2)}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#050505;overflow:hidden}
+body{font-family:"Inter Display","Inter",system-ui,sans-serif;color:#fff;-webkit-font-smoothing:antialiased}
+#b{position:relative;overflow:hidden;background:#060606}
+.glow{position:absolute;border-radius:50%;filter:blur(60px);pointer-events:none}
+.grid{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);-webkit-mask-image:radial-gradient(ellipse at 70% 50%,#000 10%,transparent 70%)}
+.safe{position:absolute;display:flex;align-items:center}
+.txt{position:relative;z-index:3}
+.brand{display:flex;align-items:center}
+.brand img{display:block}
+.brand b{font-weight:600;letter-spacing:-.035em}
+.brand b i{font-style:normal;color:#e3a04b}
+h1{font-weight:700;letter-spacing:-.045em;line-height:1.02}
+h1 em{font-family:Caveat,cursive;font-style:normal;font-weight:700;letter-spacing:0;font-size:1.22em;display:inline-block;transform:rotate(-3deg);text-shadow:0 0 .5em rgba(255,255,255,.35)}
+.sub{color:#9d9d9d;font-weight:500}
+.chips{display:flex;flex-wrap:wrap}
+.chips span{border:1px solid rgba(255,255,255,.16);color:#e8e8e8;border-radius:999px;font-weight:500;background:rgba(255,255,255,.03)}
+.url{display:inline-flex;align-items:center;font-weight:600;color:#fff}
+.url i{display:inline-block;border-radius:50%;background:#fff}
+.vis{position:absolute;z-index:2;perspective:1800px}
+.desk{position:absolute;border-radius:14px;overflow:hidden;box-shadow:0 50px 100px -30px rgba(0,0,0,.9),0 0 0 1px rgba(255,255,255,.12);transform-origin:left center}
+.desk img{display:block;width:100%}
+.phone{position:absolute;background:#111;border-radius:13%/6.2%;box-shadow:0 40px 80px -20px rgba(0,0,0,.9),inset 0 0 0 2px #2c2c2c}
+.phone img{position:absolute;inset:3.2%;width:93.6%;height:96.6%;border-radius:11%/5.2%;object-fit:cover;object-position:top}
+.fade{position:absolute;z-index:2;pointer-events:none}
+</style></head><body>
+<div id="b"></div>
+<script>
+const P = new URLSearchParams(location.search), W = +P.get('w'), H = +P.get('h'), mode = P.get('mode') || 'wide';
+const b = document.getElementById('b'); b.style.width = W + 'px'; b.style.height = H + 'px';
+const A = 'file:///tmp/brand/a/';
+const add = h => { b.insertAdjacentHTML('beforeend', h); return b.lastElementChild; };
+// fond : lueurs discrètes (dorée près du logo, blanche à droite) + grille
+add('<div class="grid"></div>');
+const S = Math.min(W, H * 3.2);
+if (mode === 'sig') {
+  b.style.background = '#070707';
+  const pad = H * .16;
+  add(`<div class="glow" style="left:${-H * .4}px;top:${-H * .6}px;width:${H * 1.8}px;height:${H * 1.8}px;background:radial-gradient(circle,rgba(227,160,75,.22),transparent 65%)"></div>`);
+  add(`<div class="safe txt" style="left:${pad}px;top:0;bottom:0;gap:${H * .14}px">
+    <img src="${A}logo.svg" style="width:${H * .56}px;height:${H * .56}px;border-radius:${H * .13}px">
+    <div><div class="brand"><b style="font-size:${H * .27}px">OptiDevis<i>.</i></b></div>
+      <div class="sub" style="font-size:${H * .12}px;margin-top:${H * .02}px">Devis &amp; factures en quelques minutes</div>
+      <div class="url" style="font-size:${H * .12}px;margin-top:${H * .07}px;gap:${H * .05}px"><i style="width:${H * .05}px;height:${H * .05}px;background:#e3a04b"></i>optidevis.pro</div></div></div>`);
+} else if (mode === 'square') {
+  const pad = W * .08;
+  add(`<div class="glow" style="right:${-W * .3}px;top:${-W * .2}px;width:${W * .9}px;height:${W * .9}px;background:radial-gradient(circle,rgba(255,255,255,.10),transparent 65%)"></div>`);
+  add(`<div class="glow" style="left:${-W * .25}px;top:${-W * .25}px;width:${W * .8}px;height:${W * .8}px;background:radial-gradient(circle,rgba(227,160,75,.16),transparent 65%)"></div>`);
+  const tall = H > W * 1.2;
+  add(`<div class="txt" style="position:absolute;left:${pad}px;right:${pad}px;top:${tall ? H * .1 : pad}px">
+    <div class="brand" style="gap:${W * .025}px"><img src="${A}logo.svg" style="width:${W * .085}px;height:${W * .085}px;border-radius:${W * .02}px"><b style="font-size:${W * .055}px">OptiDevis<i>.</i></b></div>
+    <h1 style="font-size:${W * (tall ? .1 : .085)}px;margin-top:${W * .05}px">Des devis qui<br><em>font signer</em>,<br>en quelques minutes.</h1>
+    <div class="sub" style="font-size:${W * .032}px;margin-top:${W * .03}px">Devis, factures, facture électronique, chantiers.</div></div>`);
+  const vw = W * (tall ? 1.05 : .95), vt = tall ? H * .52 : H * .6;
+  add(`<div class="vis" style="left:${W * .1}px;top:${vt}px;width:${vw}px;height:${vw * .625}px"><div class="desk" style="width:${vw}px;transform:rotateY(-14deg) rotateX(8deg)"><img src="${A}quotes.png"></div>
+    <div class="phone" style="left:${-W * .04}px;top:${vw * .1}px;width:${W * .24}px;height:${W * .52}px;transform:rotateY(10deg) rotateZ(-4deg)"><img src="${A}m-stats.png"></div></div>`);
+  add(`<div class="fade" style="left:0;right:0;bottom:0;height:${H * .16}px;background:linear-gradient(transparent,#060606)"></div>`);
+  add(`<div class="url txt" style="position:absolute;right:${pad}px;bottom:${H * .045}px;font-size:${W * .032}px;gap:${W * .015}px;z-index:4"><i style="width:${W * .012}px;height:${W * .012}px;background:#e3a04b"></i>optidevis.pro</div>`);
+} else {
+  // bannière horizontale ; zone sûre centrée (YouTube : 1546×423 sur 2560×1440)
+  const sw = mode === 'yt' ? W * .604 : W, sh = mode === 'yt' ? H * .294 : H, sx = (W - sw) / 2, sy = (H - sh) / 2;
+  const u = sh / 100, pad = Math.max(sh * .14, sw * .045);
+  add(`<div class="glow" style="left:${sx - sh * .6}px;top:${sy - sh * .9}px;width:${sh * 2.4}px;height:${sh * 2.4}px;background:radial-gradient(circle,rgba(227,160,75,.15),transparent 65%)"></div>`);
+  add(`<div class="glow" style="left:${sx + sw * .55}px;top:${sy - sh * .5}px;width:${sh * 2.6}px;height:${sh * 2.6}px;background:radial-gradient(circle,rgba(255,255,255,.08),transparent 65%)"></div>`);
+  const big = sh > sw * .45;  // formats plus hauts (partage 1200×630)
+  const fs = big ? u * 9.6 : u * 13;
+  add(`<div class="safe txt" style="left:${sx + pad}px;top:${sy}px;height:${sh}px;width:${sw * (big ? .58 : .5)}px"><div>
+    <div class="brand" style="gap:${u * 3.2}px"><img src="${A}logo.svg" style="width:${u * (big ? 12 : 15)}px;height:${u * (big ? 12 : 15)}px;border-radius:${u * 3.4}px"><b style="font-size:${u * (big ? 7.5 : 9.5)}px">OptiDevis<i>.</i></b></div>
+    <h1 style="font-size:${fs}px;margin-top:${u * (big ? 6 : 5)}px">Des devis qui <em>font signer</em>,<br>en quelques minutes.</h1>
+    ${big ? `<div class="sub" style="font-size:${u * 3.6}px;margin-top:${u * 4}px;max-width:${sw * .5}px">Devis, factures, facture électronique et chantiers pour artisans et indépendants.</div>` : ''}
+    <div style="display:flex;align-items:center;gap:${u * 3}px;margin-top:${u * (big ? 6 : 5.5)}px">
+      <div class="chips" style="gap:${u * 1.4}px">${['Devis', 'Factures', 'Facture électronique', 'Chantiers'].slice(0, big ? 4 : 3).map(c => `<span style="font-size:${u * 3}px;padding:${u * 1}px ${u * 2.4}px">${c}</span>`).join('')}</div>
+    </div>
+    <div class="url" style="font-size:${u * 3.6}px;margin-top:${u * 4}px;gap:${u * 1.6}px"><i style="width:${u * 1.4}px;height:${u * 1.4}px;background:#e3a04b"></i>optidevis.pro</div>
+  </div></div>`);
+  // visuels : écran d'ordinateur incliné + téléphone
+  const vw = big ? sw * .6 : sw * .5, vx = sx + sw * (big ? .64 : .57), vy = sy + sh * (big ? .2 : .1);
+  add(`<div class="vis" style="left:${vx}px;top:${vy}px;width:${vw}px;height:${vw * .625}px">
+    <div class="desk" style="width:${vw}px;transform:rotateY(-22deg) rotateX(6deg) rotateZ(-1deg)"><img src="${A}${big ? 'editor' : 'quotes'}.png"></div>
+    <div class="phone" style="left:${vw * .03}px;top:${vw * (big ? .2 : .14)}px;width:${vw * .19}px;height:${vw * .41}px;transform:rotateY(14deg) rotateZ(-3deg)"><img src="${A}m-quotes.png"></div></div>`);
+  add(`<div class="fade" style="left:${W - sw * .06 - sx}px;right:0;top:0;bottom:0;background:linear-gradient(90deg,transparent,#060606 85%)"></div>`);
+  add(`<div class="fade" style="left:0;right:0;bottom:0;height:${sh * .18}px;background:linear-gradient(transparent,#060606)"></div>`);
+}
+window.ready = Promise.all([...document.images].map(i => i.complete ? 1 : new Promise(r => { i.onload = i.onerror = r; }))).then(() => document.fonts.ready);
+</script></body></html>
