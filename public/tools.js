@@ -3,7 +3,7 @@
    Tout fonctionne dans le navigateur : les fichiers ne quittent jamais l'ordinateur de l'utilisateur. */
 
 const toolsUI = { tab: 'guide', tipCat: '', tipQ: '' };
-const TOOL_TABS = [['guide', 'Bien faire un devis'], ['files', 'Fichiers & images'], ['calc', 'Petits calculs'], ['tips', 'Astuces']];
+const TOOL_TABS = [['guide', 'Bien faire un devis'], ['calculator', 'Calculatrice'], ['files', 'Fichiers & images'], ['calc', 'Petits calculs'], ['tips', 'Astuces']];
 const fmtSize = n => (n >= 1048576 ? (n / 1048576).toFixed(2).replace('.', ',') + ' Mo' : Math.max(1, Math.round(n / 1024)) + ' Ko');
 const fnum = (n, d = 2) => (Number.isFinite(n) ? n.toLocaleString('fr-FR', { minimumFractionDigits: d, maximumFractionDigits: d }) : '—');
 const tv = id => num((document.getElementById(id) || {}).value);
@@ -15,7 +15,7 @@ EXTRA.tools = function renderTools() {
   <div id="toolsBody">${toolsBody()}</div>`;
 };
 AFTER.tools = () => { if (toolsUI.tab === 'calc') calcAll(); if (toolsUI.tab === 'guide') { simAll(); guideCheck(); } if (toolsUI.tab === 'files') { imgRender(); pdfRender(); } };
-const toolsBody = () => ({ guide: guideHtml, files: filesHtml, calc: calcHtml, tips: tipsHtml, links: () => window.linksHtml() }[toolsUI.tab] || guideHtml)();
+const toolsBody = () => ({ guide: guideHtml, files: filesHtml, calc: calcHtml, tips: tipsHtml, links: () => window.linksHtml(), calculator: () => window.calculatorHtml() }[toolsUI.tab] || guideHtml)();
 
 /* ================= FICHIERS & IMAGES ================= */
 const img = { items: [] }, pdf = { items: [] };
