@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1920px;height:1080px;overflow:hidden}
+body{font-family:"Inter Display","Inter",system-ui,sans-serif;color:#0a0a0a;-webkit-font-smoothing:antialiased;background:#eef0f2}
+#stage{position:absolute;inset:0;overflow:hidden;background:radial-gradient(1400px 900px at 30% 10%,#ffffff 0%,#f2f3f4 50%,#e4e6e8 100%);perspective:2200px}
+#grid{position:absolute;inset:-200px;background-image:linear-gradient(rgba(0,0,0,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(0,0,0,.035) 1px,transparent 1px);background-size:64px 64px;transform:rotateX(60deg) translateY(380px);transform-origin:50% 100%;opacity:.7}
+#hd{position:absolute;left:120px;top:84px;z-index:20}
+.ln{font-size:68px;font-weight:600;letter-spacing:-.04em;line-height:1.04;white-space:nowrap}
+.ln2{color:#9b9da1}
+.w{display:inline-block;will-change:transform,filter,opacity}
+#win{position:absolute;left:0;top:0;width:1536px;height:960px;border-radius:24px;overflow:hidden;background:#0a0a0a;transform-style:preserve-3d;box-shadow:0 80px 160px -50px rgba(0,0,0,.55),0 0 0 1px rgba(0,0,0,.25);will-change:transform}
+#zoom{position:absolute;inset:0;transform-origin:0 0}
+#zoom video{width:100%;height:100%;display:block;object-fit:cover}
+#gloss{position:absolute;inset:0;background:linear-gradient(115deg,rgba(255,255,255,.10),rgba(255,255,255,0) 40%);pointer-events:none}
+#rect{position:absolute;border:2px solid #0a0a0a;background:rgba(10,10,10,.05);border-radius:6px;display:none}
+#cur{position:absolute;left:0;top:0;width:58px;height:58px;z-index:40;display:none;filter:drop-shadow(0 8px 12px rgba(0,0,0,.25))}
+#url{position:absolute;left:560px;top:600px;width:800px;height:92px;border-radius:999px;background:#fff;box-shadow:0 40px 90px -30px rgba(0,0,0,.3),0 0 0 1px rgba(0,0,0,.06);display:none;align-items:center;padding:0 16px 0 40px;font-size:38px;font-weight:500;letter-spacing:-.02em}
+#url .go{margin-left:auto;width:62px;height:62px;border-radius:50%;background:#0a0a0a;display:grid;place-items:center}
+#logo{position:absolute;left:885px;top:330px;width:150px;height:150px;border-radius:36px;display:none}
+#tag{position:absolute;left:0;right:0;top:730px;text-align:center;font-size:30px;color:#8a8c90;font-weight:500;display:none}
+</style></head><body>
+<div id="stage">
+  <div id="grid"></div>
+  <div id="hd"><div class="ln" id="l1"></div><div class="ln ln2" id="l2"></div></div>
+  <div id="rect"></div>
+  <div id="win"><div id="zoom"><video id="v" src="file:///tmp/panel/raw.webm" muted preload="auto"></video></div><div id="gloss"></div></div>
+  <img id="logo" src="file:///tmp/mo/a/logo.svg">
+  <div id="url"><svg width="30" height="30" viewBox="0 0 24 24" style="margin-right:18px"><rect x="5" y="11" width="14" height="10" rx="2" fill="none" stroke="#9b9da1" stroke-width="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3" fill="none" stroke="#9b9da1" stroke-width="2"/></svg><span id="ut"></span><span id="caret" style="width:3px;height:44px;background:#0a0a0a;margin-left:3px"></span><div class="go"><svg width="30" height="30" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div></div>
+  <div id="tag">Votre espace vous attend.</div>
+  <svg id="cur" viewBox="0 0 24 24"><path d="M4 2.5l15.5 8.2-6.6 1.9-2.6 6.6z" fill="#0a0a0a" stroke="#fff" stroke-width="1.3" stroke-linejoin="round"/></svg>
+</div>
+<script>
+const E = { o: t => 1 - Math.pow(1 - t, 3), io: t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2, x: t => t >= 1 ? 1 : 1 - Math.pow(2, -10 * t), b: t => { const c = 1.5, d = c + 1; return 1 + d * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); }, l: t => t };
+const cl = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x)), P = (t, a, b, e = E.o) => e(cl((t - a) / (b - a))), M = (a, b, p) => a + (b - a) * p;
+const SEG = window.SEG; // début des scènes dans l'enregistrement (s)
+const $ = id => document.getElementById(id);
+const win = $('win'), zoom = $('zoom'), v = $('v'), l1 = $('l1'), l2 = $('l2'), cur = $('cur'), rect = $('rect');
+const CUES = { pop: [], click: [], whoosh: [], swish: [], chime: [], hit: [], tick: [], riser: [], type: [] };
+/* scènes : durée, titre (2 lignes), segment, caméra départ/arrivée [x, y, échelle, rotX, rotY, rotZ], zooms [[t, fx, fy, échelle]] */
+const S = [
+  { k: 'intro', d: 5.5, h: ['Vos devis et factures,', 'sans prise de tête.'] },
+  { k: 's1', d: 7.5, h: ['Tous vos devis,', 'sur une seule page.'], c: [[330, 330, .92, 22, -16, 2], [250, 260, 1, 14, -8, 0]], z: [[0, .32, .03, 1.9], [2.6, .32, .03, 1.9], [4.2, .5, .3, 1]] },
+  { k: 's2', d: 7.5, h: ['Votre métier,', 'un devis prêt en un clic.'], c: [[420, 300, .95, 10, 12, -1], [300, 250, 1.02, 16, -6, 0]], z: [[0, .5, .4, 1], [4, .5, .35, 1.25], [7.5, .5, .35, 1.25]] },
+  { k: 's3', d: 6.8, h: ['Chaque ligne,', 'calculée en direct.'], c: [[260, 330, .95, 20, -10, 1], [240, 250, 1, 10, -4, 0]], z: [[0, .2, .3, 1.35], [2.6, .2, .3, 1.35], [4.4, .78, .55, 1.6], [6.8, .78, .55, 1.6]] },
+  { k: 's4', d: 6, h: ['Chaque paiement,', 'sa facture.'], c: [[380, 290, .96, 14, 10, -1], [280, 250, 1, 12, -6, 0]], z: [[0, .3, .6, 1.25], [2.4, .3, .6, 1.25], [3.6, .76, .5, 1.45], [6, .76, .5, 1.45]] },
+  { k: 's5', d: 6, h: ['Votre client,', 'le reçoit par email.'], c: [[300, 320, .94, 18, -12, 1], [270, 250, 1, 10, -6, 0]], z: [[0, .5, .45, 1.3], [6, .5, .45, 1.45]] },
+  { k: 's6', d: 9, h: ['Un devis manuscrit ?', 'Une photo suffit.'], c: [[400, 300, .95, 12, 12, -1], [270, 250, 1, 14, -6, 0]], z: [[0, .5, .4, 1.2], [5, .5, .45, 1.3], [9, .5, .5, 1.1]] },
+  { k: 's7', d: 6.2, h: ['Votre chiffre d’affaires,', 'en temps réel.'], c: [[280, 330, .95, 22, -12, 1], [250, 250, 1, 12, -6, 0]], z: [[0, .4, .25, 1.35], [2.4, .4, .25, 1.35], [3.8, .5, .45, 1.05], [6.2, .5, .5, 1.12]] },
+  { k: 's8', d: 6, h: ['Vos chantiers,', 'sous contrôle.'], c: [[380, 300, .95, 12, 12, -1], [270, 250, 1, 14, -6, 0]], z: [[0, .4, .3, 1.3], [6, .45, .4, 1.15]] },
+  { k: 's9', d: 7.5, h: ['Vos prix,', 'toujours à portée.'], c: [[300, 320, .94, 20, -12, 1], [260, 250, 1, 12, -6, 0]], z: [[0, .15, .3, 1.7], [3.4, .15, .3, 1.7], [5, .4, .3, 1.2], [7.5, .4, .3, 1.2]] },
+  { k: 's10', d: 6.2, h: ['Vos couleurs,', 'votre interface.'], c: [[380, 300, .95, 12, 12, -1], [270, 250, 1, 14, -6, 0]], z: [[0, .45, .3, 1.5], [6.2, .45, .35, 1.4]] },
+  { k: 's11', d: 8, h: ['Dix rubriques.', 'Un seul site.'], c: [[280, 340, .95, 24, -14, 1], [250, 250, 1, 10, -4, 0]], z: [[0, .3, .02, 2.2], [5.4, .5, .02, 2.2], [7, .5, .3, 1], [8, .5, .3, 1]] },
+  { k: 'outro', d: 7.8, h: ['Essayez-le,', 'dès aujourd’hui.'] }
+];
+let acc = 0; S.forEach(s => { s.a = acc; acc += s.d; });
+const DUR = acc;
+/* repères sonores */
+S.forEach((s, i) => { if (i) { CUES.whoosh.push(s.a); } const n = s.h.join(' ').split(' ').length; for (let j = 0; j < n; j++) CUES.pop.push(+(s.a + .15 + j * .07).toFixed(3)); });
+CUES.click.push(.55, 1.05); CUES.swish.push(2.2); CUES.hit.push(2.6);
+const OUT0 = S[S.length - 1].a; CUES.type.push([OUT0 + 1.4, OUT0 + 2.6]); CUES.click.push(OUT0 + 3.25); CUES.chime.push(OUT0 + 3.5); CUES.hit.push(OUT0 + 3.5); CUES.riser.push([OUT0 - 1.4, OUT0 + .1]);
+/* titres mot par mot */
+const setWords = (el, txt) => { if (el.dataset.t === txt) return; el.dataset.t = txt; el.innerHTML = txt.split(' ').map(w => `<span class="w">${w}</span>`).join(' '); };
+const animWords = (el, lt, d, delay) => [...el.children].forEach((w, i) => { const p = P(lt, delay + i * .07, delay + i * .07 + .55), q = P(lt, d - .45 + i * .02, d - .1 + i * .02, E.io); w.style.opacity = p * (1 - q); w.style.filter = `blur(${(1 - p) * 14 + q * 12}px)`; w.style.transform = `translateY(${(1 - p) * 34 - q * 18}px)`; });
+const cam = c => `translate3d(${c[0]}px,${c[1]}px,0) rotateX(${c[3]}deg) rotateY(${c[4]}deg) rotateZ(${c[5]}deg) scale(${c[2]})`;
+const zAt = (z, t) => { for (let i = 0; i < z.length - 1; i++) if (t <= z[i + 1][0]) { const p = P(t, z[i][0], z[i + 1][0], E.io); return [1, 2, 3].map(k => M(z[i][k], z[i + 1][k], p)); } const l = z[z.length - 1]; return [l[1], l[2], l[3]]; };
+const curAt = (x, y, press) => { cur.style.display = 'block'; cur.style.transform = `translate(${x - 8}px,${y - 4}px) scale(${press ? .85 : 1})`; };
+window.DUR = DUR; window.CUES = CUES; window.S = S;
+window.frame = async t => {
+  const s = S.find(x => t < x.a + x.d) || S[S.length - 1], lt = t - s.a;
+  setWords(l1, s.h[0]); setWords(l2, s.h[1]); animWords(l1, lt, s.d, .1); animWords(l2, lt, s.d, .32);
+  cur.style.display = 'none'; rect.style.display = 'none'; ['url', 'logo', 'tag'].forEach(i => $(i).style.display = 'none');
+  let vt = 0;
+  if (s.k === 'intro') {
+    // le curseur trace un cadre qui devient la fenêtre du site
+    const x0 = 520, y0 = 340, x1 = 1640, y1 = 1040, dp = P(lt, 1.05, 2.1, E.io);
+    if (lt < 2.3) { const [cx, cy] = lt < 1.05 ? [M(1300, x0, P(lt, .2, 1, E.io)), M(820, y0, P(lt, .2, 1, E.io))] : [M(x0, x1, dp), M(y0, y1, dp)]; curAt(cx, cy, lt > .5 && lt < 2.1); }
+    if (lt > 1.05 && lt < 2.4) { rect.style.display = 'block'; rect.style.left = x0 + 'px'; rect.style.top = y0 + 'px'; rect.style.width = (M(x0, x1, dp) - x0) + 'px'; rect.style.height = (M(y0, y1, dp) - y0) + 'px'; rect.style.opacity = 1 - P(lt, 2.1, 2.4); }
+    const g = P(lt, 2.1, 3.2, E.x);
+    win.style.opacity = g; win.style.filter = `blur(${(1 - g) * 12}px)`;
+    win.style.transform = cam([M(520, 330, g), M(340, 330, g), M(.73, .92, g), M(0, 22, g), M(0, -16, g), M(0, 2, g)]);
+    zoom.style.transform = 'none'; vt = SEG.s1;
+  } else if (s.k === 'outro') {
+    const q = P(lt, 0, .9, E.io);
+    win.style.opacity = 1 - q; win.style.filter = `blur(${q * 18}px)`; win.style.transform = cam([M(250, 700, q), M(250, 900, q), M(1, .6, q), M(10, 60, q), M(-4, -10, q), 0]); vt = SEG.end - .05;
+    const u = P(lt, .8, 1.4, E.b), txt = 'optidevis.pro', n = Math.round(txt.length * P(lt, 1.4, 2.6, E.l));
+    const urlEl = $('url'); urlEl.style.display = 'flex'; urlEl.style.opacity = P(lt, .8, 1.1) * (1 - P(lt, 7.2, 7.8)); urlEl.style.transform = `scale(${M(.7, 1, u)})`;
+    $('ut').textContent = txt.slice(0, n); $('caret').style.opacity = (lt % .8 < .4 || lt < 2.6) && lt < 3.2 ? 1 : 0;
+    if (lt > 2.4 && lt < 3.9) { const p = P(lt, 2.5, 3.2, E.io); curAt(M(1500, 1310, p), M(900, 655, p), lt > 3.2 && lt < 3.35); }
+    const lg = P(lt, 3.4, 4.2, E.b); const lo = $('logo'); lo.style.display = 'block'; lo.style.opacity = cl(lg * 1.4) * (1 - P(lt, 7.2, 7.8)); lo.style.transform = `translateY(${(1 - lg) * 40}px) scale(${M(.5, 1, lg)})`;
+    const tg = $('tag'); tg.style.display = 'block'; tg.style.opacity = P(lt, 4, 4.8) * (1 - P(lt, 7.2, 7.8));
+  } else {
+    const seg0 = SEG[s.k], seg1 = SEG[S[S.indexOf(s) + 1].k] || SEG.end, rate = (seg1 - seg0 - .1) / s.d;
+    vt = seg0 + lt * rate;
+    const p = P(lt, 0, s.d, E.io), c = s.c[0].map((x, i) => M(x, s.c[1][i], p));
+    const tin = P(lt, 0, .55, E.x), tout = P(lt, s.d - .4, s.d, E.io);
+    c[1] += (1 - tin) * 160 - tout * 60; c[3] += (1 - tin) * 14;
+    win.style.opacity = 1; win.style.filter = `blur(${(1 - tin) * 10 + tout * 10}px)`; win.style.transform = cam(c);
+    const [fx, fy, zs] = zAt(s.z, lt); zoom.style.transformOrigin = `${fx * 100}% ${fy * 100}%`; zoom.style.transform = `scale(${zs})`;
+  }
+  if (Math.abs(v.currentTime - vt) > .001) { v.currentTime = vt; await new Promise(r => v.addEventListener('seeked', r, { once: true })); }
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+};
+</script></body></html>
