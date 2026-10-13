@@ -76,7 +76,7 @@ function renderAuth(mode, opts = {}) {
     <header class="ld-nav">
       <div class="ld-nav-in">
         <a href="#/" class="brand big ld-home" data-page="" aria-label="Accueil">${brandHtml(cfg.siteName)}</a>
-        <nav class="ld-links" aria-label="Pages"><a href="#/demarrer" data-page="demarrer">Démarrer</a><a href="#/fonctionnalites" data-page="fonctionnalites">Fonctionnalités</a>${(cfg.plans || []).length ? '<a href="#/tarifs" data-page="tarifs">Tarifs</a>' : ''}<a href="#/questions" data-page="questions">Questions</a><a href="#/video" data-page="video">Vidéo</a></nav>
+        <nav class="ld-links" aria-label="Pages"><a href="#/" data-page="">Accueil</a><a href="#/fonctionnalites" data-page="fonctionnalites">Fonctionnalités</a>${(cfg.plans || []).length ? '<a href="#/tarifs" data-page="tarifs">Tarifs</a>' : ''}<a href="#/questions" data-page="questions">Questions</a><a href="#/video" data-page="video">Vidéo</a></nav>
         <label class="docs-search"><span class="ld-ico" aria-hidden="true">${icon('search')}</span><input type="search" id="docsQ" placeholder="Rechercher : facture, PDF, catalogue…" autocomplete="off" aria-label="Rechercher dans la présentation"><kbd>/</kbd></label>
         <button class="theme-btn" id="themeBtn" title="Mode clair / sombre">🌙</button>
         <button type="button" class="ld-login" data-act="auth-open">${icon('user')}Se connecter</button>
@@ -106,7 +106,7 @@ function renderAuth(mode, opts = {}) {
           </div>
         </div>
       </section>
-      <section id="d-start" class="docs-sec" data-doc data-page="demarrer">
+      <section id="d-start" class="docs-sec" data-doc data-page="">
         <h2>Démarrer en 3 étapes</h2>
         <ol class="docs-steps">
           <li data-doc-item><span class="ld-tile">1</span><div><b>Créez votre compte</b><p>Nom, email, mot de passe : c'est tout. Ajoutez ensuite votre entreprise (SIRET, logo, mentions légales) une seule fois.</p></div></li>
