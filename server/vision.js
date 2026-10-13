@@ -40,6 +40,9 @@ async function modelsInOrder() {
   }
   return [first, ...backupModels.filter(m => m !== first)].slice(0, 4);
 }
+/* explication renvoyée par Google (sans la clé), pour le journal du serveur : journalctl -u sitedevis | grep Gemini */
+const seen = [];
+const why = async r => { try { const t = await r.clone().text(); seen.push(t); const j = JSON.parse(t); return ((j.error && (j.error.status + ' — ' + j.error.message)) || t).replace(/\s+/g, ' ').slice(0, 220); } catch (e) { return ''; } };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const geminiOk = () => !!process.env.GEMINI_API_KEY;
 let tessOk = false;
@@ -75,8 +78,10 @@ async function gemini(imgs) {
   };
   /* 503 / 500 / 504 (surcharge passagère de Google) ou 429 (limite par minute) : on réessaie, puis on passe à un autre modèle */
   const busy = st => st === 503 || st === 500 || st === 504 || st === 429;
+  seen.length = 0;
   const t0 = Date.now(), late = () => Date.now() - t0 > 150000;   // au-delà de 2 min 30, on arrête d'insister
   let model = await pickModel(false), r = await call(model);
+  if (busy(r.status) && !r.netError) console.error('Gemini', model, r.status, await why(r));
   if (r.status === 404) { model = await pickModel(true); r = await call(model); }       // nom périmé : on choisit un modèle disponible
   if (busy(r.status)) {
     const order = await modelsInOrder();
@@ -84,13 +89,14 @@ async function gemini(imgs) {
       for (const wait of m === model ? (r.netError === 'timeout' ? [] : [1500, 4000]) : (r.netError === 'timeout' ? [0] : [0, 2500])) {
         if (late()) break outer;
         if (wait) await sleep(wait);
-        const r2 = await call(m); console.error('Gemini', m, 'nouvel essai :', r2.status);
+        const r2 = await call(m); console.error('Gemini', m, 'nouvel essai :', r2.status, busy(r2.status) && !r2.netError ? await why(r2) : '');
         if (!busy(r2.status) && r2.status !== 404) { r = r2; model = m; break outer; }
         r = r2;
       }
     }
   }
   if (busy(r.status) && r.netError) { const er = new Error(r.netError === 'timeout' ? 'La lecture a pris trop de temps. Réessayez avec une photo plus nette et bien cadrée (une page par photo).' : 'Le serveur n\'arrive pas à joindre le service de lecture de Google. Réessayez dans un instant.'); er.status = 503; er.expose = true; throw er; }
+  if (busy(r.status) && seen.some(t => /RESOURCE_EXHAUSTED|quota/i.test(t))) { const er = new Error(/per ?day|PerDay|daily/i.test(seen.join(' ')) ? 'Le quota gratuit de lecture de votre clé Google est épuisé pour aujourd\'hui. Il se recharge demain.' : 'Le quota gratuit de lecture de votre clé Google est atteint pour le moment. Réessayez dans une minute.'); er.status = 429; er.expose = true; throw er; }
   if (busy(r.status)) { console.error('Gemini saturé', model, r.status); const er = new Error(r.status === 429 ? 'La limite gratuite de lecture est atteinte pour le moment. Réessayez dans une minute.' : 'Le service gratuit de lecture de Google est momentanément surchargé. Réessayez dans quelques minutes.'); er.status = 503; er.expose = true; throw er; }
   if (!r.ok) { const txt = (await r.text()).slice(0, 300); console.error('Gemini', model, r.status, txt); const er = new Error(r.status === 400 || r.status === 403 ? 'Clé Gemini refusée ou invalide (erreur ' + r.status + '). Vérifiez GEMINI_API_KEY.' : 'Le service de lecture a refusé la requête (erreur ' + r.status + ').'); er.status = 502; er.expose = true; throw er; }
   const j = await r.json();
