@@ -48,10 +48,27 @@
     const issued = db.quotes.filter(q => isInv(q) && (q.status === 'envoye' || q.status === 'payee') && inP(q.date, p));
     const sum = (l, k) => r2(l.reduce((s, q) => s + totals(q)[k], 0));
     // ventilation ventes de marchandises / prestations de services (au prorata des lignes de chaque facture)
-    const part = (k, nat) => r2(cashed.reduce((s, q) => s + totals(q)[k] * natSplit(q)[nat], 0));
+    const part = (k, nat) => r2(cashed.reduce((s, q) => s + totals(q)[k] * invSplit(q)[nat], 0));
     return { cashed, issued, ttc: sum(cashed, 'ttc'), ht: sum(cashed, 'ht'), vatCashed: sum(cashed, 'vat'), vatIssued: sum(issued, 'vat'), issuedHt: sum(issued, 'ht'),
       venteTtc: part('ttc', 'vente'), serviceTtc: part('ttc', 'service'), venteHt: part('ht', 'vente'), serviceHt: part('ht', 'service') };
   }
+
+  /* Répartition d'un devis facturé en plusieurs fois : les matériaux (ventes) passent en priorité sur les premières factures,
+     les prestations ensuite. Ex. devis avec 3 200 € de ventes : une 1re facture de 2 400 € est entièrement « vente »,
+     la suivante porte les 800 € de ventes restants puis les services. */
+  function quoteAlloc(src) {
+    const inv = linkedInvoices(src).filter(i => i.status !== 'annulee');
+    const totalV = totals(src).ttc * natSplit(src).vente; let left = totalV; const out = {};
+    inv.forEach(i => { const t = totals(i).ttc, v = Math.max(0, Math.min(t, left)); left -= v; out[i.id] = { vente: t > 0 ? v / t : 0, venteTtc: v, totalV }; });
+    return out;
+  }
+  function invSplit(q) {
+    const src = q.fromQuoteId && getQuote(q.fromQuoteId);
+    if (!src) return natSplit(q);
+    const a = quoteAlloc(src)[q.id]; if (!a) return natSplit(q);
+    return { vente: a.vente, service: 1 - a.vente };
+  }
+  window.invoiceNatSplit = invSplit;
 
   /* Coût des matériaux des factures encaissées : achats réels saisis dans la carte « Rentabilité » du devis,
      sinon prix d'achat du catalogue × quantité (au prorata de la part facturée) */
@@ -67,7 +84,10 @@
       const c = db.catalog.find(x => (l.ref && x.ref && x.ref === l.ref) || (fold(x.desc) && fold(x.desc) === fold(l.desc)));
       if (c && typeof itemCost === 'function') est += itemCost(c) * num(l.qty);
     });
-    return est * share * (micro ? 1.2 : 1);       // micro : la TVA payée sur les achats n'est pas récupérée (20 % en général)
+    // les matériaux suivent la répartition des ventes (priorité aux premières factures)
+    let k = share;
+    if (src) { const a = quoteAlloc(src)[q.id]; if (a && a.totalV > 0.005) k = Math.min(1, a.venteTtc / a.totalV); }
+    return est * k * (micro ? 1.2 : 1);       // micro : la TVA payée sur les achats n'est pas récupérée (20 % en général)
   }
 
   function figures(p) {
@@ -230,7 +250,7 @@
     let rows, name;
     if (kind === 'recettes') {
       rows = [['Date d’encaissement', 'N° de facture', 'Client', 'Objet', 'Montant HT', 'TVA', 'Montant TTC', 'Dont ventes de marchandises (TTC)', 'Dont prestations de services (TTC)', 'Mode de règlement']];
-      receipts(p).cashed.sort((a, b) => (a.paidAt || a.date).localeCompare(b.paidAt || b.date)).forEach(f => { const t = totals(f), sp = natSplit(f); rows.push([f.paidAt || f.date, f.number, (f.clientText || '').split('\n')[0], f.title || '', n(t.ht), n(t.vat), n(t.ttc), n(t.ttc * sp.vente), n(t.ttc * sp.service), f.payMethod || '']); });
+      receipts(p).cashed.sort((a, b) => (a.paidAt || a.date).localeCompare(b.paidAt || b.date)).forEach(f => { const t = totals(f), sp = invSplit(f); rows.push([f.paidAt || f.date, f.number, (f.clientText || '').split('\n')[0], f.title || '', n(t.ht), n(t.vat), n(t.ttc), n(t.ttc * sp.vente), n(t.ttc * sp.service), f.payMethod || '']); });
       name = 'livre-des-recettes';
     } else {
       rows = [['Date', 'Libellé', 'Fournisseur', 'Catégorie', 'Montant HT', 'TVA', 'Montant TTC', 'Paiement', 'Note']];
