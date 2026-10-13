@@ -570,20 +570,62 @@ function refreshPayments() {
 }
 
 /* ---------- Clients ---------- */
-function renderClients() {
-  return `
-  <div class="row between" style="margin-bottom:16px"><h1>Clients</h1><button class="btn primary" data-act="new-client">＋ Nouveau client</button></div>
-  <div class="card">${db.clients.length ? `<table class="list">
-    <thead><tr><th>Nom</th><th>Type</th><th>Email</th><th>Téléphone</th><th>Devis</th><th></th></tr></thead>
-    <tbody>${db.clients.map(c => `<tr>
+/* Onglets Tous / Pros / Particuliers + recherche instantanée (nom, contact, ville, email, téléphone, SIRET).
+   Seul le tableau est redessiné pendant la frappe : le champ garde le focus. */
+const clientUI = { tab: 'all', q: '' };
+const fold = v => String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+function clientList() {
+  const words = fold(clientUI.q).split(/\s+/).filter(Boolean), digits = clientUI.q.replace(/\D/g, '');
+  return db.clients.filter(c => {
+    if (clientUI.tab !== 'all' && (c.type === 'pro' ? 'pro' : 'particulier') !== clientUI.tab) return false;
+    if (!words.length) return true;
+    const hay = fold([c.name, c.firstName, c.lastName, c.company, c.contact, c.address, c.email, c.phone, c.siret, c.tva, c.notes].join(' '));
+    const tel = String(c.phone || '').replace(/\D/g, '') + ' ' + String(c.siret || '').replace(/\D/g, '');
+    return words.every(w => hay.includes(w)) || (digits.length >= 3 && tel.includes(digits));
+  });
+}
+function clientRows() {
+  const list = clientList();
+  if (!list.length) return `<tr><td colspan="6"><div class="empty" style="padding:28px 0">Aucun client ${clientUI.tab === 'pro' ? 'professionnel ' : clientUI.tab === 'particulier' ? 'particulier ' : ''}${clientUI.q ? `ne correspond à « ${esc(clientUI.q)} »` : 'pour le moment'}.</div></td></tr>`;
+  return list.map(c => `<tr>
       <td><b>${esc(c.name)}</b><div class="muted" style="white-space:pre-line">${esc(c.address)}</div></td>
       <td><span class="badge ${c.type === 'pro' ? 'envoye' : 'brouillon'}">${c.type === 'pro' ? 'Pro' : 'Particulier'}</span>${c.siret ? `<div class="muted" style="font-size:.78rem">${esc(c.siret)}</div>` : ''}</td>
       <td>${esc(c.email)}</td><td>${esc(c.phone)}</td>
       <td>${db.quotes.filter(q => q.clientId === c.id).length}</td>
       <td class="right"><button class="btn small" data-act="edit-client" data-id="${c.id}">Modifier</button>
-      <button class="btn small danger" data-act="del-client" data-id="${c.id}">🗑</button></td></tr>`).join('')}</tbody></table>`
+      <button class="btn small danger" data-act="del-client" data-id="${c.id}">🗑</button></td></tr>`).join('');
+}
+function clientTabs() {
+  const n = t => db.clients.filter(c => t === 'all' || (c.type === 'pro' ? 'pro' : 'particulier') === t).length;
+  return [['all', 'Tous'], ['pro', 'Professionnels'], ['particulier', 'Particuliers']].map(([t, l]) =>
+    `<button data-act="client-tab" data-tab="${t}" class="${clientUI.tab === t ? 'on' : ''}">${l} <span class="muted">${n(t)}</span></button>`).join('');
+}
+function renderClients() {
+  const ph = clientUI.tab === 'pro' ? 'un professionnel (nom, SIRET, ville…)' : clientUI.tab === 'particulier' ? 'un particulier (nom, ville, téléphone…)' : 'un client (nom, ville, email, téléphone, SIRET…)';
+  return `
+  <div class="row between" style="margin-bottom:16px"><h1>Clients</h1><button class="btn primary" data-act="new-client">＋ Nouveau client</button></div>
+  <div class="card">${db.clients.length ? `
+    <div class="tabs" id="clientTabs" style="margin-bottom:14px">${clientTabs()}</div>
+    <div class="row" style="gap:10px;margin-bottom:12px;align-items:center"><input class="grow" id="clientSearch" type="search" placeholder="🔍 Rechercher ${ph}" value="${esc(clientUI.q)}" autocomplete="off" style="max-width:420px"><span class="muted" id="clientCount" style="font-size:.85rem"></span></div>
+    <table class="list">
+    <thead><tr><th>Nom</th><th>Type</th><th>Email</th><th>Téléphone</th><th>Devis</th><th></th></tr></thead>
+    <tbody id="clientRows">${clientRows()}</tbody></table>`
     : `<div class="empty">Aucun client enregistré.</div>`}</div>`;
 }
+function clientCount() { const el = $('#clientCount'); if (el) { const n = clientList().length; el.textContent = clientUI.q ? `${n} résultat${n > 1 ? 's' : ''}` : ''; } }
+AFTER.clients = () => {
+  const inp = $('#clientSearch'); if (!inp) return;
+  clientCount();
+  inp.addEventListener('input', () => { clientUI.q = inp.value; $('#clientRows').innerHTML = clientRows(); clientCount(); });
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { inp.value = ''; inp.dispatchEvent(new Event('input')); }
+    if (e.key === 'Enter') { const l = clientList(); if (l.length === 1) actions['edit-client']({ dataset: { id: l[0].id } }); }
+  });
+  if (matchMedia('(min-width: 901px)').matches) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+};
+document.addEventListener('keydown', e => {
+  if (e.key === '/' && view === 'clients' && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) { const i = $('#clientSearch'); if (i) { e.preventDefault(); i.focus(); } }
+});
 
 /* Recherche d'entreprise par SIRET (API publique « Recherche d'entreprises », data.gouv.fr) */
 async function lookupSiret(raw) {
@@ -933,6 +975,7 @@ const actions = {
     $('#clientSel').innerHTML = clientOptions(cl.id); $('[data-f=clientText]').value = q.clientText;
     refreshPreview(); autosize();
   }),
+  'client-tab': t => { clientUI.tab = t.dataset.tab; render(); },
   'edit-client': t => clientModal(t.dataset.id, () => render()),
   'del-client'(t) {
     const c = getClient(t.dataset.id);
