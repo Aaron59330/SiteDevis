@@ -2,7 +2,7 @@
 /* Statistiques > Comptabilité : recettes, charges, résultat, TVA à reverser, cotisations estimées,
    charges récurrentes, échéances à prévoir et exports (livre des recettes, registre des achats). */
 (function () {
-  const CATS = ['Achats de matériaux et fournitures', 'Sous-traitance', 'Carburant et déplacements', 'Véhicule (entretien, assurance, leasing)', 'Outillage et matériel', 'Loyer et locaux',
+  const CATS = ['Achats de matériaux et fournitures', 'Achats de marchandises (revente)', 'Sous-traitance', 'Carburant et déplacements', 'Véhicule (entretien, assurance, leasing)', 'Outillage et matériel', 'Loyer et locaux',
     'Assurances (décennale, RC pro)', 'Téléphone et internet', 'Logiciels et abonnements', 'Banque et frais bancaires', 'Comptable et juridique', 'Publicité et marketing',
     'Cotisations sociales (URSSAF)', 'Impôts et taxes (CFE…)', 'Salaires et charges', 'Repas et réceptions', 'Formation', 'Autres'];
   const PAY = ['Carte bancaire', 'Virement', 'Prélèvement', 'Chèque', 'Espèces'];
@@ -13,7 +13,7 @@
     bnc: { label: 'Professions libérales (BNC)', rate: 26.1, vl: 2.2, cap: 77700 }
   };
   const r2 = x => Math.round((x + Number.EPSILON) * 100) / 100;
-  const cfg = () => { db.compta = Object.assign({ regime: db.company.vatExempt ? 'micro' : 'reel', activity: 'services', rate: '', vl: false, period: 'month', vatPeriod: 'month', declPeriod: 'month' }, db.compta || {}); if (!Array.isArray(db.expenses)) db.expenses = []; return db.compta; };
+  const cfg = () => { db.compta = Object.assign({ regime: db.company.vatExempt ? 'micro' : 'reel', activity: (typeof sector === 'function' ? sector().act : 'services'), rate: '', vl: false, period: 'month', vatPeriod: 'month', declPeriod: 'month' }, db.compta || {}); if (!Array.isArray(db.expenses)) db.expenses = []; return db.compta; };
   const ui = { cat: '' };
 
   /* ---------- Périodes ---------- */
@@ -164,7 +164,7 @@
     const m = openModal(`<form id="expForm"><h2>${id ? 'Modifier la charge' : 'Nouvelle charge'}</h2>
       <div class="grid2"><div class="field"><label>Date *</label><input type="date" name="date" value="${e.date}" required></div>
         <div class="field"><label>Catégorie</label><select name="cat">${CATS.map(k => `<option ${e.cat === k ? 'selected' : ''}>${esc(k)}</option>`).join('')}</select></div></div>
-      <div class="field"><label>Libellé *</label><input name="label" value="${esc(e.label)}" required placeholder="Ex : Plaques de plâtre chantier Dupont, plein de gasoil, assurance décennale…"></div>
+      <div class="field"><label>Libellé *</label><input name="label" value="${esc(e.label)}" required placeholder="Ex : achat de marchandises, plein de carburant, assurance, abonnement…"></div>
       <div class="field"><label>Fournisseur</label><input name="supplier" list="expSup" value="${esc(e.supplier)}"><datalist id="expSup">${db.suppliers.map(s => `<option value="${esc(s.name)}">`).join('')}</datalist></div>
       <div class="grid3"><div class="field"><label>Montant TTC *</label><input type="number" step="0.01" name="ttc" value="${e.ttc}"></div>
         <div class="field"><label>TVA</label><select name="vat">${[0, 5.5, 10, 20].map(v => `<option value="${v}" ${num(e.vat) === v ? 'selected' : ''}>${String(v).replace('.', ',')} %</option>`).join('')}</select></div>

@@ -41,6 +41,15 @@
     fep: ['Monde de la Propreté (FEP)', 'https://www.monde-proprete.com', 'Fédération des entreprises de propreté', 'Organismes professionnels'],
     malt: ['Malt', 'https://www.malt.fr', 'Plateforme pour trouver des missions en freelance', 'Clients & missions'],
     bpicrea: ['Bpifrance Création', 'https://bpifrance-creation.fr', 'Guides pour créer et gérer son activité', 'Financement'],
+    cci: ['CCI – Chambres de commerce et d’industrie', 'https://www.cci.fr', 'Accompagnement des commerçants et entreprises, formalités, formations', 'Organismes professionnels'],
+    dgccrf: ['DGCCRF', 'https://www.economie.gouv.fr/dgccrf', 'Règles de vente, prix, garanties, information du consommateur', 'Normes & règles de l’art'],
+    inpi: ['INPI', 'https://www.inpi.fr', 'Protéger sa marque, son nom commercial, ses créations', 'Administratif & cotisations'],
+    cnil: ['CNIL', 'https://www.cnil.fr', 'Protection des données personnelles (RGPD) : obligations et modèles', 'Normes & règles de l’art'],
+    umih: ['UMIH', 'https://www.umih.fr', 'Organisation professionnelle de l’hôtellerie et de la restauration', 'Organismes professionnels'],
+    sacem: ['Sacem', 'https://www.sacem.fr', 'Droits d’auteur pour la diffusion de musique en public', 'Normes & règles de l’art'],
+    travail: ['Ministère du Travail', 'https://travail-emploi.gouv.fr', 'Formation professionnelle, Qualiopi, droit du travail', 'Administratif & cotisations'],
+    sports: ['Ministère des Sports', 'https://www.sports.gouv.fr', 'Diplômes et obligations des éducateurs sportifs', 'Normes & règles de l’art'],
+    mobilians: ['Mobilians', 'https://www.mobilians.fr', 'Organisation professionnelle des services de l’automobile', 'Organismes professionnels'],
     pointp: ['Point.P', 'https://www.pointp.fr', 'Négoce de matériaux de construction', 'Fabricants & fournisseurs'],
     cedeo: ['Cedeo', 'https://www.cedeo.fr', 'Négoce sanitaire, chauffage et plomberie', 'Fabricants & fournisseurs'],
     gedimat: ['Gedimat', 'https://www.gedimat.fr', 'Négoce de matériaux', 'Fabricants & fournisseurs']
@@ -65,7 +74,18 @@
     serrurier: ['cnpp', 'qualibat', 'probtp', 'oppbtp'],
     nettoyage: ['fep'],
     services: ['malt', 'bpicrea'],
-    depannage: [...BTP, 'pointp', 'cedeo']
+    depannage: [...BTP, 'pointp', 'cedeo'],
+    commerce: ['cci', 'dgccrf', 'inpi', 'cnil'],
+    traiteur: ['umih', 'cci', 'dgccrf', 'sacem'],
+    evenementiel: ['sacem', 'cci', 'umih'],
+    photographe: ['inpi', 'cnil', 'cci', 'malt'],
+    web: ['cnil', 'inpi', 'malt', 'bpicrea'],
+    formateur: ['travail', 'malt', 'bpicrea'],
+    beaute: ['cma', 'dgccrf'],
+    coach: ['sports', 'cci'],
+    demenagement: ['cci', 'dgccrf'],
+    garage: ['mobilians', 'cma', 'dgccrf'],
+    informatique: ['cnil', 'cci']
   };
   const ORDER = ['Organismes du BTP', 'Organismes professionnels', 'Qualifications & labels', 'Normes & règles de l’art', 'Sécurité & prévention', 'Aides & rénovation énergétique', 'Fabricants & fournisseurs', 'Clients & missions', 'Administratif & cotisations', 'Financement'];
   const trades = () => (typeof TRADES !== 'undefined' ? TRADES : []);

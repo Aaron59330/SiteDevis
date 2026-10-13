@@ -47,7 +47,7 @@ function siteDocLine(q) {
   if (!s) return '';
   const parts = [];
   if (q.opts.showSite) {
-    parts.push(`<span><b>Chantier :</b> ${esc(s.name)}${sitePlace(s) ? ' — ' + esc(sitePlace(s)) : ''}</span>`);
+    parts.push(`<span><b>${typeof sectorWord === 'function' ? sectorWord(false, true) : 'Chantier'} :</b> ${esc(s.name)}${sitePlace(s) ? ' — ' + esc(sitePlace(s)) : ''}</span>`);
     if (s.start && s.end) parts.push(`<span>Du ${fdate(s.start)} au ${fdate(s.end)}</span>`);
     else if (s.start) parts.push(`<span>Début prévu le ${fdate(s.start)}</span>`);
   }

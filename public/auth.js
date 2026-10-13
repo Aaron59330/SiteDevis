@@ -85,7 +85,7 @@ function renderAuth(mode, opts = {}) {
     <div class="ld-main">
       <section id="d-intro" class="ld-hero">
         <div class="ld-copy">
-          <span class="eyebrow rise" style="--d:.08s">Devis &amp; factures pour artisans et indépendants</span>
+          <span class="eyebrow rise" style="--d:.08s">Devis &amp; factures pour tous les métiers</span>
           <h1 class="rise" style="--d:.16s">Des devis qui <em>font signer</em>,<br>en quelques minutes.</h1>
           <p class="hero-sub rise" style="--d:.24s">Créez un devis complet, facturez chaque paiement, téléchargez le PDF : tout est prêt à envoyer à votre client.</p>
           <div class="ld-cta rise" style="--d:.32s">
@@ -121,7 +121,7 @@ function renderAuth(mode, opts = {}) {
       </section>
       <section id="d-trades" class="docs-sec" data-doc>
         <h2>Pour tous les métiers</h2>
-        <p class="muted" style="margin:0">Bâtiment, services, artisanat : des devis de départ prêts à adapter, avec des prix indicatifs.</p>
+        <p class="muted" style="margin:0">Bâtiment, commerce, services, conseil, restauration, beauté, transport, auto… des devis de départ prêts à adapter, avec des prix indicatifs.</p>
         <div class="chips trades" data-doc-item>${(typeof TRADES !== 'undefined' ? TRADES : []).map(t => `<span>${t.name}</span>`).join('')}</div>
       </section>
       <section id="d-faq" class="docs-sec" data-doc>
@@ -145,9 +145,9 @@ const DOC_FEATURES = [
   [icon('download'), 'PDF en un clic', 'Téléchargement direct, sans passer par l\'impression', 'Un vrai fichier PDF, prêt à envoyer à votre client par email ou messagerie.'],
   [icon('inbox'), 'Import de devis existants', 'Un devis fait ailleurs ? Transférez le PDF', 'Toutes les pages sont lues et le devis est refait à l\'identique dans OptiDevis, que vous pouvez ensuite modifier et facturer.'],
   [icon('layers'), 'Catalogue, matériaux, fournisseurs', 'Vos prix, vos marges, vos références', 'Saisissez une référence fournisseur : le site cherche la fiche exacte et reprend le prix quand elle est trouvée. Marge par fournisseur, prix de vente calculé.'],
-  [icon('clipboard'), 'Modèles par métier', 'Couvreur, plaquiste, plombier, électricien… un devis de départ', 'Choisissez votre métier : un devis complet et réaliste est créé en un clic, avec ses lignes, ses prix indicatifs et ses conditions. Vous adaptez, et vous pouvez ajouter les prestations à votre catalogue.'],
+  [icon('clipboard'), 'Modèles par métier', 'Bâtiment, commerce, services, conseil, événementiel… un devis de départ', 'Choisissez votre métier : un devis complet et réaliste est créé en un clic, avec ses lignes, ses prix indicatifs et ses conditions. Vous adaptez, et vous pouvez ajouter les prestations à votre catalogue.'],
   [icon('chart'), 'Statistiques', 'CA du mois, facturé, encaissé, impayé', 'Comparaison avec les mois précédents et courbe sur 12 mois, pour savoir où vous en êtes en un coup d\'œil.'],
-  [icon('hardhat'), 'Chantiers', 'Regroupez devis et factures par chantier', 'Optionnel : suivez les heures et rattachez les documents à un chantier, avec un récapitulatif sur le document.'],
+  [icon('hardhat'), 'Chantiers et projets', 'Regroupez devis et factures par chantier ou par projet', 'Optionnel : suivez les heures et rattachez les documents à un chantier, avec un récapitulatif sur le document.'],
   [icon('tool'), 'Boîte à outils', 'Clients par SIRET, correcteur, calculs', 'Les informations de l\'entreprise de votre client se remplissent depuis son SIRET. Un correcteur d\'orthographe gratuit relit vos documents.']
 ];
 const DOC_FAQ = [

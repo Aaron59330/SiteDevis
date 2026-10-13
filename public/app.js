@@ -8,11 +8,11 @@ const STATUS = { brouillon: 'Brouillon', envoye: 'Envoyé', accepte: 'Accepté',
 const INV_STATUS = { brouillon: 'Brouillon', envoye: 'Envoyée', payee: 'Payée', annulee: 'Annulée' };
 const isInv = q => q && q.kind === 'facture';
 const statusOf = q => (isInv(q) ? INV_STATUS : STATUS);
-const UNITS = ['u', 'pièce(s)', 'h', 'jour', 'forfait', 'm2', 'm²', 'm3', 'ml', 'm', 'kg', 'L', 'lot', 'mois', 'personne'];
+const UNITS = ['u', 'pièce(s)', 'article', 'h', 'jour', 'séance', 'forfait', 'm2', 'm²', 'm3', 'ml', 'm', 'km', 'kg', 'L', 'lot', 'mois', 'an', 'personne', 'nuit', 'page', 'licence'];
 const VATS = [0, 5.5, 10, 20];
 const VAT_MENTION = 'TVA non applicable – article 293 B du Code général des impôts.';
 const DEFAULT_FOOTER =
-  'Clause de réserve de propriété : les matériaux et marchandises fournis demeurent la propriété de {entreprise} jusqu\'au paiement intégral de leur prix.\n' +
+  'Clause de réserve de propriété : les biens et marchandises fournis demeurent la propriété de {entreprise} jusqu\'au paiement intégral de leur prix.\n' +
   'Pénalités de retard : 3 fois le taux d\'intérêt légal en vigueur à compter de la date d\'échéance. Aucun escompte n\'est accordé pour paiement anticipé.\n' +
   'Une indemnité forfaitaire de 40 € pour frais de recouvrement est due en cas de retard de paiement par un client professionnel, conformément à l\'article L441-10 du Code de commerce.';
 
@@ -55,7 +55,7 @@ function normQuote(q, base) {
   q.lines = (q.lines && q.lines.length ? q.lines : [newItem(base)]).map(l => ({ t: 'item', ref: '', ...l }));
   q.opts = { showRef: true, showVat: true, docLabel: q.kind === 'facture' ? 'FACTURE' : 'DEVIS', agreeLabel: q.kind === 'facture' ? '' : 'Bon pour Accord', showSite: false, showSiteHours: false, ...(q.opts || {}) };
   q.siteId = q.siteId || '';
-  if (q.kind === 'facture') { q.dueDate = q.dueDate || ''; q.serviceDate = q.serviceDate || ''; q.alreadyPaid = num(q.alreadyPaid); q.payMethod = q.payMethod ?? 'Virement bancaire'; q.paidAt = q.paidAt || ''; q.opNature = q.opNature || 'services'; q.deliveryAddress = q.deliveryAddress || ''; }
+  if (q.kind === 'facture') { q.dueDate = q.dueDate || ''; q.serviceDate = q.serviceDate || ''; q.alreadyPaid = num(q.alreadyPaid); q.payMethod = q.payMethod ?? 'Virement bancaire'; q.paidAt = q.paidAt || ''; q.opNature = q.opNature || (typeof sectorOp === 'function' ? sectorOp(base) : 'services'); q.deliveryAddress = q.deliveryAddress || ''; }
   if (q.issuerText == null) q.issuerText = issuerBlock(base.company);
   if (q.clientText == null) q.clientText = clientBlock((base.clients || []).find(c => c.id === q.clientId));
   if (q.footer == null) q.footer = makeFooter(base);
@@ -344,7 +344,7 @@ function renderEditor() {
         </div>
         ${isInv(q) ? `<div class="grid2"><div class="field"><label>Date de la prestation / livraison</label><input type="date" data-f="serviceDate" value="${q.serviceDate}"></div>
           <div class="field"><label>Devis d'origine</label><input value="${esc(q.fromNumber ? 'Devis N° ' + q.fromNumber : '— aucun —')}" disabled></div></div>` : ''}
-        <div class="field"><label>Titre en haut du document (objet des travaux)</label><textarea class="auto" rows="2" data-f="title" placeholder="Ex : TRAVAUX DE PLÂTRERIE LOGEMENT 12 RUE DES LILAS">${esc(q.title)}</textarea></div>
+        <div class="field"><label>Titre en haut du document (objet des travaux)</label><textarea class="auto" rows="2" data-f="title" placeholder="${esc(typeof sector === 'function' ? sector().title : '')}">${esc(q.title)}</textarea></div>
         <div class="grid2">
           <div class="field"><label>Client</label>
             <div class="row" style="flex-wrap:nowrap">
@@ -761,6 +761,7 @@ function renderCompany() {
   <div class="editor" style="grid-template-columns:1fr 1fr">
     <div>
       <div class="card"><h2>Coordonnées</h2>
+        ${typeof sectorField === 'function' ? sectorField() : ''}
         <div class="field"><label>Nom de l'entreprise (en gras sur le devis)</label><input data-c="name" value="${esc(co.name)}"></div>
         <div class="field"><label>Ligne complémentaire (dirigeant, forme juridique…)</label><input data-c="legalLine" value="${esc(co.legalLine)}" placeholder="Ex : PRÉNOM NOM – ENTREPRENEUR INDIVIDUEL (EI)"></div>
         <div class="field"><label>Adresse</label><textarea data-c="address">${esc(co.address)}</textarea></div>

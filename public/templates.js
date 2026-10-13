@@ -2,76 +2,109 @@
 /* Modèles de devis par métier : des devis de départ réalistes (prix indicatifs HT) que chaque client peut ajouter puis adapter.
    Ligne : [réf, désignation, quantité, unité, prix HT, TVA %] — ['T', 'Titre'] = titre de section, ['S'] = sous-total. */
 const TRADES = [
-  { id: 'couvreur', name: 'Couvreur', ico: 'hardhat', vat: 10, title: 'RÉFECTION DE TOITURE — TUILES TERRE CUITE', lines: [
+  { id: 'couvreur', sector: 'btp', name: 'Couvreur', ico: 'hardhat', vat: 10, title: 'RÉFECTION DE TOITURE — TUILES TERRE CUITE', lines: [
     ['T', 'Dépose et préparation'], ['COU-DEP', 'Dépose de la couverture existante, tri et évacuation en benne', 120, 'm2', 14], ['COU-ECR', 'Contrôle et remplacement ponctuel de liteaux et chevrons', 1, 'forfait', 450], ['S'],
     ['T', 'Couverture'], ['COU-ECRAN', 'Écran de sous-toiture HPV posé et fixé', 120, 'm2', 6.5], ['COU-LIT', 'Liteaux traités 27×40 mm, pose au pureau', 120, 'm2', 9], ['COU-TUI', 'Fourniture et pose de tuiles terre cuite (environ 13/m²)', 120, 'm2', 58], ['COU-FAI', 'Faîtage à sec ventilé, closoirs et rives', 12, 'ml', 42], ['S'],
     ['T', 'Zinguerie'], ['COU-GOU', 'Gouttière zinc demi-ronde et descente', 18, 'ml', 48], ['COU-SOL', 'Solin et noue en zinc', 8, 'ml', 55], ['S'],
     ['T', 'Finitions'], ['COU-NET', 'Nettoyage du chantier et évacuation des gravats', 1, 'forfait', 180]], notes: 'Travaux réalisés conformément au DTU 40.21. Échafaudage et protection du chantier compris.' },
-  { id: 'plaquiste', name: 'Plaquiste', ico: 'layers', vat: 10, title: 'TRAVAUX DE PLÂTRERIE — AMÉNAGEMENT DE COMBLES', lines: [
+  { id: 'plaquiste', sector: 'btp', name: 'Plaquiste', ico: 'layers', vat: 10, title: 'TRAVAUX DE PLÂTRERIE — AMÉNAGEMENT DE COMBLES', lines: [
     ['T', 'Cloisons et doublages'], ['PLA-CLO', 'Cloison de distribution en plaques de plâtre BA13 sur ossature métallique', 30, 'm2', 38], ['PLA-DBL', 'Doublage BA13 sur ossature avec isolant 100 mm', 45, 'm2', 46], ['S'],
     ['T', 'Plafonds'], ['PLA-PLF', 'Plafond suspendu BA13 sur ossature, isolation comprise', 40, 'm2', 44], ['PLA-TRP', 'Trappe de visite 60×60 cm', 2, 'u', 85], ['S'],
     ['T', 'Finitions'], ['PLA-BDE', 'Bandes à joints et enduit, finition prête à peindre (niveau Q2)', 115, 'm2', 12], ['PLA-ANG', 'Cornières d\'angle métalliques', 22, 'ml', 6], ['PLA-EVA', 'Évacuation des déchets', 1, 'forfait', 150]], notes: 'Plaques hydrofuges en pièces d\'eau (plus-value sur demande).' },
-  { id: 'plombier', name: 'Plombier – chauffagiste', ico: 'tool', vat: 10, title: 'RÉNOVATION SALLE DE BAINS — PLOMBERIE', lines: [
+  { id: 'plombier', sector: 'btp', name: 'Plombier – chauffagiste', ico: 'tool', vat: 10, title: 'RÉNOVATION SALLE DE BAINS — PLOMBERIE', lines: [
     ['T', 'Dépose'], ['PLO-DEP', 'Dépose de la baignoire, du lavabo et des sanitaires, évacuation', 1, 'forfait', 380], ['S'],
     ['T', 'Plomberie'], ['PLO-ALI', 'Réseau d\'alimentation eau chaude / eau froide en PER', 1, 'forfait', 620], ['PLO-EVA', 'Évacuations PVC et raccordements', 1, 'forfait', 480], ['PLO-DCH', 'Receveur de douche extra-plat 90×120 et paroi (fourniture et pose)', 1, 'u', 980], ['PLO-MEU', 'Meuble vasque 80 cm avec mitigeur (fourniture et pose)', 1, 'u', 690], ['PLO-WC', 'WC suspendu avec bâti-support (fourniture et pose)', 1, 'u', 760], ['PLO-SEC', 'Radiateur sèche-serviettes électrique, pose et raccordement', 1, 'u', 540], ['S'],
     ['T', 'Main-d\'œuvre'], ['PLO-MO', 'Main-d\'œuvre complémentaire', 14, 'h', 55]], notes: 'Mise en eau et essais de fonctionnement à la fin des travaux. Garantie décennale et assurance responsabilité civile professionnelle.' },
-  { id: 'electricien', name: 'Électricien', ico: 'tool', vat: 10, title: 'MISE AUX NORMES ÉLECTRIQUES — APPARTEMENT 65 M²', lines: [
+  { id: 'electricien', sector: 'btp', name: 'Électricien', ico: 'tool', vat: 10, title: 'MISE AUX NORMES ÉLECTRIQUES — APPARTEMENT 65 M²', lines: [
     ['T', 'Tableau et protections'], ['ELE-TAB', 'Tableau électrique 3 rangées, disjoncteurs et différentiels (NF C 15-100)', 1, 'u', 1150], ['ELE-TER', 'Prise de terre et liaison équipotentielle', 1, 'forfait', 320], ['S'],
     ['T', 'Circuits'], ['ELE-PRI', 'Point prise 16 A encastré avec câblage', 22, 'u', 78], ['ELE-LUM', 'Point lumineux avec câblage et interrupteur', 12, 'u', 92], ['ELE-SPE', 'Circuit spécialisé (four, plaque, lave-linge)', 4, 'u', 165], ['ELE-VDI', 'Prise RJ45 et coffret de communication', 1, 'forfait', 420], ['S'],
     ['T', 'Finitions'], ['ELE-CON', 'Contrôle final et attestation de conformité (Consuel)', 1, 'forfait', 190]], notes: 'Appareillage de marque Legrand ou équivalent, coloris au choix du client.' },
-  { id: 'peintre', name: 'Peintre en bâtiment', ico: 'file', vat: 10, title: 'PEINTURE ET REVÊTEMENTS — APPARTEMENT T3', lines: [
+  { id: 'peintre', sector: 'btp', name: 'Peintre en bâtiment', ico: 'file', vat: 10, title: 'PEINTURE ET REVÊTEMENTS — APPARTEMENT T3', lines: [
     ['T', 'Préparation'], ['PEI-PRE', 'Protection des sols et mobilier, rebouchage, ponçage', 1, 'forfait', 380], ['PEI-IMP', 'Impression des murs et plafonds', 210, 'm2', 4.5], ['S'],
     ['T', 'Finitions'], ['PEI-PLA', 'Peinture acrylique mate, 2 couches, plafonds', 62, 'm2', 18], ['PEI-MUR', 'Peinture acrylique satinée, 2 couches, murs', 148, 'm2', 20], ['PEI-BOI', 'Peinture laque sur portes, plinthes et huisseries', 8, 'u', 95], ['PEI-TAP', 'Pose de toile de verre à peindre', 36, 'm2', 17], ['S'],
     ['T', 'Nettoyage'], ['PEI-NET', 'Nettoyage fin de chantier', 1, 'forfait', 120]], notes: 'Teintes au choix du client sur nuancier. Peintures classées A+ (faibles émissions).' },
-  { id: 'macon', name: 'Maçon', ico: 'building', vat: 10, title: 'EXTENSION DE 20 M² — GROS ŒUVRE', lines: [
+  { id: 'macon', sector: 'btp', name: 'Maçon', ico: 'building', vat: 10, title: 'EXTENSION DE 20 M² — GROS ŒUVRE', lines: [
     ['T', 'Terrassement et fondations'], ['MAC-TER', 'Terrassement et évacuation des terres', 1, 'forfait', 1450], ['MAC-FON', 'Semelles filantes béton armé', 24, 'ml', 135], ['S'],
     ['T', 'Élévation'], ['MAC-DAL', 'Dallage béton armé sur hérisson et isolant (ép. 12 cm)', 20, 'm2', 86], ['MAC-MUR', 'Murs en blocs béton de 20 cm, chaînages et linteaux', 52, 'm2', 98], ['MAC-OUV', 'Création d\'une ouverture dans mur porteur avec IPN', 1, 'u', 2200], ['S'],
     ['T', 'Divers'], ['MAC-ENT', 'Enduit de façade monocouche gratté', 52, 'm2', 44], ['MAC-GRA', 'Évacuation des gravats', 1, 'forfait', 420]], notes: 'Déclaration préalable ou permis de construire à la charge du client. Les prix incluent la main-d\'œuvre, la fourniture et la pose.' },
-  { id: 'carreleur', name: 'Carreleur', ico: 'layers', vat: 10, title: 'CARRELAGE ET FAÏENCE — SÉJOUR ET SALLE DE BAINS', lines: [
+  { id: 'carreleur', sector: 'btp', name: 'Carreleur', ico: 'layers', vat: 10, title: 'CARRELAGE ET FAÏENCE — SÉJOUR ET SALLE DE BAINS', lines: [
     ['T', 'Préparation'], ['CAR-RAG', 'Ragréage autolissant des sols', 45, 'm2', 16], ['CAR-ETA', 'Étanchéité sous carrelage (SPEC) en pièce d\'eau', 9, 'm2', 32], ['S'],
     ['T', 'Pose'], ['CAR-SOL', 'Pose de carrelage grand format 60×60 cm (fourniture à part)', 45, 'm2', 52], ['CAR-FAI', 'Pose de faïence murale, joints époxy', 22, 'm2', 58], ['CAR-PLI', 'Plinthes assorties', 28, 'ml', 11], ['CAR-DIA', 'Coupes diagonales et finitions d\'angle', 1, 'forfait', 180], ['S'],
     ['T', 'Fournitures'], ['CAR-FOU', 'Carrelage grès cérame 60×60, 1ʳᵉ qualité (+ 10 % de chutes)', 50, 'm2', 29]], notes: 'Le choix du carrelage est à valider avant commande. Délai d\'approvisionnement : 1 à 2 semaines.' },
-  { id: 'menuisier', name: 'Menuisier – agenceur', ico: 'tool', vat: 10, title: 'MENUISERIES EXTÉRIEURES ET INTÉRIEURES', lines: [
+  { id: 'menuisier', sector: 'btp', name: 'Menuisier – agenceur', ico: 'tool', vat: 10, title: 'MENUISERIES EXTÉRIEURES ET INTÉRIEURES', lines: [
     ['T', 'Fenêtres'], ['MEN-FEN', 'Fenêtre PVC double vitrage 2 vantaux 120×135 cm, pose en rénovation', 5, 'u', 520], ['MEN-VRO', 'Volet roulant électrique, pose comprise', 5, 'u', 380], ['S'],
     ['T', 'Portes'], ['MEN-POR', 'Bloc-porte intérieur âme alvéolaire, pose comprise', 4, 'u', 290], ['MEN-ENT', 'Porte d\'entrée sécurisée 3 points, pose comprise', 1, 'u', 1450], ['S'],
     ['T', 'Aménagement'], ['MEN-PLA', 'Placard sur mesure avec portes coulissantes', 1, 'u', 1650], ['MEN-PAR', 'Pose de parquet stratifié avec sous-couche', 38, 'm2', 29]], notes: 'Dimensions confirmées sur place avant fabrication. Délai de fabrication : 4 à 6 semaines.' },
-  { id: 'chauffagiste', name: 'Chauffagiste – climatisation', ico: 'tool', vat: 5.5, title: 'INSTALLATION D\'UNE POMPE À CHALEUR AIR/EAU', lines: [
+  { id: 'chauffagiste', sector: 'btp', name: 'Chauffagiste – climatisation', ico: 'tool', vat: 5.5, title: 'INSTALLATION D\'UNE POMPE À CHALEUR AIR/EAU', lines: [
     ['T', 'Fourniture'], ['CHA-PAC', 'Pompe à chaleur air/eau 8 kW avec module hydraulique', 1, 'u', 6900], ['CHA-BAL', 'Ballon tampon 100 L et accessoires', 1, 'u', 780], ['S'],
     ['T', 'Installation'], ['CHA-POS', 'Pose, raccordements hydrauliques et électriques', 1, 'forfait', 1850], ['CHA-DEP', 'Dépose de l\'ancienne chaudière fioul, cuve neutralisée', 1, 'forfait', 750], ['CHA-MIS', 'Mise en service, réglage de la régulation et formation du client', 1, 'forfait', 320], ['S'],
     ['T', 'Aides'], ['CHA-DOS', 'Constitution du dossier d\'aides (MaPrimeRénov\', CEE)', 1, 'forfait', 0]], notes: 'TVA à 5,5 % pour un logement de plus de 2 ans (attestation à signer). Contrat d\'entretien proposé en option.' },
-  { id: 'charpentier', name: 'Charpentier', ico: 'hardhat', vat: 10, title: 'CHARPENTE TRADITIONNELLE ET ISOLATION DE COMBLES', lines: [
+  { id: 'charpentier', sector: 'btp', name: 'Charpentier', ico: 'hardhat', vat: 10, title: 'CHARPENTE TRADITIONNELLE ET ISOLATION DE COMBLES', lines: [
     ['T', 'Charpente'], ['CHP-FER', 'Fermes et pannes en bois traité (sapin du Nord, classe 2)', 1, 'forfait', 6200], ['CHP-CHE', 'Chevrons 63×75 mm, pose comprise', 120, 'm2', 22], ['CHP-TRA', 'Traitement insecticide et fongicide des bois existants', 120, 'm2', 9], ['S'],
     ['T', 'Isolation'], ['CHP-ISO', 'Isolation sous rampants en laine de bois, 200 mm', 120, 'm2', 48], ['CHP-PAR', 'Pare-vapeur et finition en lambris', 120, 'm2', 32], ['S'],
     ['T', 'Divers'], ['CHP-LEV', 'Levage, grutage et évacuation des déchets', 1, 'forfait', 780]], notes: 'Calcul de structure fourni si nécessaire. Assurance décennale n° : voir mentions légales.' },
-  { id: 'facadier', name: 'Façadier – ravalement', ico: 'building', vat: 10, title: 'RAVALEMENT DE FAÇADE — MAISON INDIVIDUELLE', lines: [
+  { id: 'facadier', sector: 'btp', name: 'Façadier – ravalement', ico: 'building', vat: 10, title: 'RAVALEMENT DE FAÇADE — MAISON INDIVIDUELLE', lines: [
     ['T', 'Préparation'], ['FAC-ECH', 'Installation et dépose d\'échafaudage', 160, 'm2', 9], ['FAC-NET', 'Nettoyage haute pression et traitement anti-mousse', 160, 'm2', 8], ['FAC-REP', 'Réparation des fissures et reprises d\'enduit', 1, 'forfait', 680], ['S'],
     ['T', 'Finition'], ['FAC-IMP', 'Impression fixatrice', 160, 'm2', 5], ['FAC-ENDU', 'Enduit de finition taloché fin, teinté dans la masse', 160, 'm2', 38], ['FAC-SOU', 'Peinture des soubassements et des encadrements de fenêtres', 1, 'forfait', 540]], notes: 'Travaux dépendant de la météo : report possible sans pénalité. Protection des menuiseries et des abords comprise.' },
-  { id: 'isolation', name: 'Isolation – rénovation énergétique', ico: 'layers', vat: 5.5, title: 'ISOLATION THERMIQUE — COMBLES ET MURS', lines: [
+  { id: 'isolation', sector: 'btp', name: 'Isolation – rénovation énergétique', ico: 'layers', vat: 5.5, title: 'ISOLATION THERMIQUE — COMBLES ET MURS', lines: [
     ['T', 'Combles perdus'], ['ISO-CPE', 'Isolation de combles perdus par soufflage de laine minérale, R = 7', 80, 'm2', 28], ['ISO-ECR', 'Pose de repères et protections des conduits', 1, 'forfait', 180], ['S'],
     ['T', 'Murs'], ['ISO-ITI', 'Isolation thermique par l\'intérieur, laine de verre 120 mm + BA13', 60, 'm2', 62], ['ISO-VMC', 'Mise en place d\'une ventilation (VMC simple flux hygroréglable)', 1, 'u', 980], ['S'],
     ['T', 'Administratif'], ['ISO-DOS', 'Dossier d\'aides MaPrimeRénov\' et CEE, attestation de TVA', 1, 'forfait', 0]], notes: 'Entreprise certifiée RGE (n° à indiquer) : condition d\'accès aux aides. TVA à 5,5 % sur justificatif.' },
-  { id: 'paysagiste', name: 'Paysagiste – jardinier', ico: 'package', vat: 20, title: 'AMÉNAGEMENT ET ENTRETIEN DE JARDIN', lines: [
+  { id: 'paysagiste', sector: 'services', name: 'Paysagiste – jardinier', ico: 'package', vat: 20, title: 'AMÉNAGEMENT ET ENTRETIEN DE JARDIN', lines: [
     ['T', 'Création'], ['PAY-TER', 'Terrassement et préparation du sol, apport de terre végétale', 80, 'm2', 14], ['PAY-GAZ', 'Engazonnement (semis ou plaques)', 80, 'm2', 9], ['PAY-HAI', 'Plantation de haie de 12 arbustes (fourniture et pose)', 12, 'u', 38], ['PAY-ARR', 'Système d\'arrosage automatique 4 zones', 1, 'forfait', 1450], ['S'],
     ['T', 'Entretien'], ['PAY-TAI', 'Taille de haies et d\'arbustes', 4, 'h', 48], ['PAY-TON', 'Tonte, bordures et ramassage', 6, 'h', 42], ['PAY-DEC', 'Évacuation des déchets verts en déchetterie', 1, 'forfait', 120]], notes: 'Les plantations sont garanties un an en cas de bon entretien. Entretien régulier possible sur contrat annuel.' },
-  { id: 'serrurier', name: 'Serrurier – vitrier', ico: 'lock', vat: 10, title: 'SÉCURISATION ET DÉPANNAGE', lines: [
+  { id: 'serrurier', sector: 'btp', name: 'Serrurier – vitrier', ico: 'lock', vat: 10, title: 'SÉCURISATION ET DÉPANNAGE', lines: [
     ['T', 'Interventions'], ['SER-DEP', 'Déplacement et diagnostic', 1, 'forfait', 65], ['SER-OUV', 'Ouverture de porte claquée (sans dégradation)', 1, 'forfait', 120], ['SER-BLI', 'Remplacement de la serrure 5 points A2P***', 1, 'u', 480], ['SER-CYL', 'Cylindre haute sécurité avec 5 clés', 1, 'u', 135], ['SER-VIT', 'Remplacement de vitrage feuilleté 44.2', 1.2, 'm2', 190], ['SER-MO', 'Main-d\'œuvre', 2, 'h', 62]], notes: 'Devis gratuit. Paiement à la fin de l\'intervention. Cylindres et serrures conformes aux normes en vigueur.' },
-  { id: 'nettoyage', name: 'Nettoyage – entretien', ico: 'sparkles', vat: 20, title: 'NETTOYAGE DE FIN DE CHANTIER ET ENTRETIEN', lines: [
+  { id: 'nettoyage', sector: 'services', name: 'Nettoyage – entretien', ico: 'sparkles', vat: 20, title: 'NETTOYAGE DE FIN DE CHANTIER ET ENTRETIEN', lines: [
     ['T', 'Fin de chantier'], ['NET-CHA', 'Nettoyage complet de fin de chantier (sols, vitres, sanitaires)', 85, 'm2', 6.5], ['NET-VIT', 'Nettoyage des vitres et des encadrements', 14, 'u', 12], ['NET-DEC', 'Évacuation des déchets légers', 1, 'forfait', 60], ['S'],
     ['T', 'Entretien régulier'], ['NET-ENT', 'Entretien hebdomadaire des parties communes', 4, 'h', 28], ['NET-DES', 'Désinfection des sanitaires et poignées', 1, 'forfait', 45]], notes: 'Produits et matériel fournis. Intervention possible en soirée ou le week-end.' },
-  { id: 'services', name: 'Prestataire de services – freelance', ico: 'clipboard', vat: 20, title: 'PRESTATION DE CONSEIL ET DE CRÉATION', lines: [
+  { id: 'services', sector: 'conseil', name: 'Prestataire de services – freelance', ico: 'clipboard', vat: 20, title: 'PRESTATION DE CONSEIL ET DE CRÉATION', lines: [
     ['T', 'Phase 1 — Cadrage'], ['SRV-ATE', 'Atelier de cadrage et recueil du besoin', 1, 'jour', 600], ['SRV-CDC', 'Rédaction du cahier des charges', 1.5, 'jour', 600], ['S'],
     ['T', 'Phase 2 — Réalisation'], ['SRV-CRE', 'Création et développement', 8, 'jour', 600], ['SRV-REV', 'Deux séries de retours client incluses', 1, 'forfait', 0], ['S'],
     ['T', 'Phase 3 — Livraison'], ['SRV-FOR', 'Formation et prise en main (2 h)', 1, 'forfait', 240], ['SRV-SUI', 'Suivi et assistance pendant 30 jours', 1, 'forfait', 300]], notes: 'Les droits d\'utilisation sont cédés au paiement du solde. Prestation facturée à l\'avancement selon l\'échéancier.' },
-  { id: 'depannage', name: 'Artisan multi-services – dépannage', ico: 'tool', vat: 10, title: 'PETITS TRAVAUX ET DÉPANNAGES', lines: [
-    ['T', 'Intervention'], ['DEP-DEP', 'Déplacement', 1, 'forfait', 45], ['DEP-MO', 'Main-d\'œuvre (taux horaire)', 6, 'h', 52], ['DEP-FOU', 'Fournitures diverses (selon facture)', 1, 'forfait', 90], ['DEP-POS', 'Pose de meubles et accessoires', 3, 'u', 40], ['DEP-REP', 'Réparations diverses (joints, fuites, serrurerie légère)', 1, 'forfait', 160]], notes: 'Devis valable 30 jours. Le détail des fournitures est communiqué sur demande.' }
+  { id: 'depannage', sector: 'services', name: 'Artisan multi-services – dépannage', ico: 'tool', vat: 10, title: 'PETITS TRAVAUX ET DÉPANNAGES', lines: [
+    ['T', 'Intervention'], ['DEP-DEP', 'Déplacement', 1, 'forfait', 45], ['DEP-MO', 'Main-d\'œuvre (taux horaire)', 6, 'h', 52], ['DEP-FOU', 'Fournitures diverses (selon facture)', 1, 'forfait', 90], ['DEP-POS', 'Pose de meubles et accessoires', 3, 'u', 40], ['DEP-REP', 'Réparations diverses (joints, fuites, serrurerie légère)', 1, 'forfait', 160]], notes: 'Devis valable 30 jours. Le détail des fournitures est communiqué sur demande.' },
+  { id: 'commerce', sector: 'commerce', name: 'Commerçant – vente de produits', ico: 'store', vat: 20, title: 'COMMANDE DE PRODUITS', lines: [
+    ['T', 'Articles'], ['ART-001', 'Article A — référence, coloris, taille', 10, 'u', 24.9], ['ART-002', 'Article B — lot de 6', 4, 'lot', 39], ['ART-003', 'Article C', 2, 'u', 129], ['S'],
+    ['T', 'Livraison et services'], ['LIV', 'Livraison à domicile', 1, 'forfait', 35], ['MONT', 'Montage et mise en service', 1, 'forfait', 60]], notes: 'Produits garantis 2 ans (garantie légale de conformité). Délai de livraison indicatif : 10 jours.' },
+  { id: 'traiteur', sector: 'evenement', name: 'Traiteur – restauration', ico: 'package', vat: 10, title: 'COCKTAIL DÎNATOIRE — 80 PERSONNES', lines: [
+    ['T', 'Repas'], ['MENU', 'Cocktail dînatoire (12 pièces par personne)', 80, 'personne', 32], ['DESS', 'Buffet de desserts', 80, 'personne', 6.5], ['S'],
+    ['T', 'Boissons'], ['SOFT', 'Softs, jus et eaux', 80, 'personne', 4], ['CHAMP', 'Champagne (1 bouteille pour 6)', 14, 'u', 32, 20], ['S'],
+    ['T', 'Service'], ['SERV', 'Maîtres d’hôtel (4 personnes × 6 h)', 24, 'h', 32, 20], ['VAIS', 'Location de vaisselle et nappage', 1, 'forfait', 240, 20], ['LIVR', 'Livraison et reprise', 1, 'forfait', 90, 20]], notes: 'Nombre définitif de convives à confirmer 7 jours avant l’événement. TVA à 10 % sur la nourriture et les boissons sans alcool, 20 % sur l’alcool et le service.' },
+  { id: 'evenementiel', sector: 'evenement', name: 'Événementiel – animation', ico: 'sparkles', vat: 20, title: 'ANIMATION DE SOIRÉE — MARIAGE', lines: [
+    ['ANIM', 'Animation DJ (de 19 h à 3 h)', 1, 'forfait', 890], ['SONO', 'Sonorisation et éclairage d’ambiance', 1, 'forfait', 350], ['PHOTO', 'Photobooth avec impressions illimitées', 1, 'forfait', 390], ['DEPL', 'Frais de déplacement', 120, 'km', 0.6], ['HSUP', 'Heure supplémentaire', 1, 'h', 120]], notes: 'Acompte de 30 % à la réservation. Matériel installé 2 heures avant le début de la soirée.' },
+  { id: 'photographe', sector: 'conseil', name: 'Photographe – vidéaste', ico: 'eye', vat: 20, title: 'REPORTAGE PHOTO ET VIDÉO', lines: [
+    ['SHOOT', 'Prise de vue (demi-journée)', 1, 'forfait', 450], ['RETOU', 'Retouche professionnelle des photos', 40, 'u', 8], ['VIDEO', 'Montage vidéo (film de 3 minutes)', 1, 'forfait', 650], ['DROITS', 'Cession des droits d’utilisation (web, 2 ans)', 1, 'forfait', 300], ['DEPL', 'Frais de déplacement', 60, 'km', 0.6]], notes: 'Livraison des fichiers sous 15 jours par lien de téléchargement.' },
+  { id: 'web', sector: 'conseil', name: 'Développeur web – agence', ico: 'globe', vat: 20, title: 'CRÉATION DU SITE INTERNET', lines: [
+    ['T', 'Conception'], ['MAQ', 'Maquettes graphiques (accueil + 4 pages)', 1, 'forfait', 900], ['S'],
+    ['T', 'Développement'], ['DEV', 'Développement et intégration', 6, 'jour', 450], ['SEO', 'Optimisation du référencement naturel', 1, 'forfait', 400], ['S'],
+    ['T', 'Mise en ligne et suivi'], ['HEB', 'Hébergement et nom de domaine (1 an)', 1, 'forfait', 180], ['MAINT', 'Maintenance et mises à jour', 12, 'mois', 49]], notes: 'Deux séries de retours incluses. Le code et les contenus sont livrés au client au paiement du solde.' },
+  { id: 'formateur', sector: 'conseil', name: 'Consultant – formateur', ico: 'book', vat: 20, title: 'FORMATION ET ACCOMPAGNEMENT', lines: [
+    ['DIAG', 'Diagnostic et cadrage', 1, 'jour', 750], ['FORM', 'Journée de formation (groupe de 8 personnes maximum)', 2, 'jour', 1200], ['SUPP', 'Supports pédagogiques', 1, 'forfait', 250], ['SUIVI', 'Accompagnement à distance', 4, 'h', 95], ['FRAIS', 'Frais de déplacement et d’hébergement', 1, 'forfait', 280]], notes: 'Les actions de formation peuvent être exonérées de TVA si l’organisme dispose d’un numéro de déclaration d’activité (à vérifier).' },
+  { id: 'beaute', sector: 'beaute', name: 'Coiffure – esthétique', ico: 'sparkles', vat: 20, title: 'FORFAIT MARIAGE — COIFFURE ET MAQUILLAGE', lines: [
+    ['ESSAI', 'Essai coiffure et maquillage', 1, 'forfait', 120], ['MARIEE', 'Coiffure et maquillage de la mariée (jour J)', 1, 'forfait', 250], ['INVIT', 'Coiffure ou maquillage d’un invité', 4, 'personne', 55], ['DEPL', 'Déplacement à domicile', 1, 'forfait', 40]], notes: 'Acompte de 30 % à la réservation de la date.' },
+  { id: 'coach', sector: 'beaute', name: 'Coach sportif – bien-être', ico: 'user', vat: 20, title: 'PROGRAMME DE COACHING', lines: [
+    ['BILAN', 'Bilan de forme et objectifs', 1, 'u', 60], ['SEANCE', 'Séance de coaching individuel (1 h)', 10, 'séance', 50], ['PROG', 'Programme personnalisé et suivi en ligne', 3, 'mois', 29]], notes: 'Séances à utiliser dans les 6 mois. Annulation gratuite jusqu’à 24 heures avant.' },
+  { id: 'demenagement', sector: 'transport', name: 'Transport – déménagement', ico: 'package', vat: 20, title: 'DÉMÉNAGEMENT LILLE → LYON', lines: [
+    ['VISITE', 'Visite technique et estimation du volume (30 m³)', 1, 'forfait', 0], ['EMB', 'Fourniture de cartons et emballage', 1, 'forfait', 180], ['CAM', 'Camion 30 m³ avec chauffeur', 2, 'jour', 420], ['DEM', 'Déménageurs (3 personnes)', 24, 'h', 38], ['KM', 'Trajet', 690, 'km', 1.1], ['ASS', 'Assurance des biens transportés', 1, 'forfait', 90]], notes: 'Lettre de voiture et déclaration de valeur remises avant le chargement.' },
+  { id: 'garage', sector: 'auto', name: 'Garage – mécanique auto', ico: 'tool', vat: 20, title: 'RÉVISION ET FREINAGE', lines: [
+    ['T', 'Pièces'], ['HUILE', 'Huile moteur 5W30', 5, 'L', 12.9], ['FILT', 'Filtre à huile', 1, 'u', 14.5], ['PLAQ', 'Jeu de plaquettes avant', 1, 'u', 59], ['DISQ', 'Paire de disques de frein avant', 1, 'u', 119], ['S'],
+    ['T', 'Main-d’œuvre'], ['MO', 'Main-d’œuvre atelier', 2.5, 'h', 65], ['CTRL', 'Contrôle des points de sécurité', 1, 'forfait', 0]], notes: 'Pièces d’origine ou de qualité équivalente. Les pièces remplacées sont restituées sur demande.' },
+  { id: 'informatique', sector: 'services', name: 'Dépannage informatique', ico: 'calc', vat: 20, title: 'DÉPANNAGE ET MISE EN SERVICE INFORMATIQUE', lines: [
+    ['DEPL', 'Déplacement', 1, 'forfait', 35], ['DIAG', 'Diagnostic', 1, 'forfait', 40], ['INTER', 'Intervention (nettoyage, réinstallation, réglages)', 2, 'h', 55], ['SAUV', 'Sauvegarde et transfert des données', 1, 'forfait', 60], ['INST', 'Installation imprimante et réseau Wi-Fi', 1, 'forfait', 50]], notes: 'Sous conditions, ces services à domicile peuvent ouvrir droit à un crédit d’impôt pour le client (à vérifier).' }
 ];
 const tradeTotal = t => t.lines.reduce((s, l) => (l[0] === 'T' || l[0] === 'S' ? s : s + l[2] * l[4]), 0);
 
+let tplSector = null;
 function tplOpen() {
+  if (tplSector == null) tplSector = (db.settings.sector && TRADES.some(x => x.sector === db.settings.sector)) ? db.settings.sector : '';
+  const SECT = typeof SECTORS !== 'undefined' ? SECTORS : {};
+  const shown = TRADES.filter(x => !tplSector || x.sector === tplSector);
   const m = openModal(`<div class="modal-wide" id="tplBox"><div class="row between"><h2 style="margin:0">Modèles de devis par métier</h2><button class="btn small" data-act="close-modal">Fermer</button></div>
     <p class="muted" style="margin:10px 0">Choisissez votre métier : un devis complet de départ est créé, avec des lignes et des prix <b>indicatifs</b> à adapter. Vous modifiez tout ensuite.</p>
-    <div class="tpl-grid">${TRADES.map(t => `<button type="button" class="tpl-card" data-act="tpl-pick" data-id="${t.id}"><i class="ld-tile" aria-hidden="true">${icon(t.ico)}</i><div><b>${esc(t.name)}</b><span>${t.lines.filter(l => l[0] !== 'T' && l[0] !== 'S').length} lignes · environ ${money(tradeTotal(t))} HT</span></div></button>`).join('')}</div>
-    <p class="muted" style="font-size:.82rem;margin-top:12px">Votre métier n'est pas dans la liste ? Prenez « Artisan multi-services » ou « Prestataire de services » et adaptez les lignes, ou créez un devis vierge.</p></div>`);
+    <div class="chips" style="margin-bottom:12px"><button class="cchip ${!tplSector ? 'on' : ''}" data-act="tpl-sector" data-s="">Tous <i>${TRADES.length}</i></button>${Object.entries(SECT).filter(([k]) => TRADES.some(x => x.sector === k)).map(([k, v]) => `<button class="cchip ${tplSector === k ? 'on' : ''}" data-act="tpl-sector" data-s="${k}">${esc(v.label.split(',')[0].split(' (')[0])} <i>${TRADES.filter(x => x.sector === k).length}</i></button>`).join('')}</div>
+    <div class="tpl-grid">${shown.map(t => `<button type="button" class="tpl-card" data-act="tpl-pick" data-id="${t.id}"><i class="ld-tile" aria-hidden="true">${icon(t.ico)}</i><div><b>${esc(t.name)}</b><span>${t.lines.filter(l => l[0] !== 'T' && l[0] !== 'S').length} lignes · environ ${money(tradeTotal(t))} HT</span></div></button>`).join('')}</div>
+    <p class="muted" style="font-size:.82rem;margin-top:12px">Votre métier n'est pas dans la liste ? Prenez le modèle le plus proche et adaptez les lignes, ou créez un devis vierge.</p></div>`);
   return m;
 }
 function tplPreview(id) {
@@ -90,16 +123,16 @@ function tplUse(id) {
   if (!requireAccess()) return;
   const t = TRADES.find(x => x.id === id); if (!t) return;
   const vat = db.company.vatExempt ? 0 : t.vat, date = today();
-  const lines = t.lines.map(l => l[0] === 'T' ? { t: 'title', desc: l[1] } : l[0] === 'S' ? { t: 'subtotal', label: 'Sous Total' } : { t: 'item', ref: l[0], desc: l[1], qty: l[2], unit: l[3], price: l[4], vat });
+  const lines = t.lines.map(l => l[0] === 'T' ? { t: 'title', desc: l[1] } : l[0] === 'S' ? { t: 'subtotal', label: 'Sous Total' } : { t: 'item', ref: l[0], desc: l[1], qty: l[2], unit: l[3], price: l[4], vat: db.company.vatExempt ? 0 : (l[5] ?? vat) });
   const q = normQuote({ id: uid(), number: makeNumber(), date, validUntil: addDays(date, num(db.settings.validityDays)), clientId: '', title: t.title, status: 'brouillon', notes: t.notes || '', discount: 0, lines,
     payments: [{ id: uid(), invoiceId: '', pct: 30, label: 'Acompte à la commande' }, { id: uid(), invoiceId: '', pct: 70, label: 'Solde à la fin des travaux' }] }, db);
   db.settings.next = num(db.settings.next) + 1;
   if ($('#tplCat') && $('#tplCat').checked) {
-    let n = 0; t.lines.forEach(l => { if (l[0] === 'T' || l[0] === 'S' || db.catalog.some(c => c.ref === l[0])) return; db.catalog.push({ id: uid(), ref: l[0], desc: l[1], cat: t.name, type: 'prestation', unit: l[3], price: l[4], cost: 0, vat }); n++; });
+    let n = 0; t.lines.forEach(l => { if (l[0] === 'T' || l[0] === 'S' || db.catalog.some(c => c.ref === l[0])) return; db.catalog.push({ id: uid(), ref: l[0], desc: l[1], cat: t.name, type: 'prestation', unit: l[3], price: l[4], cost: 0, vat: db.company.vatExempt ? 0 : (l[5] ?? vat) }); n++; });
     if (n) toast(n + ' prestation(s) ajoutée(s) au catalogue');
   }
   db.quotes.push(q); save(); $('#modal').close(); toast('Devis « ' + t.name + ' » créé : adaptez-le'); go('editor', q.id);
 }
 Object.assign(actions, {
-  'tpl-open': tplOpen, 'tpl-pick': t => tplPreview(t.dataset.id), 'tpl-back': () => { $('#modal').close(); tplOpen(); }, 'tpl-use': t => tplUse(t.dataset.id)
+  'tpl-open': tplOpen, 'tpl-sector'(t) { tplSector = t.dataset.s; tplOpen(); }, 'tpl-pick': t => tplPreview(t.dataset.id), 'tpl-back': () => { $('#modal').close(); tplOpen(); }, 'tpl-use': t => tplUse(t.dataset.id)
 });
