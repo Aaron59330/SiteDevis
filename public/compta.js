@@ -114,7 +114,7 @@
     <div class="row between" style="margin-bottom:16px;flex-wrap:wrap;gap:12px">
       <div class="seg2">${[['month', 'Mois'], ['quarter', 'Trimestre'], ['year', 'Année']].map(([k, l]) => `<button data-act="cp-period" data-p="${k}" class="${c.period === k ? 'on' : ''}">${l}</button>`).join('')}</div>
       <div class="monthnav"><button class="btn small" data-act="cp-move" data-d="-1" aria-label="Période précédente">‹</button><b>${esc(p.label)}</b><button class="btn small" data-act="cp-move" data-d="1" aria-label="Période suivante">›</button></div>
-      <div class="row"><button class="btn" data-act="cp-export" data-k="recettes" title="Obligatoire pour les micro-entreprises">⬇ Livre des recettes</button><button class="btn" data-act="cp-export" data-k="achats">⬇ Registre des charges</button><button class="btn primary" data-act="exp-new">＋ Ajouter une charge</button></div>
+      <div class="row"><button class="btn" data-act="cp-export" data-k="recettes" title="Obligatoire pour les micro-entreprises">⬇ Livre des recettes</button><button class="btn" data-act="cp-export" data-k="achats">⬇ Registre des charges</button><button class="btn" data-act="bilan-open" title="Synthèse annuelle, déclarations à faire et où les envoyer">📋 Bilan de l’année</button><button class="btn primary" data-act="exp-new">＋ Ajouter une charge</button></div>
     </div>
     <div class="stats">
       ${card(money(F.R.ttc), `Recettes encaissées (${F.R.cashed.length})`, F.micro ? 'Factures payées sur la période' : `dont ${money(F.R.ht)} HT`, cmp(F.R.ttc, PF.R.ttc, 'vs période préc.'))}
@@ -190,8 +190,8 @@
   }
 
   /* ---------- Exports CSV (séparateur ; , virgule décimale, ouverture directe dans Excel) ---------- */
-  function exportCsv(kind) {
-    const p = period(), n = v => String(r2(v)).replace('.', ','), q = s => '"' + String(s ?? '').replace(/"/g, '""') + '"';
+  function exportCsv(kind, p) {
+    p = p || period(); const n = v => String(r2(v)).replace('.', ','), q = s => '"' + String(s ?? '').replace(/"/g, '""') + '"';
     let rows, name;
     if (kind === 'recettes') {
       rows = [['Date d’encaissement', 'N° de facture', 'Client', 'Nature', 'Montant HT', 'TVA', 'Montant TTC', 'Mode de règlement']];
@@ -208,6 +208,99 @@
     toast('Export téléchargé');
   }
 
+
+  /* ---------- Bilan de l'année : synthèse complète + où et quand déclarer ---------- */
+  const FORMS = { ei_micro: 'Entreprise individuelle — micro-entreprise', ei_reel: 'Entreprise individuelle au régime réel', societe_is: 'Société (EURL, SARL, SAS, SASU…)' };
+  const CASES = { vente: ['5KO', '5TA'], services: ['5KP', '5TB'], bnc: ['5HQ', '5TE'] };   // déclaration 2042-C-PRO : sans / avec versement libératoire
+  function yearData(y) {
+    const P = { from: y + '-01-01', to: y + '-12-31' }, F = figures(P);
+    const months = Array.from({ length: 12 }, (_, i) => { const m = `${y}-${String(i + 1).padStart(2, '0')}`, f = figures({ from: m + '-01', to: m + '-31' }); return { m, f }; });
+    const quarters = [0, 1, 2, 3].map(k => months.slice(k * 3, k * 3 + 3).reduce((s, x) => s + x.f.R.ttc, 0));
+    const byCat = {}; F.E.forEach(e => { const k = e.cat || 'Autres'; byCat[k] = (byCat[k] || 0) + (F.micro ? num(e.ttc) : num(e.ht)); });
+    const unpaid = db.quotes.filter(q => isInv(q) && q.status === 'envoye' && q.date && q.date <= P.to);
+    return { y, P, F, months, quarters, byCat, unpaid };
+  }
+  function steps(D) {
+    const c = cfg(), y = Number(D.y), n = y + 1, form = c.form || (c.regime === 'micro' ? 'ei_micro' : 'ei_reel'), out = [];
+    const L = (t, u) => `<a href="${u}" target="_blank" rel="noopener noreferrer">${t} ↗</a>`;
+    if (form === 'ei_micro') {
+      const cs = CASES[c.activity] || CASES.services;
+      out.push([`Chaque ${c.declPeriod === 'quarter' ? 'trimestre' : 'mois'}`, 'Déclarer le chiffre d’affaires encaissé à l’URSSAF et payer les cotisations', `Montants à déclarer : tableau « ${c.declPeriod === 'quarter' ? 'Par trimestre' : 'Par mois'} » ci-dessus. Même à 0 € si vous n’avez rien encaissé.`, L('autoentrepreneur.urssaf.fr', 'https://www.autoentrepreneur.urssaf.fr')]);
+      out.push([`Mai – juin ${n}`, `Déclaration de revenus ${y} (formulaire 2042-C-PRO)`, `Reportez le chiffre d’affaires annuel : ${money(D.F.R.ttc)} en case ${c.vl ? cs[1] + ' (versement libératoire)' : cs[0]}. Pas de bilan ni de liasse fiscale à faire en micro-entreprise : l’abattement forfaitaire est appliqué par l’administration.`, L('impots.gouv.fr', 'https://www.impots.gouv.fr')]);
+      out.push([`15 décembre ${n}`, 'Cotisation foncière des entreprises (CFE)', 'L’avis est à consulter et payer dans votre espace professionnel (pas d’envoi papier).', L('Espace professionnel impots.gouv.fr', 'https://www.impots.gouv.fr')]);
+      out.push(['À conserver', 'Livre des recettes et registre des achats', 'Téléchargez-les dans OptiDevis (Statistiques › Comptabilité) et gardez-les (avec vos factures) au moins 10 ans. Ils ne sont pas à envoyer, sauf contrôle.', '']);
+    } else {
+      out.push([c.vatPeriod === 'quarter' ? 'Chaque trimestre' : 'Chaque mois', 'Déclaration et paiement de la TVA', `TVA de l’année : collectée ${money(D.F.vatOut)} − déductible ${money(D.F.chVat)} = ${money(D.F.vatDue)}${D.F.vatDue < 0 ? ' (crédit)' : ''}. Détail mois par mois ci-dessus. Au régime simplifié : une déclaration annuelle CA12 (début mai) et deux acomptes (juillet et décembre).`, L('Espace professionnel impots.gouv.fr', 'https://www.impots.gouv.fr')]);
+      out.push([`Début mai ${n}`, form === 'societe_is' ? 'Liasse fiscale et déclaration de résultat (2065 + 2033 ou 2050)' : 'Liasse fiscale (2031 + 2033 pour les BIC, 2035 pour les BNC)', 'Elle se transmet obligatoirement par voie électronique, en général par votre expert-comptable. Donnez-lui le dossier de clôture d’OptiDevis (bouton « Dossier complet » : bilan PDF, livre des recettes, registre des charges). La date limite exacte est publiée chaque année sur impots.gouv.fr.', L('impots.gouv.fr', 'https://www.impots.gouv.fr')]);
+      if (form === 'ei_reel') out.push([`Mai – juin ${n}`, `Déclaration de revenus ${y} (2042-C-PRO)`, 'Reportez le résultat de la liasse fiscale (votre comptable vous indique les cases).', L('impots.gouv.fr', 'https://www.impots.gouv.fr')]);
+      if (form === 'societe_is') {
+        out.push([`Avant le 15 mai ${n}`, 'Solde de l’impôt sur les sociétés (formulaire 2572)', 'Calculé par votre comptable à partir de la liasse.', L('impots.gouv.fr', 'https://www.impots.gouv.fr')]);
+        out.push([`Dans les 6 mois`, 'Approbation des comptes (assemblée ou décision de l’associé unique)', 'Procès-verbal à rédiger et signer, souvent préparé par le comptable.', '']);
+        out.push([`Dans le mois qui suit`, 'Dépôt des comptes annuels au greffe', 'Bilan, compte de résultat et procès-verbal, déposés en ligne.', L('Guichet unique', 'https://formalites.entreprises.gouv.fr')]);
+      }
+      out.push([`15 décembre ${n}`, 'Cotisation foncière des entreprises (CFE)', 'À payer dans votre espace professionnel.', L('impots.gouv.fr', 'https://www.impots.gouv.fr')]);
+      out.push(['À conserver', 'Factures, justificatifs de charges, relevés bancaires', 'Au moins 10 ans (6 ans pour le contrôle fiscal).', '']);
+    }
+    return out;
+  }
+  function bilanHtml(D, forPdf) {
+    const c = cfg(), F = D.F, co = db.company, micro = F.micro;
+    const th = 'style="text-align:left;padding:6px 8px;border-bottom:1.5px solid #222;font-size:9pt"', thr = 'style="text-align:right;padding:6px 8px;border-bottom:1.5px solid #222;font-size:9pt"';
+    const td = 'style="padding:5px 8px;border-bottom:1px solid #ddd;font-size:9pt"', tdr = 'style="padding:5px 8px;border-bottom:1px solid #ddd;font-size:9pt;text-align:right;white-space:nowrap"';
+    const tot = 'style="padding:6px 8px;font-size:9.5pt;font-weight:700;text-align:right;border-top:1.5px solid #222"', totl = 'style="padding:6px 8px;font-size:9.5pt;font-weight:700;border-top:1.5px solid #222"';
+    const h2 = 'style="font-size:12pt;margin:18px 0 6px;color:#111"';
+    const cats = Object.entries(D.byCat).sort((a, b) => b[1] - a[1]);
+    const box = (l, v, sub) => `<div style="flex:1;min-width:150px;border:1px solid #ddd;border-radius:8px;padding:10px 12px"><div style="font-size:8.5pt;color:#666">${l}</div><div style="font-size:15pt;font-weight:700;margin-top:2px">${v}</div>${sub ? `<div style="font-size:8pt;color:#777;margin-top:2px">${sub}</div>` : ''}</div>`;
+    return `<div style="font-family:Nunito,Arial,sans-serif;color:#111">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:20px">
+        <div><div style="font-size:18pt;font-weight:800">Bilan de l’année ${D.y}</div><div style="font-size:10pt;color:#555;margin-top:2px">Du 1er janvier au 31 décembre ${D.y} — établi le ${fdate(today())}</div></div>
+        <div style="text-align:right;font-size:9pt;line-height:1.4"><b>${esc(co.name || '')}</b><br>${esc(co.address || '').replace(/\n/g, '<br>')}${co.siret ? `<br>SIRET : ${esc(co.siret)}` : ''}<br>${esc(FORMS[c.form] || (micro ? FORMS.ei_micro : FORMS.ei_reel))}</div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
+        ${box('Chiffre d’affaires encaissé', money(F.R.ttc), micro ? '' : `${money(F.R.ht)} HT`)}
+        ${box(micro ? 'Charges payées' : 'Charges HT', money(micro ? F.chTtc : F.chHt), `${F.E.length} dépense${F.E.length > 1 ? 's' : ''}`)}
+        ${box(micro ? 'Reste après charges et cotisations' : 'Résultat avant impôt', money(F.result), micro ? '' : 'Recettes HT − charges HT')}
+        ${micro ? box('Cotisations URSSAF estimées', money(F.cotis), `${fmtNum.format(F.rate)} % du CA`) : box(F.vatDue < 0 ? 'Crédit de TVA' : 'TVA à reverser', money(Math.abs(F.vatDue)), `collectée ${money(F.vatOut)} − déductible ${money(F.chVat)}`)}
+      </div>
+      <div ${h2}>${micro ? 'Recettes et charges' : 'Compte de résultat simplifié'}</div>
+      <table style="width:100%;border-collapse:collapse"><thead><tr><th ${th}>Poste</th><th ${thr}>Montant${micro ? '' : ' HT'}</th></tr></thead><tbody>
+        <tr><td ${td}><b>Chiffre d’affaires (factures encaissées)</b></td><td ${tdr}><b>${money(F.recHt)}</b></td></tr>
+        ${cats.map(([k, v]) => `<tr><td ${td}>&nbsp;&nbsp;− ${esc(k)}</td><td ${tdr}>${money(v)}</td></tr>`).join('')}
+        ${micro ? `<tr><td ${td}>&nbsp;&nbsp;− Cotisations URSSAF estimées</td><td ${tdr}>${money(F.cotis)}</td></tr>` : ''}
+        <tr><td ${totl}>${micro ? 'Reste' : 'Résultat'}</td><td ${tot}>${money(F.result)}</td></tr></tbody></table>
+      <div ${h2}>${micro ? (c.declPeriod === 'quarter' ? 'Par trimestre (à déclarer à l’URSSAF)' : 'Par mois (à déclarer à l’URSSAF)') : 'Par mois'}</div>
+      ${micro && c.declPeriod === 'quarter'
+        ? `<table style="width:100%;border-collapse:collapse"><thead><tr><th ${th}>Trimestre</th><th ${thr}>CA encaissé</th><th ${thr}>Cotisations estimées</th></tr></thead><tbody>${D.quarters.map((v, i) => `<tr><td ${td}>${i + 1}${i ? 'e' : 'er'} trimestre</td><td ${tdr}>${money(v)}</td><td ${tdr}>${money(r2(v * F.rate / 100))}</td></tr>`).join('')}</tbody></table>`
+        : `<table style="width:100%;border-collapse:collapse"><thead><tr><th ${th}>Mois</th><th ${thr}>Encaissé</th><th ${thr}>Charges</th>${micro ? `<th ${thr}>Cotisations</th>` : `<th ${thr}>TVA collectée</th><th ${thr}>TVA déductible</th><th ${thr}>TVA due</th>`}<th ${thr}>Résultat</th></tr></thead><tbody>
+          ${D.months.map(({ m, f }) => `<tr><td style="padding:5px 8px;border-bottom:1px solid #ddd;font-size:9pt;text-transform:capitalize">${ymLabel(m)}</td><td ${tdr}>${money(f.R.ttc)}</td><td ${tdr}>${money(micro ? f.chTtc : f.chHt)}</td>${micro ? `<td ${tdr}>${money(f.cotis)}</td>` : `<td ${tdr}>${money(f.vatOut)}</td><td ${tdr}>${money(f.chVat)}</td><td ${tdr}>${money(f.vatDue)}</td>`}<td ${tdr}>${money(f.result)}</td></tr>`).join('')}
+          <tr><td ${totl}>Total</td><td ${tot}>${money(F.R.ttc)}</td><td ${tot}>${money(micro ? F.chTtc : F.chHt)}</td>${micro ? `<td ${tot}>${money(F.cotis)}</td>` : `<td ${tot}>${money(F.vatOut)}</td><td ${tot}>${money(F.chVat)}</td><td ${tot}>${money(F.vatDue)}</td>`}<td ${tot}>${money(F.result)}</td></tr></tbody></table>`}
+      ${D.unpaid.length ? `<div ${h2}>Factures non encaissées au 31/12 (créances clients)</div>
+        <table style="width:100%;border-collapse:collapse"><thead><tr><th ${th}>Facture</th><th ${th}>Date</th><th ${th}>Client</th><th ${thr}>Reste dû</th></tr></thead><tbody>${D.unpaid.map(q => `<tr><td ${td}>${esc(q.number)}</td><td ${td}>${fdate(q.date)}</td><td ${td}>${esc((q.clientText || '').split('\n')[0])}</td><td ${tdr}>${money(totals(q).due)}</td></tr>`).join('')}</tbody></table>` : ''}
+      <div ${h2}>Ce qu’il faut faire, où et quand</div>
+      <table style="width:100%;border-collapse:collapse"><tbody>${steps(D).map(([w, t, d, l]) => `<tr><td style="vertical-align:top;white-space:nowrap;font-weight:700;padding:7px 8px;border-bottom:1px solid #ddd;font-size:9pt">${w}</td><td style="padding:7px 8px;border-bottom:1px solid #ddd;font-size:9pt"><b>${t}</b><br><span style="color:#555">${d}</span>${l && !forPdf ? `<br>${l}` : l ? `<br><span style="color:#555">${l.replace(/<[^>]+>/g, '').replace(' ↗', '')}</span>` : ''}</td></tr>`).join('')}</tbody></table>
+      <p style="font-size:7.5pt;color:#777;margin-top:14px">Document de synthèse établi par OptiDevis à partir des factures encaissées et des charges saisies. Les cotisations et la TVA sont des estimations ; les taux, cases et dates sont indicatifs et doivent être vérifiés sur urssaf.fr et impots.gouv.fr. Il ne remplace pas les comptes annuels certifiés par un expert-comptable.</p>
+    </div>`;
+  }
+  let bilanYear = null;
+  function bilanModal() {
+    const y0 = Number(today().slice(0, 4)), y = bilanYear || (Number(today().slice(5, 7)) <= 6 ? y0 - 1 : y0), D = yearData(String(y)), c = cfg();
+    const years = [y0, y0 - 1, y0 - 2];
+    openModal(`<div class="modal-wide" id="bilanBox" style="max-width:980px"><div class="row between" style="flex-wrap:wrap;gap:10px"><h2 style="margin:0">Bilan de l’année</h2>
+        <div class="row"><div class="seg2">${years.map(v => `<button data-act="bilan-year" data-y="${v}" class="${v === y ? 'on' : ''}">${v}</button>`).join('')}</div><button class="btn small" data-act="close-modal">Fermer</button></div></div>
+      <div class="grid2" style="margin:12px 0"><div class="field"><label>Statut de l’entreprise</label><select data-cp="form" id="bilanForm">${Object.entries(FORMS).map(([k, l]) => `<option value="${k}" ${(c.form || (c.regime === 'micro' ? 'ei_micro' : 'ei_reel')) === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+        <div class="row" style="align-items:flex-end;justify-content:flex-end;flex-wrap:wrap;gap:8px"><button class="btn primary" data-act="bilan-pdf">⬇ Bilan PDF</button><button class="btn" data-act="bilan-all">⬇ Dossier complet (PDF + exports)</button></div></div>
+      <div class="bilan-prev">${bilanHtml(D)}</div></div>`);
+    document.getElementById('bilanForm').onchange = e => { cfg().form = e.target.value; if (e.target.value === 'ei_micro') cfg().regime = 'micro'; else cfg().regime = 'reel'; save(); bilanModal(); };
+  }
+  async function bilanPdf(y) {
+    const D = yearData(String(y));
+    const r = await fetch('/api/pdf', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'sitedevis' },
+      body: JSON.stringify({ html: bilanHtml(D, true), accent: '#111111', label: 'Bilan ' + y, date: fdate(today()), filename: `bilan-${y}` }) });
+    if (!r.ok) { let m = ''; try { m = (await r.json()).error; } catch (e) { /* ignore */ } throw new Error(m || 'Erreur ' + r.status); }
+    const url = URL.createObjectURL(await r.blob()), a = document.createElement('a'); a.href = url; a.download = `bilan-${y}.pdf`; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+  const curBilanYear = () => bilanYear || (Number(today().slice(5, 7)) <= 6 ? Number(today().slice(0, 4)) - 1 : Number(today().slice(0, 4)));
+
   /* ---------- Onglets dans Statistiques ---------- */
   const baseStats = EXTRA.stats;
   EXTRA.stats = function () {
@@ -221,6 +314,11 @@
     'cp-period'(t) { cfg().period = t.dataset.p; save(); render(); },
     'cp-move'(t) { const c = cfg(), k = c.period === 'year' ? 12 : c.period === 'quarter' ? 3 : 1; statUI.month = ymAdd(statUI.month, Number(t.dataset.d) * k); render(); },
     'cp-export'(t) { exportCsv(t.dataset.k); },
+    'bilan-open'() { bilanYear = null; bilanModal(); },
+    'bilan-year'(t) { bilanYear = Number(t.dataset.y); bilanModal(); },
+    async 'bilan-pdf'(t) { if (!session.config.pdf) return window.print(); const old = t.innerHTML; t.disabled = true; t.textContent = 'Création…'; try { await bilanPdf(curBilanYear()); toast('Bilan téléchargé'); } catch (e) { toast('PDF impossible : ' + e.message); } t.disabled = false; t.innerHTML = old; },
+    async 'bilan-all'(t) { const y = curBilanYear(), P = { from: y + '-01-01', to: y + '-12-31', label: 'Année ' + y }; const old = t.innerHTML; t.disabled = true; t.textContent = 'Préparation…';
+      try { if (session.config.pdf) await bilanPdf(y); exportCsv('recettes', P); await new Promise(r => setTimeout(r, 400)); exportCsv('achats', P); toast('Dossier de clôture téléchargé'); } catch (e) { toast('Impossible : ' + e.message); } t.disabled = false; t.innerHTML = old; },
     'exp-new'() { if (requireAccess()) expModal(null); },
     'exp-edit'(t) { expModal(t.dataset.id); },
     'exp-del'(t) { const e = db.expenses.find(x => x.id === t.dataset.id); if (e && confirm(`Supprimer « ${e.label} »${e.recurring && e.recurring !== 'none' ? ' et toutes ses échéances' : ''} ?`)) { db.expenses = db.expenses.filter(x => x !== e); save(); render(); } },

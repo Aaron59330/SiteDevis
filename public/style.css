@@ -782,3 +782,6 @@ a:not(.btn) { text-underline-offset: 3px; transition: color .15s, text-decoratio
 .dl-row { display: flex; gap: 14px; padding: 8px 0; border-top: 1px solid var(--line); font-size: .88rem; } .dl-row b { min-width: 92px; } .dl-row span { color: var(--muted); }
 .chart .b-rec { fill: var(--accent); opacity: .85; } .chart .b-ch { fill: var(--muted); opacity: .45; } .chart .l-res { stroke: var(--ok); stroke-width: 2; } .chart .d-res { fill: var(--ok); }
 .lg.rec { background: var(--accent); } .lg.ch { background: var(--muted); opacity: .5; } .lg.res { background: var(--ok); border-radius: 50% !important; }
+
+.bilan-prev { background: #fff; color: #111; border-radius: 12px; padding: 22px 24px; max-height: 62vh; overflow: auto; border: 1px solid var(--line); }
+.bilan-prev a { color: #111; }
