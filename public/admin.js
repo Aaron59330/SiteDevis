@@ -194,8 +194,10 @@ async function adminPlans() {
   const { plans } = await api('GET', '/api/admin/plans');
   if (!root()) return;
   window._plans = plans;
-  root().innerHTML = `<div class="row between" style="margin-bottom:12px"><p class="muted" style="margin:0">Les offres actives sont proposées aux utilisateurs sur la page Abonnement.</p><button class="btn primary" data-act="plan-edit">＋ Nouvelle offre</button></div>
-  <div class="plans">${plans.map(p => `<div class="plan ${p.active ? '' : 'off'}"><h3>${esc(p.name)} ${p.active ? '' : '<span class="badge brouillon">Désactivée</span>'}</h3>
+  root().innerHTML = `<div class="row between" style="margin-bottom:12px"><p class="muted" style="margin:0">Les offres actives sont proposées sur la page d’accueil (Tarifs) et la page Abonnement, <b>dans cet ordre</b> : utilisez ← → pour les déplacer.</p><button class="btn primary" data-act="plan-edit">＋ Nouvelle offre</button></div>
+  <div class="plans">${plans.map((p, i) => `<div class="plan ${p.active ? '' : 'off'} ${planHot(p, plans) ? 'hot' : ''}">${planHot(p, plans) ? `<span class="ribbon">${esc(planRibbon(p, plans))}</span>` : ''}
+    <div class="row plan-move"><button class="btn small" data-act="plan-move" data-id="${p.id}" data-dir="-1" ${i ? '' : 'disabled'} title="Placer avant">←</button><span class="muted">Position ${i + 1}</span><button class="btn small" data-act="plan-move" data-id="${p.id}" data-dir="1" ${i < plans.length - 1 ? '' : 'disabled'} title="Placer après">→</button></div>
+    <h3>${esc(p.name)} ${p.active ? '' : '<span class="badge brouillon">Désactivée</span>'}</h3>
     <div class="price">${eur(p.priceCents)}<small> / ${p.interval === 'year' ? 'an' : 'mois'}</small></div><p class="muted">${esc(p.description)}</p>
     <ul>${p.features.map(f => `<li>${esc(f)}</li>`).join('')}</ul>
     <div class="row"><button class="btn small" data-act="plan-edit" data-id="${p.id}">Modifier</button><button class="btn small danger" data-act="plan-del" data-id="${p.id}">Supprimer</button></div></div>`).join('')}</div>`;
@@ -209,12 +211,20 @@ actions['plan-edit'] = t => {
     <div class="field"><label>Description</label><input name="description" value="${esc(p.description)}"></div>
     <div class="field"><label>Avantages (un par ligne)</label><textarea name="features" rows="5">${esc(p.features.join('\n'))}</textarea></div>
     <label class="check"><input type="checkbox" name="active" ${p.active ? 'checked' : ''}> Offre active (visible par les utilisateurs)</label>
+    <label class="check"><input type="checkbox" name="featured" ${planHot(p, window._plans || []) ? 'checked' : ''}> Mettre cette offre en avant (cadre et bandeau)</label>
+    <div class="field"><label>Texte du bandeau (facultatif)</label><input name="badge" maxlength="40" value="${esc(p.badge || '')}" placeholder="Ex : Le plus choisi — vide = « Le plus avantageux »"></div>
     <div class="form-err" hidden></div><div class="row" style="justify-content:flex-end"><button type="button" class="btn" data-act="close-modal">Annuler</button><button class="btn primary">Enregistrer</button></div></form>`);
   const f = $('#plForm');
   f.onsubmit = e => { e.preventDefault(); withBusy(f, async () => {
-    const body = { name: val(f, 'name'), price: val(f, 'price'), interval: val(f, 'interval'), description: val(f, 'description'), features: f.elements.features.value, active: f.elements.active.checked };
+    const body = { name: val(f, 'name'), price: val(f, 'price'), interval: val(f, 'interval'), description: val(f, 'description'), features: f.elements.features.value, active: f.elements.active.checked, featured: f.elements.featured.checked, badge: val(f, 'badge') };
     await api(t.dataset.id ? 'PATCH' : 'POST', '/api/admin/plans' + (t.dataset.id ? '/' + t.dataset.id : ''), body);
     m.close(); toast('Offre enregistrée'); adminLoad(); }); };
+};
+actions['plan-move'] = async t => {
+  const ids = (window._plans || []).map(p => p.id), i = ids.indexOf(t.dataset.id), j = i + Number(t.dataset.dir);
+  if (i < 0 || j < 0 || j >= ids.length) return;
+  [ids[i], ids[j]] = [ids[j], ids[i]];
+  try { await api('POST', '/api/admin/plans/order', { ids }); adminLoad(); toast('Ordre des offres enregistré'); } catch (e) { toast(e.message); }
 };
 actions['plan-del'] = async t => {
   if (!confirm('Supprimer cette offre ? (les paiements passés sont conservés)')) return;

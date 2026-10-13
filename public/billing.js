@@ -24,8 +24,9 @@ function accessCard(a) {
 function billingHtml(d) {
   const plans = d.plans.map(p => {
     const monthly = p.interval === 'year' ? `<div class="muted">soit ${eur(p.priceCents / 12)} / mois</div>` : '';
-    return `<div class="plan ${p.interval === 'year' ? 'hot' : ''}">
-      ${p.interval === 'year' ? '<span class="ribbon">Le plus avantageux</span>' : ''}
+    const hot = planHot(p, d.plans);
+    return `<div class="plan ${hot ? 'hot' : ''}">
+      ${hot ? `<span class="ribbon">${esc(planRibbon(p, d.plans))}</span>` : ''}
       <h3>${esc(p.name)}</h3><div class="price">${eur(p.priceCents)}<small> / ${p.interval === 'year' ? 'an' : 'mois'}</small></div>${monthly}
       <p class="muted">${esc(p.description)}</p>
       <ul>${p.features.map(f => `<li>${esc(f)}</li>`).join('')}</ul>

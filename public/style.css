@@ -866,3 +866,4 @@ a:not(.btn) { text-underline-offset: 3px; transition: color .15s, text-decoratio
 @media (prefers-reduced-motion: reduce) { .landing section[data-page] { animation: none; } }
 @media (max-width: 960px) { .ld-nav-in { column-gap: 10px; } .ld-nav-in .ld-home { margin-right: auto; } }
 @media (max-width: 400px) { .ld-nav-in .ld-login { padding-left: 12px; padding-right: 12px; } }
+.plan-move { justify-content: space-between; align-items: center; margin: -6px 0 10px; font-size: .8rem; }

@@ -838,12 +838,20 @@ const planFrom = (b, base = {}) => {
   if (!name) throw err(400, 'Nom de l\'offre requis.');
   if (!(price >= 50 && price < 1e7)) throw err(400, 'Prix invalide (minimum 0,50 €).');
   return { ...base, name, priceCents: price, interval: b.interval === 'year' ? 'year' : 'month', description: str(b.description, 160),
-    features: String(b.features || '').split('\n').map(x => x.trim()).filter(Boolean).slice(0, 12), active: !!b.active };
+    features: String(b.features || '').split('\n').map(x => x.trim()).filter(Boolean).slice(0, 12), active: !!b.active,
+    featured: !!b.featured, badge: str(b.badge, 40) };
 };
 route('GET', '/api/admin/plans', A, () => ({ plans: db.plans }));
 route('POST', '/api/admin/plans', A, ctx => {
   const p = planFrom(ctx.body, { id: 'p_' + rnd(4) }); db.plans.push(p);
   audit(ctx.user, 'offre créée', p.name); store.save(); return ok({ plan: p });
+});
+/* Ordre d'affichage des offres (accueil et page Abonnement) = ordre de db.plans */
+route('POST', '/api/admin/plans/order', A, ctx => {
+  const ids = Array.isArray(ctx.body.ids) ? ctx.body.ids.map(String) : [];
+  const rank = id => { const i = ids.indexOf(id); return i < 0 ? 1e6 : i; };
+  db.plans = db.plans.map((p, i) => [p, i]).sort((a, b) => rank(a[0].id) - rank(b[0].id) || a[1] - b[1]).map(x => x[0]);
+  audit(ctx.user, 'ordre des offres modifié', db.plans.map(p => p.name).join(' > ')); store.save(); return ok({ plans: db.plans });
 });
 route('PATCH', '/api/admin/plans/:id', A, ctx => {
   const i = db.plans.findIndex(p => p.id === ctx.params.id); if (i < 0) throw err(404, 'Offre introuvable.');
