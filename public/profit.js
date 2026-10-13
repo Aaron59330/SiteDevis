@@ -5,6 +5,7 @@
 (function () {
   const S = () => db.settings;
   const hourCost = () => num(S().hourCost);
+  const targetRate = () => num(S().targetRate);
   const target = () => (S().targetMargin === '' || S().targetMargin == null ? 20 : num(S().targetMargin));
   const fold = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
   const hFmt = h => { const m = Math.round(num(h) * 60); return `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}`; };
@@ -31,8 +32,9 @@
     const labour = hours * hourCost();
     const margin = ht - mat - fees - labour, pct = ht > 0 ? margin / ht * 100 : 0;
     const perHour = hours > 0 ? (ht - mat - fees) / hours : 0;
+    const rate = hours > 0 ? ht / hours : 0;              // ex. 500 € HT en 10 h → 50 € / h
     const state = !(ht > 0) ? 'none' : !(hours > 0) && !p.costs.length ? 'todo' : margin < 0 ? 'loss' : pct < target() ? 'low' : 'ok';
-    return { ht, mat, est, useReal, fees, hours, labour, margin, pct, perHour, state, planned: num(p.planned), running };
+    return { ht, mat, est, useReal, fees, hours, labour, margin, pct, perHour, rate, state, planned: num(p.planned), running };
   }
   window.profitCalc = calc;
   const VERDICT = { ok: ['ok', '✓ Rentable'], low: ['warn', 'Peu rentable'], loss: ['bad', '✕ À perte'], todo: ['', 'Temps à saisir'], none: ['', '—'] };
@@ -44,13 +46,19 @@
     const bar = r.planned > 0 ? Math.min(100, r.hours / r.planned * 100) : 0;
     return `<div class="card no-print pf-card" id="pfCard"><div class="row between"><h2 style="margin:0">Rentabilité</h2><div class="row" style="gap:8px">${r.ht > 0 ? `<span class="pf-badge ${v[0]}">${v[1]}</span>` : ''}<button class="btn small" data-act="pf-off" title="Masquer le suivi de rentabilité (réactivable dans Mon entreprise)">Désactiver</button></div></div>
       <p class="muted" style="margin:4px 0 12px;font-size:.82rem">Pour vous seulement : rien de cela n’apparaît sur le document.</p>
+      ${(() => { const tr = targetRate(), cls = !r.hours ? '' : tr ? (r.rate >= tr ? 'ok' : 'bad') : '';
+        return `<div class="pf-rate ${cls}"><div><span>Taux horaire</span>
+          <b>${r.hours ? money(r.rate) + ' / h' : '—'}</b>
+          <small>${r.hours ? `${money(r.ht)} HT ÷ ${hFmt(r.hours)}` : 'Ajoutez le temps passé (chrono ou saisie) pour le calculer'}</small></div>
+          ${r.hours ? `<div class="pf-rate-r"><span>Après fournitures et frais</span><b>${money(r.perHour)} / h</b>
+            ${tr ? `<small>${r.rate >= tr ? '✓ au-dessus' : '✕ en dessous'} de votre objectif de ${money(tr)} / h</small>` : '<small>Fixez un taux horaire visé en bas de la carte</small>'}</div>` : ''}</div>`; })()}
       <div class="pf-grid">
         <div><span>Montant HT</span><b>${money(r.ht)}</b></div>
         <div><span>Fournitures ${r.useReal ? '(achats réels)' : `(estimées${r.est.items ? ` · ${r.est.found}/${r.est.items} lignes` : ''})`}</span><b>− ${money(r.mat)}</b></div>
         <div><span>Frais (déplacement, location…)</span><b>− ${money(r.fees)}</b></div>
         <div><span>Main-d’œuvre ${hc ? `(${hFmt(r.hours)} × ${money(hc)})` : ''}</span><b>− ${money(r.labour)}</b></div>
         <div class="pf-res ${v[0]}"><span>Marge nette</span><b>${money(r.margin)} <small>${r.ht > 0 ? '(' + r.pct.toFixed(0) + ' %)' : ''}</small></b></div>
-        <div><span>Gagné par heure passée</span><b>${r.hours > 0 ? money(r.perHour) + ' / h' : '—'}</b></div>
+        <div><span>Temps passé</span><b>${r.hours > 0 ? hFmt(r.hours) : '—'}</b></div>
       </div>
       ${!hc ? `<p class="notice" style="margin:10px 0 0;font-size:.84rem">Indiquez votre <b>coût horaire</b> (ce que vous coûte une heure de travail : salaire, charges…) pour calculer la main-d’œuvre.</p>` : ''}
       <h3 class="pf-h">Temps passé</h3>
@@ -69,6 +77,7 @@
       ${p.costs.length ? `<table class="list pf-list"><tbody>${p.costs.map(c => `<tr><td>${c.kind === 'mat' ? 'Fournitures' : 'Frais'}</td><td>${esc(c.label || '—')}</td><td class="right">${money(c.amount)}</td><td class="right"><button class="btn small danger" data-act="pf-del-cost" data-id="${c.id}">✕</button></td></tr>`).join('')}</tbody></table>`
         : `<p class="muted" style="font-size:.8rem;margin:6px 0 0">Sans achat saisi, les fournitures sont estimées avec les prix d’achat de votre catalogue.</p>`}
       <div class="pf-set"><label>Coût horaire <input type="number" step="0.5" min="0" data-pfs="hourCost" value="${esc(S().hourCost ?? '')}" style="width:90px"> € / h</label>
+        <label>Taux horaire visé <input type="number" step="1" min="0" data-pfs="targetRate" value="${esc(S().targetRate ?? '')}" placeholder="ex. 45" style="width:80px"> € / h</label>
         <label>Marge visée <input type="number" step="1" min="0" data-pfs="targetMargin" value="${target()}" style="width:70px"> %</label></div>
     </div>`;
   };
@@ -109,12 +118,12 @@
       ${!hourCost() ? '<div class="notice">Renseignez votre <b>coût horaire</b> dans la carte « Rentabilité » d’un devis pour compter la main-d’œuvre.</div>' : ''}
       <div class="stats" style="margin-bottom:16px"><div class="stat"><div class="n">${money(m)}</div><div class="l">Marge nette des devis suivis (${ht > 0 ? (m / ht * 100).toFixed(0) : 0} %)</div></div>
         <div class="stat"><div class="n">${hFmt(h)}</div><div class="l">Temps passé</div></div>
-        <div class="stat"><div class="n">${h > 0 ? money((ht - sum('mat') - sum('fees')) / h) : '—'}</div><div class="l">Gagné par heure</div></div>
+        <div class="stat"><div class="n">${h > 0 ? money(ht / h) + ' / h' : '—'}</div><div class="l">Taux horaire moyen${h > 0 ? ` · ${money((ht - sum('mat') - sum('fees')) / h)} / h après fournitures` : ''}</div></div>
         <div class="stat"><div class="n">${nb('ok')} / ${tracked.length}</div><div class="l">Devis suivis rentables${nb('loss') ? ` · ${nb('loss')} à perte` : ''}${nb('todo') ? ` · ${nb('todo')} sans temps saisi` : ''}</div></div></div>
-      <div class="card">${list.length ? `<table class="list"><thead><tr><th>Devis</th><th>Client</th><th class="right">HT</th><th class="right">Temps</th><th class="right">Marge</th><th class="right">€ / h</th><th></th></tr></thead><tbody>
+      <div class="card">${list.length ? `<table class="list"><thead><tr><th>Devis</th><th>Client</th><th class="right">HT</th><th class="right">Temps</th><th class="right">Marge</th><th class="right">Taux horaire</th><th></th></tr></thead><tbody>
         ${list.map(({ q, r }) => `<tr><td><a href="#" data-act="pf-open" data-id="${q.id}"><b>${esc(q.number)}</b></a><div class="muted" style="font-size:.78rem">${esc((q.title || '').slice(0, 60))}</div></td><td>${esc((q.clientText || '').split('\n')[0])}</td>
           <td class="right">${money(r.ht)}</td><td class="right">${r.hours ? hFmt(r.hours) : '—'}${r.planned ? `<div class="muted" style="font-size:.75rem">prévu ${hFmt(r.planned)}</div>` : ''}</td>
-          <td class="right">${r.state === 'todo' ? '—' : `<b>${money(r.margin)}</b><div class="muted" style="font-size:.75rem">${r.ht > 0 ? r.pct.toFixed(0) + ' %' : ''}</div>`}</td><td class="right">${r.hours ? money(r.perHour) : '—'}</td>
+          <td class="right">${r.state === 'todo' ? '—' : `<b>${money(r.margin)}</b><div class="muted" style="font-size:.75rem">${r.ht > 0 ? r.pct.toFixed(0) + ' %' : ''}</div>`}</td><td class="right">${r.hours ? `<b>${money(r.rate)}</b><div class="muted" style="font-size:.75rem">net ${money(r.perHour)}</div>` : '—'}</td>
           <td class="right"><span class="pf-badge ${VERDICT[r.state][0]}">${VERDICT[r.state][1]}</span></td></tr>`).join('')}</tbody></table>`
         : '<div class="empty">Aucun devis suivi pour le moment. Ouvrez un devis et utilisez la carte « Rentabilité » (chrono, achats).</div>'}</div>`;
   }

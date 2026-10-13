@@ -989,3 +989,12 @@ a:not(.btn) { text-underline-offset: 3px; transition: color .15s, text-decoratio
 .pf-list { margin-top: 8px; font-size: .86rem; } .pf-list td { padding: 6px 8px; }
 .pf-set { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); font-size: .86rem; color: var(--muted); }
 @media (max-width: 600px) { .pf-grid { grid-template-columns: 1fr; } }
+.pf-rate { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 14px 16px; margin-bottom: 10px; border-radius: 12px; border: 2px solid color-mix(in srgb, var(--accent) 55%, var(--line)); background: color-mix(in srgb, var(--accent) 7%, var(--card)); }
+.pf-rate > div { display: flex; flex-direction: column; gap: 2px; }
+.pf-rate span { font-size: .78rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
+.pf-rate b { font-size: 1.6rem; letter-spacing: -.02em; line-height: 1.15; }
+.pf-rate .pf-rate-r b { font-size: 1.15rem; }
+.pf-rate small { font-size: .78rem; color: var(--muted); }
+.pf-rate.ok { border-color: rgba(22,163,74,.55); } .pf-rate.ok .pf-rate-r small { color: #16a34a; }
+.pf-rate.bad { border-color: rgba(229,72,77,.6); } .pf-rate.bad .pf-rate-r small { color: #e5484d; }
+@media (max-width: 600px) { .pf-rate { grid-template-columns: 1fr; } }
