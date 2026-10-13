@@ -8,6 +8,7 @@ const spell = require('./spell');
 const importer = require('./importer');
 const stores = require('./stores');
 const vision = require('./vision');
+const facturx = require('./facturx');
 const storefetch = require('./storefetch');
 const storefetchLookup = (...a) => storefetch.lookup(...a);
 let importFreeOk = false; importer.available().then(v => { importFreeOk = v; });
@@ -178,7 +179,7 @@ async function handle(req, res, url) {
       if (origin && new URL(origin).host !== req.headers.host) throw err(403, 'Origine refusée.');
     }
     if (req.method !== 'GET' && req.method !== 'HEAD') {
-      ctx.raw = await readBody(req, url.pathname === '/api/data' ? 12e6 : url.pathname === '/api/pdf' ? 6e6 : url.pathname === '/api/import/pdf' ? 12e6 : url.pathname === '/api/import/photo' ? 22e6 : 1e6);
+      ctx.raw = await readBody(req, url.pathname === '/api/data' ? 12e6 : url.pathname === '/api/pdf' || url.pathname === '/api/facturx' ? 7e6 : url.pathname === '/api/send-document' ? 7e6 : url.pathname === '/api/import/pdf' ? 12e6 : url.pathname === '/api/import/photo' ? 22e6 : 1e6);
       if (r.auth !== 'webhook' && ctx.raw) { try { ctx.body = JSON.parse(ctx.raw); } catch (e) { throw err(400, 'JSON invalide.'); } }
     }
     if (r.auth !== 'none' && r.auth !== 'webhook') {
@@ -205,7 +206,7 @@ async function handle(req, res, url) {
 /* ---------- Config publique ---------- */
 route('GET', '/api/config', 'none', () => ({
   siteName: db.settings.siteName, registrationOpen: db.settings.registrationOpen, trialDays: db.settings.trialDays,
-  mailConfigured: mail.configured(), pdf: pdf.available(), importFree: importFreeOk, importAi: ai.available() && db.settings.aiEnabled !== false, importPhoto: (ai.available() && db.settings.aiEnabled !== false) || vision.available(), photoKind: ai.available() && db.settings.aiEnabled !== false ? 'claude' : vision.kind(), priceSearch: true, ai: db.settings.aiEnabled !== false, aiKind: ai.available() ? 'claude' : 'free', stripe: !!stripeKey(), simulated: simulatedAllowed(),
+  mailConfigured: mail.configured(), pdf: pdf.available(), einvoice: pdf.available() && facturx.available(), importFree: importFreeOk, importAi: ai.available() && db.settings.aiEnabled !== false, importPhoto: (ai.available() && db.settings.aiEnabled !== false) || vision.available(), photoKind: ai.available() && db.settings.aiEnabled !== false ? 'claude' : vision.kind(), priceSearch: true, ai: db.settings.aiEnabled !== false, aiKind: ai.available() ? 'claude' : 'free', stripe: !!stripeKey(), simulated: simulatedAllowed(),
   plans: db.plans.filter(p => p.active)
 }));
 
@@ -309,11 +310,30 @@ route('POST', '/api/send-document', 'user', async ctx => {
   let buf;
   try { buf = await pdf.toPdf({ html: b.html, label: str(b.label, 80), date: str(b.date, 60), accent: str(b.accent, 7) }); }
   catch (e) { console.error('PDF :', e.message); throw err(502, 'Impossible de créer le PDF pour le moment.'); }
+  if (b.xml) {
+    if (!facturx.available() || !facturx.checkXml(b.xml)) throw err(400, 'Facture électronique invalide.');
+    try { buf = await facturx.make(buf, b.xml, { title: str(b.title, 120), author: str(b.author, 120) }); } catch (e) { console.error('Factur-X :', e.message); throw err(502, 'Impossible de créer la facture électronique pour le moment.'); }
+  }
   const text = (message ? message + '\n\n' : '') + 'Le document est en pièce jointe (PDF).\n\n— Envoyé depuis OptiDevis. Pour répondre, répondez simplement à cet email.';
   const entry = await mail.send(to, subject, text, { replyTo, fromName: str(b.fromName, 60), bcc: b.copy ? ctx.user.email : undefined, attachments: [{ filename: fname.replace(/\.pdf$/i, '') + '.pdf', content: buf.toString('base64') }] });
   if (entry.status !== 'envoyé') throw err(502, 'L\'email n\'a pas pu être envoyé (' + (entry.error ? 'refusé par le service d\'envoi' : 'service indisponible') + '). Vérifiez l\'adresse puis réessayez.');
   audit(ctx.user, 'document envoyé par email', to);
   return ok({ sent: true, to });
+});
+
+/* ---------- Facture électronique Factur-X (PDF/A-3 + XML CII) ---------- */
+route('POST', '/api/facturx', 'user', async ctx => {
+  if (!pdf.available() || !facturx.available()) throw err(501, 'La facture électronique n\'est pas disponible sur ce serveur.');
+  if (!access(ctx.user).active) throw err(402, 'Un abonnement actif est nécessaire.', { code: 'payment_required' });
+  limit('pdf:' + ctx.user.id, 40, 3600e3);
+  const b = ctx.body || {};
+  if (typeof b.html !== 'string' || b.html.length < 50 || b.html.length > 5.5e6) throw err(400, 'Document invalide.');
+  if (!facturx.checkXml(b.xml)) throw err(400, 'Données de facture électronique invalides.');
+  const name = String(b.filename || 'facture').replace(/[^\w.\- ]+/g, '').trim().slice(0, 80) || 'facture';
+  let buf;
+  try { buf = await pdf.toPdf({ html: b.html, label: str(b.label, 80), date: str(b.date, 60), accent: str(b.accent, 7) }); buf = await facturx.make(buf, b.xml, { title: str(b.title, 120), author: str(b.author, 120) }); }
+  catch (e) { console.error('Factur-X :', e.message); throw err(502, 'Impossible de créer la facture électronique pour le moment.'); }
+  return { pdfFile: buf, filename: name + '-facturx.pdf' };
 });
 
 /* ---------- Téléchargement PDF du devis ou de la facture ---------- */

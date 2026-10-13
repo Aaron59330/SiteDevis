@@ -54,7 +54,7 @@ function normQuote(q, base) {
   q.lines = (q.lines && q.lines.length ? q.lines : [newItem(base)]).map(l => ({ t: 'item', ref: '', ...l }));
   q.opts = { showRef: true, showVat: true, docLabel: q.kind === 'facture' ? 'FACTURE' : 'DEVIS', agreeLabel: q.kind === 'facture' ? '' : 'Bon pour Accord', showSite: false, showSiteHours: false, ...(q.opts || {}) };
   q.siteId = q.siteId || '';
-  if (q.kind === 'facture') { q.dueDate = q.dueDate || ''; q.serviceDate = q.serviceDate || ''; q.alreadyPaid = num(q.alreadyPaid); q.payMethod = q.payMethod ?? 'Virement bancaire'; q.paidAt = q.paidAt || ''; }
+  if (q.kind === 'facture') { q.dueDate = q.dueDate || ''; q.serviceDate = q.serviceDate || ''; q.alreadyPaid = num(q.alreadyPaid); q.payMethod = q.payMethod ?? 'Virement bancaire'; q.paidAt = q.paidAt || ''; q.opNature = q.opNature || 'services'; q.deliveryAddress = q.deliveryAddress || ''; }
   if (q.issuerText == null) q.issuerText = issuerBlock(base.company);
   if (q.clientText == null) q.clientText = clientBlock((base.clients || []).find(c => c.id === q.clientId));
   if (q.footer == null) q.footer = makeFooter(base);
@@ -353,6 +353,7 @@ function renderEditor() {
             <textarea class="auto" data-f="clientText">${esc(q.clientText)}</textarea></div>
         </details>
       </div>
+      ${typeof eiCard === 'function' ? eiCard(q) : ''}
 
       <div class="card">
         <div class="row between"><h2>Prestations</h2>
@@ -496,6 +497,7 @@ function renderDoc(q) {
   <div class="dnum">${esc(o.docLabel)} N° ${esc(q.number)}</div>
   <div class="ddate">Le ${flongdate(q.date)}${!isInv(q) && q.validUntil ? ` — valable jusqu'au ${fdate(q.validUntil)}` : ''}</div>
   ${isInv(q) ? `<div class="dmeta">${q.fromNumber ? `<span>Suite au devis N° ${esc(q.fromNumber)}</span>` : ''}${q.serviceDate ? `<span>Prestation réalisée le ${fdate(q.serviceDate)}</span>` : ''}${q.dueDate ? `<span><b>Échéance de paiement : ${fdate(q.dueDate)}</b></span>` : ''}</div>` : ''}
+  ${typeof eiDocLine === 'function' ? eiDocLine(q) : ''}
   ${siteDocLine(q)}
   <table class="items">
     <colgroup>${cols.map(c => `<col style="width:${c === 'desc' ? (100 - used).toFixed(1) : widths[c]}%">`).join('')}</colgroup>
@@ -758,6 +760,7 @@ function renderCompany() {
         </div>
         <div class="field"><label>Coordonnées bancaires</label><textarea data-c="bank" placeholder="Coordonnées bancaires : …&#10;IBAN : …&#10;BIC/SWIFT : …">${esc(co.bank)}</textarea></div>
         <div class="field"><label><input type="checkbox" data-c="vatExempt" ${co.vatExempt ? 'checked' : ''} style="width:auto"> Non assujetti à la TVA (micro-entreprise, art. 293 B du CGI)</label></div>
+        <div class="field"><label><input type="checkbox" data-c="vatDebits" ${co.vatDebits ? 'checked' : ''} style="width:auto"> Option pour le paiement de la TVA d'après les débits (mention ajoutée aux factures)</label></div>
       </div>
     </div>
     <div>
@@ -861,6 +864,7 @@ const actions = {
       <div class="field"><label>Email de votre client *</label><input name="to" type="email" required value="${esc(guess)}" placeholder="client@exemple.fr" autocomplete="off"></div>
       <div class="field"><label>Objet</label><input name="subject" value="${esc(label + (co.name ? ' – ' + co.name : ''))}" maxlength="150"></div>
       <div class="field"><label>Message</label><textarea name="message" rows="6" maxlength="3000">${esc(`Bonjour${who ? ' ' + who : ''},\n\nVeuillez trouver ci-joint ${inv ? 'notre facture' : 'notre devis'} ${q.number}.\n${inv ? 'Je reste à votre disposition pour toute question.' : 'Je reste à votre disposition pour toute question ou modification.'}\n\nCordialement,\n${co.name || ''}`)}</textarea></div>
+      ${inv && typeof eiCheck === 'function' && session.config.einvoice ? (eiCheck(q).ok ? `<label class="check"><input type="checkbox" name="facturx" checked> Joindre la facture au format électronique Factur-X</label>` : `<p class="muted" style="font-size:.8rem;margin:0 0 8px">Facture électronique Factur-X : complétez les informations demandées dans la carte « Facture électronique » pour la joindre.</p>`) : ''}
       <label class="check"><input type="checkbox" name="copy" checked> M'envoyer une copie</label>
       <div class="form-err" id="mailErr" hidden></div>
       <div class="row" style="justify-content:flex-end;margin-top:14px"><button type="button" class="btn" data-act="close-modal">Annuler</button><button class="btn primary" id="mailGo">✉ Envoyer</button></div></form>`);
@@ -869,7 +873,7 @@ const actions = {
       e.preventDefault(); const go = $('#mailGo'), err = $('#mailErr'); err.hidden = true; go.disabled = true; go.textContent = 'Envoi…';
       try {
         const r = await fetch('/api/send-document', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'sitedevis' },
-          body: JSON.stringify({ html: $('#doc').innerHTML, accent: accentOf(), label, date: flongdate(q.date), filename: `${q.opts.docLabel}-${q.number}`, to: f.elements.to.value.trim(), subject: f.elements.subject.value, message: f.elements.message.value, copy: f.elements.copy.checked, replyTo: co.email || '', fromName: co.name || '' }) });
+          body: JSON.stringify({ html: $('#doc').innerHTML, accent: accentOf(), label, date: flongdate(q.date), filename: `${q.opts.docLabel}-${q.number}`, to: f.elements.to.value.trim(), subject: f.elements.subject.value, message: f.elements.message.value, copy: f.elements.copy.checked, replyTo: co.email || '', fromName: co.name || '', ...(f.elements.facturx && f.elements.facturx.checked ? { xml: ciiXml(q), title: `${q.opts.docLabel} ${q.number}`, author: co.name || '' } : {}) }) });
         const j = await r.json().catch(() => ({}));
         if (!r.ok) throw new Error(j.error || 'Erreur ' + r.status);
         if (q.status === 'brouillon') { q.status = 'envoye'; save(); }

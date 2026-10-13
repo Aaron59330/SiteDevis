@@ -765,3 +765,5 @@ a:not(.btn) { text-underline-offset: 3px; transition: color .15s, text-decoratio
 @media (prefers-reduced-motion: reduce) { #nav button::after, .tabs button::after, .cchip::after, .seg2 button::after, .ld-links a::after { transition: none; } button.btn, a.btn, label.btn, .stat { transition: none; transform: none !important; } }
 /* barre du haut sur mobile (menu du bas) */
 @media (max-width: 900px) { .bottomnav button { position: relative; } .bottomnav button::before { content: ""; position: absolute; top: 0; left: 28%; right: 28%; height: 2px; background: var(--bar); transform: scaleX(0); transition: transform .25s; } .bottomnav button.active::before { transform: scaleX(1); } }
+
+.dmeta.ei-meta { margin-top: 2px; }
