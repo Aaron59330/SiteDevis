@@ -47,21 +47,28 @@
     const cashed = db.quotes.filter(q => isInv(q) && q.status === 'payee' && inP(q.paidAt || q.date, p));
     const issued = db.quotes.filter(q => isInv(q) && (q.status === 'envoye' || q.status === 'payee') && inP(q.date, p));
     const sum = (l, k) => r2(l.reduce((s, q) => s + totals(q)[k], 0));
-    return { cashed, issued, ttc: sum(cashed, 'ttc'), ht: sum(cashed, 'ht'), vatCashed: sum(cashed, 'vat'), vatIssued: sum(issued, 'vat'), issuedHt: sum(issued, 'ht') };
+    // ventilation ventes de marchandises / prestations de services (au prorata des lignes de chaque facture)
+    const part = (k, nat) => r2(cashed.reduce((s, q) => s + totals(q)[k] * natSplit(q)[nat], 0));
+    return { cashed, issued, ttc: sum(cashed, 'ttc'), ht: sum(cashed, 'ht'), vatCashed: sum(cashed, 'vat'), vatIssued: sum(issued, 'vat'), issuedHt: sum(issued, 'ht'),
+      venteTtc: part('ttc', 'vente'), serviceTtc: part('ttc', 'service'), venteHt: part('ht', 'vente'), serviceHt: part('ht', 'service') };
   }
 
   function figures(p) {
     const c = cfg(), R = receipts(p), E = occurrences(p);
     const chHt = r2(E.reduce((s, e) => s + num(e.ht), 0)), chTtc = r2(E.reduce((s, e) => s + num(e.ttc), 0)), chVat = r2(chTtc - chHt);
     const micro = c.regime === 'micro', act = ACT[c.activity] || ACT.services;
-    const rate = num(c.rate) > 0 ? num(c.rate) : act.rate, total = rate + (c.vl ? act.vl : 0);
-    const cotis = micro ? r2(R.ttc * total / 100) : 0;                 // micro : sur les recettes encaissées
+    // micro : cotisations sur les recettes encaissées, avec un taux pour les ventes et un autre pour les prestations
+    const sAct = c.activity === 'bnc' ? ACT.bnc : ACT.services;
+    const rateV = (num(c.rateV) > 0 ? num(c.rateV) : ACT.vente.rate) + (c.vl ? ACT.vente.vl : 0);
+    const rateS = (num(c.rate) > 0 ? num(c.rate) : sAct.rate) + (c.vl ? sAct.vl : 0);
+    const cotisV = micro ? r2(R.venteTtc * rateV / 100) : 0, cotisS = micro ? r2(R.serviceTtc * rateS / 100) : 0;
+    const cotis = r2(cotisV + cotisS), total = R.ttc > 0 ? cotis / R.ttc * 100 : rateS;
     const vatOut = micro ? 0 : (db.company.vatDebits ? R.vatIssued : R.vatCashed);
     const vatDue = micro ? 0 : r2(vatOut - chVat);
     const recHt = micro ? R.ttc : R.ht;
     const result = r2(recHt - (micro ? chTtc : chHt) - cotis);
     const cash = r2(R.ttc - chTtc - Math.max(0, vatDue) - cotis);
-    return { R, E, chHt, chTtc, chVat, micro, act, rate: total, cotis, vatOut, vatDue, recHt, result, cash };
+    return { R, E, chHt, chTtc, chVat, micro, act, sAct, rate: total, rateV, rateS, cotisV, cotisS, cotis, vatOut, vatDue, recHt, result, cash };
   }
 
   /* ---------- Affichage ---------- */
@@ -107,7 +114,8 @@
 
   function comptaHtml() {
     const c = cfg(), p = period(), F = figures(p), pp = (() => { const ym = p.prev; const sm = statUI.month; statUI.month = ym; const r = period(); statUI.month = sm; return r; })(), PF = figures(pp);
-    const y = statUI.month.slice(0, 4), yearCash = receipts({ from: y + '-01-01', to: y + '-12-31' }).ttc, cap = F.act.cap;
+    const y = statUI.month.slice(0, 4), YR = receipts({ from: y + '-01-01', to: y + '-12-31' }), yearCash = YR.ttc, cap = F.act.cap;
+    const capBar = (label, v, max) => `<div class="cat-bar"><div class="row between"><span>${label} (${money(max)})</span><b>${Math.round(v / max * 100)} %</b></div><div class="cb"><i style="width:${Math.min(100, v / max * 100)}%"></i></div></div>`;
     const list = F.E.filter(e => !ui.cat || e.cat === ui.cat);
     const card = (n, l, sub, extra = '') => `<div class="stat"><div class="n">${n}</div><div class="l">${l}</div><div class="cmp">${extra}</div>${sub ? `<div class="sub2">${sub}</div>` : ''}</div>`;
     const cats = [...new Set(F.E.map(e => e.cat || 'Autres'))];
@@ -118,10 +126,10 @@
       <div class="row"><button class="btn" data-act="cp-export" data-k="recettes" title="Obligatoire pour les micro-entreprises">⬇ Livre des recettes</button><button class="btn" data-act="cp-export" data-k="achats">⬇ Registre des charges</button><button class="btn" data-act="bilan-open" title="Synthèse annuelle, déclarations à faire et où les envoyer">📋 Bilan de l’année</button><button class="btn primary" data-act="exp-new">＋ Ajouter une charge</button></div>
     </div>
     <div class="stats">
-      ${card(money(F.R.ttc), `Recettes encaissées (${F.R.cashed.length})`, F.micro ? 'Factures payées sur la période' : `dont ${money(F.R.ht)} HT`, cmp(F.R.ttc, PF.R.ttc, 'vs période préc.'))}
+      ${card(money(F.R.ttc), `Recettes encaissées (${F.R.cashed.length})`, (F.R.venteTtc > 0.005 && F.R.serviceTtc > 0.005) || F.R.venteTtc > 0.005 ? `Ventes ${money(F.micro ? F.R.venteTtc : F.R.venteHt)} · Services ${money(F.micro ? F.R.serviceTtc : F.R.serviceHt)}${F.micro ? '' : ' (HT)'}` : F.micro ? 'Prestations de services' : `dont ${money(F.R.ht)} HT`, cmp(F.R.ttc, PF.R.ttc, 'vs période préc.'))}
       ${card(money(F.micro ? F.chTtc : F.chHt), `Charges${F.micro ? '' : ' HT'} (${F.E.length})`, F.micro ? 'Dépenses de la période' : `dont ${money(F.chVat)} de TVA déductible`, cmp(F.micro ? F.chTtc : F.chHt, F.micro ? PF.chTtc : PF.chHt, 'vs période préc.', false))}
       ${card(`<span style="color:${F.result < 0 ? 'var(--danger)' : 'inherit'}">${money(F.result)}</span>`, F.micro ? 'Reste après charges et cotisations' : 'Résultat avant impôt', F.micro ? 'Recettes − charges − cotisations estimées' : 'Recettes HT − charges HT', cmp(F.result, PF.result, 'vs période préc.'))}
-      ${F.micro ? card(money(F.cotis), 'Cotisations URSSAF estimées', `${fmtNum.format(F.rate)} % des recettes encaissées${c.vl ? ' (avec versement libératoire)' : ''}`)
+      ${F.micro ? card(money(F.cotis), 'Cotisations URSSAF estimées', [F.R.venteTtc > 0.005 && `${fmtNum.format(F.rateV)} % des ventes (${money(F.cotisV)})`, (F.R.serviceTtc > 0.005 || !(F.R.venteTtc > 0.005)) && `${fmtNum.format(F.rateS)} % des services (${money(F.cotisS)})`].filter(Boolean).join(' + ') + (c.vl ? ' — avec versement libératoire' : ''))
         : card(`<span style="color:${F.vatDue < 0 ? 'var(--ok)' : 'inherit'}">${money(Math.abs(F.vatDue))}</span>`, F.vatDue < 0 ? 'Crédit de TVA' : 'TVA à reverser', `Collectée ${money(F.vatOut)} − déductible ${money(F.chVat)}${db.company.vatDebits ? ' (sur les débits)' : ' (sur les encaissements)'}`)}
     </div>
     <div class="grid2" style="margin-bottom:16px;align-items:stretch">
@@ -129,8 +137,11 @@
       <div class="card"><h2>Trésorerie et repères</h2>
         <div class="big-n" style="color:${F.cash < 0 ? 'var(--danger)' : 'inherit'}">${money(F.cash)}</div>
         <p class="muted" style="margin:4px 0 14px;font-size:.86rem">Ce qui reste de la période : encaissé − charges${F.micro ? ' − cotisations estimées' : ' − TVA à reverser'}.</p>
-        ${F.micro ? `<div class="cat-bar"><div class="row between"><span>Plafond micro-entreprise ${y} (${money(cap)})</span><b>${Math.round(yearCash / cap * 100)} %</b></div><div class="cb"><i style="width:${Math.min(100, yearCash / cap * 100)}%"></i></div></div>
-          <p class="muted" style="font-size:.8rem;margin:6px 0 14px">${money(yearCash)} encaissés depuis janvier. Plafond indicatif pour ${esc(F.act.label.toLowerCase())}, à vérifier sur urssaf.fr.</p>` : ''}
+        ${F.micro ? (YR.venteTtc > 0.005
+          ? `${capBar(`Plafond total ${y} — ventes + services`, yearCash, ACT.vente.cap)}${capBar(`Dont plafond services ${y}`, YR.serviceTtc, F.sAct.cap)}
+          <p class="muted" style="font-size:.8rem;margin:6px 0 14px">Depuis janvier : ventes ${money(YR.venteTtc)}, services ${money(YR.serviceTtc)}. Activité mixte : le total ne doit pas dépasser ${money(ACT.vente.cap)} et les services ${money(F.sAct.cap)}. Plafonds indicatifs, à vérifier sur urssaf.fr.</p>`
+          : `${capBar(`Plafond micro-entreprise ${y}`, yearCash, F.sAct.cap)}
+          <p class="muted" style="font-size:.8rem;margin:6px 0 14px">${money(yearCash)} encaissés depuis janvier. Plafond indicatif pour les prestations de services, à vérifier sur urssaf.fr.</p>`) : ''}
         <h3 style="margin:6px 0 8px;font-size:.95rem">À prévoir</h3>
         ${deadlines().map(([d, t]) => `<div class="dl-row"><b>${fdate(d)}</b><span>${esc(t)}</span></div>`).join('') || '<p class="muted">Rien à venir.</p>'}
       </div>
@@ -149,10 +160,12 @@
       <div class="grid2" style="margin-top:14px">
         <div class="field"><label>Régime</label><select data-cp="regime"><option value="micro" ${c.regime === 'micro' ? 'selected' : ''}>Micro-entreprise</option><option value="reel" ${c.regime === 'reel' ? 'selected' : ''}>Régime réel (avec TVA)</option></select></div>
         ${c.regime === 'micro' ? `
-        <div class="field"><label>Activité</label><select data-cp="activity">${Object.entries(ACT).map(([k, a]) => `<option value="${k}" ${c.activity === k ? 'selected' : ''}>${a.label}</option>`).join('')}</select></div>
-        <div class="field"><label>Taux de cotisations sociales (%) — vide = ${fmtNum.format(F.act.rate)} %</label><input type="number" step="0.1" data-cp="rate" value="${esc(c.rate)}" placeholder="${F.act.rate}"></div>
+        <div class="field"><label>Activité principale (lignes dont la nature n’est pas précisée)</label><select data-cp="activity">${Object.entries(ACT).map(([k, a]) => `<option value="${k}" ${c.activity === k ? 'selected' : ''}>${a.label}</option>`).join('')}</select></div>
+        <div class="field"><label>Taux sur les prestations de services (%) — vide = ${fmtNum.format(F.sAct.rate)} %</label><input type="number" step="0.1" data-cp="rate" value="${esc(c.rate)}" placeholder="${F.sAct.rate}"></div>
+        <div class="field"><label>Taux sur les ventes de marchandises (%) — vide = ${fmtNum.format(ACT.vente.rate)} %</label><input type="number" step="0.1" data-cp="rateV" value="${esc(c.rateV || '')}" placeholder="${ACT.vente.rate}"></div>
         <div class="field"><label>Déclaration URSSAF</label><select data-cp="declPeriod"><option value="month" ${c.declPeriod === 'month' ? 'selected' : ''}>Mensuelle</option><option value="quarter" ${c.declPeriod === 'quarter' ? 'selected' : ''}>Trimestrielle</option></select></div>
-        <label class="check"><input type="checkbox" data-cp="vl" ${c.vl ? 'checked' : ''}> Versement libératoire de l’impôt sur le revenu (+${fmtNum.format(F.act.vl)} %)</label>`
+        <label class="check"><input type="checkbox" data-cp="vl" ${c.vl ? 'checked' : ''}> Versement libératoire de l’impôt sur le revenu (+${fmtNum.format(ACT.vente.vl)} % sur les ventes, +${fmtNum.format(F.sAct.vl)} % sur les services)</label>
+        <p class="muted" style="font-size:.8rem;margin:0;grid-column:1/-1">Chaque ligne de vos devis et factures porte une étiquette <b>Service</b> ou <b>Vente</b> (cliquez dessus pour la changer). Les ventes de marchandises (ou les fournitures facturées à part) ont un taux et un plafond différents des prestations : les deux montants sont à déclarer séparément à l’URSSAF.</p>`
         : `<div class="field"><label>Déclaration de TVA</label><select data-cp="vatPeriod"><option value="month" ${c.vatPeriod === 'month' ? 'selected' : ''}>Mensuelle</option><option value="quarter" ${c.vatPeriod === 'quarter' ? 'selected' : ''}>Trimestrielle</option></select></div>`}
       </div>
       <p class="muted" style="font-size:.8rem;margin:6px 0 0">Les montants sont des <b>estimations</b> calculées à partir de vos factures payées et des charges saisies. Les taux par défaut sont indicatifs : vérifiez-les sur urssaf.fr et impots.gouv.fr, et faites valider vos déclarations par votre comptable.</p>
@@ -195,8 +208,8 @@
     p = p || period(); const n = v => String(r2(v)).replace('.', ','), q = s => '"' + String(s ?? '').replace(/"/g, '""') + '"';
     let rows, name;
     if (kind === 'recettes') {
-      rows = [['Date d’encaissement', 'N° de facture', 'Client', 'Nature', 'Montant HT', 'TVA', 'Montant TTC', 'Mode de règlement']];
-      receipts(p).cashed.sort((a, b) => (a.paidAt || a.date).localeCompare(b.paidAt || b.date)).forEach(f => { const t = totals(f); rows.push([f.paidAt || f.date, f.number, (f.clientText || '').split('\n')[0], f.title || '', n(t.ht), n(t.vat), n(t.ttc), f.payMethod || '']); });
+      rows = [['Date d’encaissement', 'N° de facture', 'Client', 'Objet', 'Montant HT', 'TVA', 'Montant TTC', 'Dont ventes de marchandises (TTC)', 'Dont prestations de services (TTC)', 'Mode de règlement']];
+      receipts(p).cashed.sort((a, b) => (a.paidAt || a.date).localeCompare(b.paidAt || b.date)).forEach(f => { const t = totals(f), sp = natSplit(f); rows.push([f.paidAt || f.date, f.number, (f.clientText || '').split('\n')[0], f.title || '', n(t.ht), n(t.vat), n(t.ttc), n(t.ttc * sp.vente), n(t.ttc * sp.service), f.payMethod || '']); });
       name = 'livre-des-recettes';
     } else {
       rows = [['Date', 'Libellé', 'Fournisseur', 'Catégorie', 'Montant HT', 'TVA', 'Montant TTC', 'Paiement', 'Note']];
@@ -216,7 +229,7 @@
   function yearData(y) {
     const P = { from: y + '-01-01', to: y + '-12-31' }, F = figures(P);
     const months = Array.from({ length: 12 }, (_, i) => { const m = `${y}-${String(i + 1).padStart(2, '0')}`, f = figures({ from: m + '-01', to: m + '-31' }); return { m, f }; });
-    const quarters = [0, 1, 2, 3].map(k => months.slice(k * 3, k * 3 + 3).reduce((s, x) => s + x.f.R.ttc, 0));
+    const quarters = [0, 1, 2, 3].map(k => months.slice(k * 3, k * 3 + 3).reduce((s, x) => ({ ttc: s.ttc + x.f.R.ttc, v: s.v + x.f.R.venteTtc, sv: s.sv + x.f.R.serviceTtc, cotis: s.cotis + x.f.cotis }), { ttc: 0, v: 0, sv: 0, cotis: 0 }));
     const byCat = {}; F.E.forEach(e => { const k = e.cat || 'Autres'; byCat[k] = (byCat[k] || 0) + (F.micro ? num(e.ttc) : num(e.ht)); });
     const unpaid = db.quotes.filter(q => isInv(q) && q.status === 'envoye' && q.date && q.date <= P.to);
     return { y, P, F, months, quarters, byCat, unpaid };
@@ -225,9 +238,9 @@
     const c = cfg(), y = Number(D.y), n = y + 1, form = c.form || (c.regime === 'micro' ? 'ei_micro' : 'ei_reel'), out = [];
     const L = (t, u) => `<a href="${u}" target="_blank" rel="noopener noreferrer">${t} ↗</a>`;
     if (form === 'ei_micro') {
-      const cs = CASES[c.activity] || CASES.services;
-      out.push([`Chaque ${c.declPeriod === 'quarter' ? 'trimestre' : 'mois'}`, 'Déclarer le chiffre d’affaires encaissé à l’URSSAF et payer les cotisations', `Montants à déclarer : tableau « ${c.declPeriod === 'quarter' ? 'Par trimestre' : 'Par mois'} » ci-dessus. Même à 0 € si vous n’avez rien encaissé.`, L('autoentrepreneur.urssaf.fr', 'https://www.autoentrepreneur.urssaf.fr')]);
-      out.push([`Mai – juin ${n}`, `Déclaration de revenus ${y} (formulaire 2042-C-PRO)`, `Reportez le chiffre d’affaires annuel : ${money(D.F.R.ttc)} en case ${c.vl ? cs[1] + ' (versement libératoire)' : cs[0]}. Pas de bilan ni de liasse fiscale à faire en micro-entreprise : l’abattement forfaitaire est appliqué par l’administration.`, L('impots.gouv.fr', 'https://www.impots.gouv.fr')]);
+      const cs = CASES[c.activity === 'bnc' ? 'bnc' : 'services'] || CASES.services, cv = CASES.vente;
+      out.push([`Chaque ${c.declPeriod === 'quarter' ? 'trimestre' : 'mois'}`, 'Déclarer le chiffre d’affaires encaissé à l’URSSAF et payer les cotisations', `Montants à déclarer : tableau « ${c.declPeriod === 'quarter' ? 'Par trimestre' : 'Par mois'} » ci-dessus${D.F.R.venteTtc > 0.005 ? ', en séparant bien les ventes de marchandises et les prestations de services (deux lignes distinctes sur la déclaration)' : ''}. Même à 0 € si vous n’avez rien encaissé.`, L('autoentrepreneur.urssaf.fr', 'https://www.autoentrepreneur.urssaf.fr')]);
+      out.push([`Mai – juin ${n}`, `Déclaration de revenus ${y} (formulaire 2042-C-PRO)`, `Reportez le chiffre d’affaires annuel : ${D.F.R.venteTtc > 0.005 ? `ventes de marchandises ${money(D.F.R.venteTtc)} en case ${c.vl ? cv[1] : cv[0]}, prestations de services ${money(D.F.R.serviceTtc)} en case ${c.vl ? cs[1] : cs[0]}${c.vl ? ' (versement libératoire)' : ''}` : `${money(D.F.R.ttc)} en case ${c.vl ? cs[1] + ' (versement libératoire)' : cs[0]}`}. Pas de bilan ni de liasse fiscale à faire en micro-entreprise : l’abattement forfaitaire est appliqué par l’administration.`, L('impots.gouv.fr', 'https://www.impots.gouv.fr')]);
       out.push([`15 décembre ${n}`, 'Cotisation foncière des entreprises (CFE)', 'L’avis est à consulter et payer dans votre espace professionnel (pas d’envoi papier).', L('Espace professionnel impots.gouv.fr', 'https://www.impots.gouv.fr')]);
       out.push(['À conserver', 'Livre des recettes et registre des achats', 'Téléchargez-les dans OptiDevis (Statistiques › Comptabilité) et gardez-les (avec vos factures) au moins 10 ans. Ils ne sont pas à envoyer, sauf contrôle.', '']);
     } else {
@@ -245,7 +258,7 @@
     return out;
   }
   function bilanHtml(D, forPdf) {
-    const c = cfg(), F = D.F, co = db.company, micro = F.micro;
+    const c = cfg(), F = D.F, co = db.company, micro = F.micro, mixed = micro && F.R.venteTtc > 0.005;
     const th = 'style="text-align:left;padding:6px 8px;border-bottom:1.5px solid #222;font-size:9pt"', thr = 'style="text-align:right;padding:6px 8px;border-bottom:1.5px solid #222;font-size:9pt"';
     const td = 'style="padding:5px 8px;border-bottom:1px solid #ddd;font-size:9pt"', tdr = 'style="padding:5px 8px;border-bottom:1px solid #ddd;font-size:9pt;text-align:right;white-space:nowrap"';
     const tot = 'style="padding:6px 8px;font-size:9.5pt;font-weight:700;text-align:right;border-top:1.5px solid #222"', totl = 'style="padding:6px 8px;font-size:9.5pt;font-weight:700;border-top:1.5px solid #222"';
@@ -261,7 +274,7 @@
         ${box('Chiffre d’affaires encaissé', money(F.R.ttc), micro ? '' : `${money(F.R.ht)} HT`)}
         ${box(micro ? 'Charges payées' : 'Charges HT', money(micro ? F.chTtc : F.chHt), `${F.E.length} dépense${F.E.length > 1 ? 's' : ''}`)}
         ${box(micro ? 'Reste après charges et cotisations' : 'Résultat avant impôt', money(F.result), micro ? '' : 'Recettes HT − charges HT')}
-        ${micro ? box('Cotisations URSSAF estimées', money(F.cotis), `${fmtNum.format(F.rate)} % du CA`) : box(F.vatDue < 0 ? 'Crédit de TVA' : 'TVA à reverser', money(Math.abs(F.vatDue)), `collectée ${money(F.vatOut)} − déductible ${money(F.chVat)}`)}
+        ${micro ? box('Cotisations URSSAF estimées', money(F.cotis), F.R.venteTtc > 0.005 ? `${fmtNum.format(F.rateV)} % des ventes + ${fmtNum.format(F.rateS)} % des services` : `${fmtNum.format(F.rate)} % du CA`) : box(F.vatDue < 0 ? 'Crédit de TVA' : 'TVA à reverser', money(Math.abs(F.vatDue)), `collectée ${money(F.vatOut)} − déductible ${money(F.chVat)}`)}
       </div>
       <div ${h2}>${micro ? 'Recettes et charges' : 'Compte de résultat simplifié'}</div>
       <table style="width:100%;border-collapse:collapse"><thead><tr><th ${th}>Poste</th><th ${thr}>Montant${micro ? '' : ' HT'}</th></tr></thead><tbody>
@@ -271,10 +284,10 @@
         <tr><td ${totl}>${micro ? 'Reste' : 'Résultat'}</td><td ${tot}>${money(F.result)}</td></tr></tbody></table>
       <div ${h2}>${micro ? (c.declPeriod === 'quarter' ? 'Par trimestre (à déclarer à l’URSSAF)' : 'Par mois (à déclarer à l’URSSAF)') : 'Par mois'}</div>
       ${micro && c.declPeriod === 'quarter'
-        ? `<table style="width:100%;border-collapse:collapse"><thead><tr><th ${th}>Trimestre</th><th ${thr}>CA encaissé</th><th ${thr}>Cotisations estimées</th></tr></thead><tbody>${D.quarters.map((v, i) => `<tr><td ${td}>${i + 1}${i ? 'e' : 'er'} trimestre</td><td ${tdr}>${money(v)}</td><td ${tdr}>${money(r2(v * F.rate / 100))}</td></tr>`).join('')}</tbody></table>`
-        : `<table style="width:100%;border-collapse:collapse"><thead><tr><th ${th}>Mois</th><th ${thr}>Encaissé</th><th ${thr}>Charges</th>${micro ? `<th ${thr}>Cotisations</th>` : `<th ${thr}>TVA collectée</th><th ${thr}>TVA déductible</th><th ${thr}>TVA due</th>`}<th ${thr}>Résultat</th></tr></thead><tbody>
-          ${D.months.map(({ m, f }) => `<tr><td style="padding:5px 8px;border-bottom:1px solid #ddd;font-size:9pt;text-transform:capitalize">${ymLabel(m)}</td><td ${tdr}>${money(f.R.ttc)}</td><td ${tdr}>${money(micro ? f.chTtc : f.chHt)}</td>${micro ? `<td ${tdr}>${money(f.cotis)}</td>` : `<td ${tdr}>${money(f.vatOut)}</td><td ${tdr}>${money(f.chVat)}</td><td ${tdr}>${money(f.vatDue)}</td>`}<td ${tdr}>${money(f.result)}</td></tr>`).join('')}
-          <tr><td ${totl}>Total</td><td ${tot}>${money(F.R.ttc)}</td><td ${tot}>${money(micro ? F.chTtc : F.chHt)}</td>${micro ? `<td ${tot}>${money(F.cotis)}</td>` : `<td ${tot}>${money(F.vatOut)}</td><td ${tot}>${money(F.chVat)}</td><td ${tot}>${money(F.vatDue)}</td>`}<td ${tot}>${money(F.result)}</td></tr></tbody></table>`}
+        ? `<table style="width:100%;border-collapse:collapse"><thead><tr><th ${th}>Trimestre</th>${mixed ? `<th ${thr}>Ventes de marchandises</th><th ${thr}>Prestations de services</th>` : ''}<th ${thr}>CA encaissé</th><th ${thr}>Cotisations estimées</th></tr></thead><tbody>${D.quarters.map((x, i) => `<tr><td ${td}>${i + 1}${i ? 'e' : 'er'} trimestre</td>${mixed ? `<td ${tdr}>${money(x.v)}</td><td ${tdr}>${money(x.sv)}</td>` : ''}<td ${tdr}>${money(x.ttc)}</td><td ${tdr}>${money(x.cotis)}</td></tr>`).join('')}</tbody></table>`
+        : `<table style="width:100%;border-collapse:collapse"><thead><tr><th ${th}>Mois</th>${mixed ? `<th ${thr}>Ventes</th><th ${thr}>Services</th>` : ''}<th ${thr}>Encaissé</th><th ${thr}>Charges</th>${micro ? `<th ${thr}>Cotisations</th>` : `<th ${thr}>TVA collectée</th><th ${thr}>TVA déductible</th><th ${thr}>TVA due</th>`}<th ${thr}>Résultat</th></tr></thead><tbody>
+          ${D.months.map(({ m, f }) => `<tr><td style="padding:5px 8px;border-bottom:1px solid #ddd;font-size:9pt;text-transform:capitalize">${ymLabel(m)}</td>${mixed ? `<td ${tdr}>${money(f.R.venteTtc)}</td><td ${tdr}>${money(f.R.serviceTtc)}</td>` : ''}<td ${tdr}>${money(f.R.ttc)}</td><td ${tdr}>${money(micro ? f.chTtc : f.chHt)}</td>${micro ? `<td ${tdr}>${money(f.cotis)}</td>` : `<td ${tdr}>${money(f.vatOut)}</td><td ${tdr}>${money(f.chVat)}</td><td ${tdr}>${money(f.vatDue)}</td>`}<td ${tdr}>${money(f.result)}</td></tr>`).join('')}
+          <tr><td ${totl}>Total</td>${mixed ? `<td ${tot}>${money(F.R.venteTtc)}</td><td ${tot}>${money(F.R.serviceTtc)}</td>` : ''}<td ${tot}>${money(F.R.ttc)}</td><td ${tot}>${money(micro ? F.chTtc : F.chHt)}</td>${micro ? `<td ${tot}>${money(F.cotis)}</td>` : `<td ${tot}>${money(F.vatOut)}</td><td ${tot}>${money(F.chVat)}</td><td ${tot}>${money(F.vatDue)}</td>`}<td ${tot}>${money(F.result)}</td></tr></tbody></table>`}
       ${D.unpaid.length ? `<div ${h2}>Factures non encaissées au 31/12 (créances clients)</div>
         <table style="width:100%;border-collapse:collapse"><thead><tr><th ${th}>Facture</th><th ${th}>Date</th><th ${th}>Client</th><th ${thr}>Reste dû</th></tr></thead><tbody>${D.unpaid.map(q => `<tr><td ${td}>${esc(q.number)}</td><td ${td}>${fdate(q.date)}</td><td ${td}>${esc((q.clientText || '').split('\n')[0])}</td><td ${tdr}>${money(totals(q).due)}</td></tr>`).join('')}</tbody></table>` : ''}
       <div ${h2}>Ce qu’il faut faire, où et quand</div>

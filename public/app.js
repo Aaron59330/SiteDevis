@@ -210,6 +210,30 @@ function totals(q) {
   return { subtotal: subtotalOut, discountAmt: discountOut, ht, vat, byRate, htByRate, ttc, paid, due: ttc - paid, overridden: ov != null, auto };
 }
 
+/* Nature d'une ligne pour la comptabilité : vente de marchandises (BIC vente) ou prestation de services.
+   Choix manuel (l.nat) sinon devinée : matériau du catalogue → vente ; prestation / ouvrage → service ; sinon mots-clés, puis activité principale. */
+const NAT_LABEL = { vente: 'Vente', service: 'Service' };
+function lineNature(l) {
+  if (l.nat === 'vente' || l.nat === 'service') return l.nat;
+  const k = s => String(s || '').trim().toLowerCase();
+  const c = (db.catalog || []).find(x => (l.ref && x.ref && x.ref === l.ref) || (k(x.desc) && k(x.desc) === k(l.desc)));
+  if (c) return c.type === 'materiau' ? 'vente' : 'service';
+  const d = k(l.desc).normalize('NFD').replace(/[̀-ͯ]/g, '');
+  if (/^(pose|main d|installation|depose|reparation|entretien|nettoyage|deplacement|intervention|forfait (pose|main)|prestation|montage|livraison et pose)/.test(d)) return 'service';
+  if (/^(fourniture seule|vente|marchandise|produit|article|achat|piece detachee|materiel|lot de|carton|boite|sac|rouleau|palette)/.test(d)) return 'vente';
+  // matériau reconnu (carrelage, plaque BA13, câble, tube cuivre…) facturé sur sa propre ligne, sans « pose » ni « fourniture et pose »
+  if (!/(pose|installation|main d|montage|mise en oeuvre|realisation)/.test(d) && typeof window.materialCategory === 'function' && window.materialCategory(l.desc)) return 'vente';
+  const act = (db.compta && db.compta.activity) || (typeof sector === 'function' ? sector().act : 'services');
+  return act === 'vente' ? 'vente' : 'service';
+}
+/* part des ventes et des services dans un document (au prorata des lignes HT) */
+function natSplit(q) {
+  let v = 0, s = 0;
+  (q.lines || []).filter(l => l.t === 'item').forEach(l => { const a = num(l.qty) * num(l.price); if (lineNature(l) === 'vente') v += a; else s += a; });
+  const t = v + s; if (!(t > 0)) return { vente: 0, service: 1 };
+  return { vente: v / t, service: s / t };
+}
+
 /* ---------- Rendu principal ---------- */
 function render() {
   document.querySelectorAll('#nav button, #bottomnav button[data-view]').forEach(b =>
@@ -458,7 +482,7 @@ function linesHtml(q) {
     const acts = `<div class="acts">
       <button class="btn small icon" data-act="line-up" ${i === 0 ? 'disabled' : ''} title="Monter">↑</button>
       <button class="btn small icon" data-act="line-down" ${i === n - 1 ? 'disabled' : ''} title="Descendre">↓</button>
-      ${l.t === 'item' ? '<button class="btn small icon" data-act="line-save" title="Enregistrer cette prestation dans le catalogue">💾</button>' : ''}
+      ${l.t === 'item' ? `<button class="nat-chip ${l.nat ? '' : 'auto'} ${lineNature(l)}" data-act="line-nat" title="Nature pour la comptabilité (cotisations différentes) : cliquez pour changer${l.nat ? '' : ' — devinée automatiquement'}">${NAT_LABEL[lineNature(l)]}</button><button class="btn small icon" data-act="line-save" title="Enregistrer cette prestation dans le catalogue">💾</button>` : ''}
       <button class="btn small icon danger" data-act="line-del" title="Supprimer">✕</button></div>`;
     if (l.t === 'title') return `<div class="line kind" data-i="${i}"><span class="tag">Titre</span><input data-l="desc" value="${esc(l.desc)}" placeholder="Titre de section">${acts}</div>`;
     if (l.t === 'subtotal') return `<div class="line kind" data-i="${i}"><span class="tag">Sous-total</span><input data-l="label" value="${esc(l.label ?? 'Sous Total')}"><b data-sub style="white-space:nowrap">${money(rows[i].amount)}</b>${acts}</div>`;
@@ -1007,6 +1031,9 @@ const actions = {
   'line-down'(t) { moveLine(+t.closest('.line').dataset.i, 1); },
   'add-pay'() { getQuote(editingId).payments.push({ id: uid(), invoiceId: '', pct: 0, label: '' }); save(); refreshPayments(); },
   'del-pay'(t) { const q = getQuote(editingId), i = +t.closest('.pay').dataset.i; if (q.payments[i].invoiceId && getQuote(q.payments[i].invoiceId) && !confirm('Une facture existe pour cette échéance. La retirer de l\'échéancier ?')) return; q.payments.splice(i, 1); save(); refreshPayments(); },
+  'line-nat'(t) { const q = getQuote(editingId), l = q && q.lines[+t.closest('.line').dataset.i]; if (!l) return;
+    l.nat = lineNature(l) === 'vente' ? 'service' : 'vente'; save(); refreshLines(); refreshPreview();
+    toast(l.nat === 'vente' ? 'Ligne comptée en vente de marchandises' : 'Ligne comptée en prestation de services'); },
   'co-sync'() { const q = getQuote(editingId); if (!q) return; const n = companyDiff(q).length; applyCompany(q); save(); render(); toast(`${isInv(q) ? 'Facture' : 'Devis'} mis à jour avec Mon entreprise (${n} élément${n > 1 ? 's' : ''})`); },
   'co-ignore'() { const q = getQuote(editingId); if (!q) return; q.companyIgnore = companySig(); save(); render(); },
   'co-sync-all'() { const list = db.quotes.filter(q => bulkSyncable(q) && companyDiff(q).length);

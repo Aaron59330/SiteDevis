@@ -1019,3 +1019,9 @@ table.list th.center, table.list td.center { text-align: center; }
 @media (min-width: 1200px) { .stats.six { grid-template-columns: repeat(6, minmax(0, 1fr)); } .stats.six .stat .n { font-size: 1.45rem; } }
 @media (min-width: 701px) and (max-width: 1199px) { .stats.six { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 .stat-paid .n { color: #16a34a !important; } .stat-due .n { color: #d97706 !important; }
+/* Nature d'une ligne (comptabilité) */
+.nat-chip { font: inherit; font-size: .7rem; font-weight: 700; padding: 3px 9px; border-radius: 999px; cursor: pointer; border: 1px solid var(--line); background: transparent; color: var(--muted); margin-right: 4px; white-space: nowrap; }
+.nat-chip.service { color: #4c8dff; border-color: rgba(76,141,255,.45); }
+.nat-chip.vente { color: #c47f1a; border-color: rgba(227,160,75,.55); }
+.nat-chip.auto { border-style: dashed; }
+.nat-chip:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }

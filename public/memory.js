@@ -28,6 +28,7 @@
     [/chevron|bastaing|madrier|planche|tasseau|osb|contreplaque|\bbois\b|lambourde/, 'Bois'],
     [/parquet|stratifie|sous.?couche parquet|plinthe|sol (pvc|vinyle)/, 'Sols']];
   const kwCat = f => { const m = MAT_CATS.find(([r]) => r.test(f)); return m ? m[1] : ''; };
+  window.materialCategory = desc => kwCat(fold(desc));   // utilisé aussi pour deviner « vente de marchandises » en comptabilité
   const myTrade = () => { const T = typeof TRADES !== 'undefined' ? TRADES : []; const sec = (db.settings.sector || 'btp');
     return T.find(t => t.id === db.settings.trade) || T.find(t => t.sector === sec) || null; };
 
