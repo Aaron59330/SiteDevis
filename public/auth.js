@@ -75,15 +75,15 @@ function renderAuth(mode, opts = {}) {
     <div class="ld-bg" aria-hidden="true"><div class="orb o1"></div><div class="orb o2"></div></div>
     <header class="ld-nav">
       <div class="ld-nav-in">
-        <div class="brand big">${brandHtml(cfg.siteName)}</div>
-        <nav class="ld-links" aria-label="Sommaire"><a href="#d-start">Démarrer</a><a href="#d-features">Fonctionnalités</a><a href="#d-pricing">Tarifs</a><a href="#d-faq">Questions</a><a href="#" data-act="hero-open">Vidéo</a></nav>
+        <a href="#/" class="brand big ld-home" data-page="" aria-label="Accueil">${brandHtml(cfg.siteName)}</a>
+        <nav class="ld-links" aria-label="Pages"><a href="#/demarrer" data-page="demarrer">Démarrer</a><a href="#/fonctionnalites" data-page="fonctionnalites">Fonctionnalités</a>${(cfg.plans || []).length ? '<a href="#/tarifs" data-page="tarifs">Tarifs</a>' : ''}<a href="#/questions" data-page="questions">Questions</a><a href="#/video" data-page="video">Vidéo</a></nav>
         <label class="docs-search"><span class="ld-ico" aria-hidden="true">${icon('search')}</span><input type="search" id="docsQ" placeholder="Rechercher : facture, PDF, catalogue…" autocomplete="off" aria-label="Rechercher dans la présentation"><kbd>/</kbd></label>
         <button class="theme-btn" id="themeBtn" title="Mode clair / sombre">🌙</button>
         <button type="button" class="ld-login" data-act="auth-open">${icon('user')}Se connecter</button>
       </div>
     </header>
     <div class="ld-main">
-      <section id="d-intro" class="ld-hero">
+      <section id="d-intro" class="ld-hero" data-page="">
         <div class="ld-copy">
           <span class="eyebrow rise" style="--d:.08s">Devis &amp; factures pour tous les métiers</span>
           <h1 class="rise" style="--d:.16s">Des devis qui <em>font signer</em>,<br>en quelques minutes.</h1>
@@ -106,7 +106,7 @@ function renderAuth(mode, opts = {}) {
           </div>
         </div>
       </section>
-      <section id="d-start" class="docs-sec" data-doc>
+      <section id="d-start" class="docs-sec" data-doc data-page="demarrer">
         <h2>Démarrer en 3 étapes</h2>
         <ol class="docs-steps">
           <li data-doc-item><span class="ld-tile">1</span><div><b>Créez votre compte</b><p>Nom, email, mot de passe : c'est tout. Ajoutez ensuite votre entreprise (SIRET, logo, mentions légales) une seule fois.</p></div></li>
@@ -114,20 +114,29 @@ function renderAuth(mode, opts = {}) {
           <li data-doc-item><span class="ld-tile">3</span><div><b>Envoyez et facturez</b><p>Téléchargez le PDF, puis générez une facture par échéance de paiement, reliée au devis.</p></div></li>
         </ol>
       </section>
-      <section id="d-features" class="docs-sec" data-doc>
+      <section id="d-features" class="docs-sec" data-doc data-page="fonctionnalites">
         <h2>Fonctionnalités</h2>
         <div class="docs-grid">${DOC_FEATURES.map(f => `<details class="docs-card" data-doc-item><summary><i class="ld-tile" aria-hidden="true">${f[0]}</i><div><b>${f[1]}</b><span>${f[2]}</span></div></summary><div class="docs-more">${f[3]}</div></details>`).join('')}</div>
       </section>
-      <section id="d-trades" class="docs-sec" data-doc>
+      <section id="d-trades" class="docs-sec" data-doc data-page="fonctionnalites">
         <h2>Pour tous les métiers</h2>
         <p class="muted" style="margin:0">Bâtiment, commerce, services, conseil, restauration, beauté, transport, auto… des devis de départ prêts à adapter, avec des prix indicatifs.</p>
         <div class="chips trades" data-doc-item>${(typeof TRADES !== 'undefined' ? TRADES : []).map(t => `<span>${t.name}</span>`).join('')}</div>
       </section>
       ${pricingHtml(cfg)}
-      <section id="d-faq" class="docs-sec" data-doc>
+      <section id="d-video" class="docs-sec ld-video-page" data-page="video">
+        <h2>Découvrir ${name} en vidéo</h2>
+        <p class="muted" style="margin:0">Une minute et demie pour voir comment créer un devis, le transformer en facture et suivre vos chiffres.</p>
+        <video id="pageVideo" controls playsinline preload="none" poster="/media/optidevis-poster.jpg">${heroSources()}</video>
+      </section>
+      <section id="d-faq" class="docs-sec" data-doc data-page="questions">
         <h2>Questions fréquentes</h2>
         <div class="docs-faq">${DOC_FAQ.map(f => `<details data-doc-item><summary>${f[0]}</summary><p>${f[1]}</p></details>`).join('')}</div>
       </section>
+      <div class="ld-next" data-page-cta>
+        <b>Prêt à faire votre premier devis ?</b>
+        <div class="row">${cfg.registrationOpen ? '<button type="button" class="ld-btn main" data-act="auth-go" data-mode="register">Créer un compte</button>' : ''}<button type="button" class="ld-btn ghost" data-act="auth-open">Se connecter</button></div>
+      </div>
       <p class="docs-empty" id="docsEmpty" hidden>Aucun résultat. Essayez un autre mot, par exemple « facture » ou « PDF ».</p>
     </div>
     <div class="ld-modal" id="authModal" ${open ? '' : 'hidden'} role="dialog" aria-modal="true" aria-label="Connexion">
@@ -159,12 +168,12 @@ const DOC_FAQ = [
 
 function initDocs() {
   const q = document.getElementById('docsQ'); if (!q) return;
-  const links = [...document.querySelectorAll('.ld-links a[href^="#d-"]')];
-  const norm = t => String(t).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    const norm = t => String(t).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
   q.addEventListener('input', () => {
     const k = norm(q.value.trim()); let shown = 0;
     document.querySelectorAll('[data-doc-item]').forEach(el => { const ok = !k || norm(el.textContent).includes(k); el.hidden = !ok; if (ok) shown++; if (el.tagName === 'DETAILS') el.open = !!k && ok; });
-    document.querySelectorAll('[data-doc]').forEach(sec => { sec.hidden = !!k && !sec.querySelector('[data-doc-item]:not([hidden])'); });
+    if (k) { document.querySelectorAll('.landing section[data-page]').forEach(sec => { sec.hidden = !sec.hasAttribute('data-doc') || !sec.querySelector('[data-doc-item]:not([hidden])'); }); }
+    else { const pg = (location.hash.match(/^#\/([\w-]*)/) || [])[1] || ''; document.querySelectorAll('.landing section[data-page]').forEach(sec => { sec.hidden = sec.dataset.page !== pg; }); }
     document.getElementById('docsEmpty').hidden = !k || shown > 0;
     if (k) { const f = document.querySelector('[data-doc]:not([hidden])'); if (f) f.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
   });
@@ -175,7 +184,23 @@ function initDocs() {
   };
   document.addEventListener('keydown', onKey);
   const modal = document.getElementById('authModal'); if (modal) modal.addEventListener('mousedown', e => { if (e.target === modal) { modal.hidden = true; window.__authOpen = false; } });
-  links.forEach(a => a.addEventListener('click', e => { e.preventDefault(); const t = document.querySelector(a.getAttribute('href')); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); }));
+  /* Chaque rubrique du sommaire est une page à part (#/tarifs, #/questions…), l'accueil ne montre que la présentation */
+  const route = () => {
+    if (!document.getElementById('docsQ')) return window.removeEventListener('hashchange', route);
+    const pg = (location.hash.match(/^#\/([\w-]*)/) || [])[1] || '';
+    const known = [...document.querySelectorAll('.landing [data-page]')].some(el => el.tagName === 'SECTION' && el.dataset.page === pg);
+    const page = known ? pg : '';
+    if (q.value) { q.value = ''; q.dispatchEvent(new Event('input')); }
+    document.querySelectorAll('.landing section[data-page]').forEach(sec => { sec.hidden = sec.dataset.page !== page; });
+    const cta = document.querySelector('[data-page-cta]'); if (cta) cta.hidden = !page;
+    document.querySelectorAll('.ld-links a[data-page]').forEach(a => a.classList.toggle('on', a.dataset.page === page));
+    if (page !== 'video') { const v = document.getElementById('pageVideo'); if (v) v.pause(); }
+    const hv = document.getElementById('heroVideo'); if (hv) { if (page) hv.pause(); else if (hv.dataset.ready && !hv.dataset.userPaused) hv.play().catch(() => {}); }
+    document.title = (page ? (document.querySelector(`.ld-links a[data-page="${page}"]`) || {}).textContent + ' · ' : '') + (session.config.siteName || 'OptiDevis');
+    window.scrollTo({ top: 0 });
+  };
+  window.addEventListener('hashchange', route);
+  route();
 }
 
 function formMsg(form, text, good) {
@@ -292,7 +317,7 @@ function pricingHtml(cfg) {
   const monthly = plans.find(p => p.interval === 'month');
   const trial = cfg.trialDays > 0 ? `${cfg.trialDays} jour${cfg.trialDays > 1 ? 's' : ''} d’essai gratuit` : '';
   const cta = cfg.registrationOpen ? `data-act="auth-go" data-mode="register"` : `data-act="auth-open"`;
-  return `<section id="d-pricing" class="docs-sec" data-doc>
+  return `<section id="d-pricing" class="docs-sec" data-doc data-page="tarifs">
         <h2>Tarifs</h2>
         <p class="muted" style="margin:0 0 18px">${trial ? `<b style="color:var(--text)">${trial}</b>, sans carte bancaire. ` : ''}Toutes les fonctionnalités sont incluses dans chaque offre, sans engagement : vos données restent à vous.</p>
         <div class="plans ld-plans">${plans.map(p => {
@@ -331,7 +356,7 @@ function initHeroVideo() {
   v.onpause = () => { const b = document.getElementById('hvPlay'); if (b) b.textContent = 'Lecture'; };
 }
 Object.assign(actions, {
-  'hero-play'() { const v = $('#heroVideo'); if (!v) return; loadHero(v); if (v.paused) v.play().catch(() => {}); else v.pause(); $('#heroVideoBox').classList.remove('idle'); },
+  'hero-play'() { const v = $('#heroVideo'); if (!v) return; loadHero(v); if (v.paused) { delete v.dataset.userPaused; v.play().catch(() => {}); } else { v.dataset.userPaused = '1'; v.pause(); } $('#heroVideoBox').classList.remove('idle'); },
   'hero-sound'() { const v = $('#heroVideo'); if (!v) return; loadHero(v); v.muted = !v.muted; if (!v.muted && v.paused) v.play().catch(() => {}); $('#hvSound').textContent = v.muted ? 'Activer le son' : 'Couper le son'; $('#heroVideoBox').classList.remove('idle'); },
   'hero-full'() { const v = $('#heroVideo'); if (!v) return; loadHero(v); v.play().catch(() => {}); (v.requestFullscreen || v.webkitEnterFullscreen || (() => {})).call(v); },
   'hero-open'() {
