@@ -375,6 +375,7 @@ function renderEditor() {
       <button class="btn" data-act="dup" data-id="${q.id}">⧉ Dupliquer</button>
       <button class="btn primary" data-act="send-mail" title="Envoie le document en PDF à l'adresse email de votre client">✉ Envoyer par email</button>
       <button class="btn" data-act="pdf" title="Télécharge le document en PDF, prêt à envoyer au client">⬇ Télécharger le PDF</button>
+      <button class="btn" data-act="share-pdf" title="Envoie le PDF vers une autre application : dépôt de votre comptable, Fichiers, messagerie…">📤 Partager</button>
       <button class="btn" data-act="print" title="Ouvre la fenêtre d'impression du navigateur">🖨 Imprimer</button>
     </div>
   </div>
@@ -962,15 +963,32 @@ const actions = {
     const q = getQuote(editingId); if (!q) return;
     if (!session.config.pdf) { toast('Téléchargement direct indisponible : ouverture de l\'impression'); return actions.print(); }
     const old = t.innerHTML; t.disabled = true; t.textContent = 'Création du PDF…';
-    try {
-      const r = await fetch('/api/pdf', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'sitedevis' },
-        body: JSON.stringify({ html: $('#doc').innerHTML, accent: accentOf(), label: `${q.opts.docLabel} N° ${q.number}`, date: flongdate(q.date), filename: `${q.opts.docLabel}-${q.number}` }) });
-      if (!r.ok) { let m = ''; try { m = (await r.json()).error; } catch (e) { /* ignore */ } throw new Error(m || 'Erreur ' + r.status); }
-      const url = URL.createObjectURL(await r.blob()), a = document.createElement('a');
-      a.href = url; a.download = `${q.opts.docLabel}-${q.number}.pdf`.replace(/[^\w.\- ]+/g, ''); document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 4000); toast('PDF téléchargé');
-    } catch (e) { toast('PDF impossible : ' + e.message); }
+    try { savePdf(await docPdf(q), pdfName(q)); toast('PDF téléchargé'); } catch (e) { toast('PDF impossible : ' + e.message); }
     t.disabled = false; t.innerHTML = old;
+  },
+  /* Partage du PDF (iPhone / Android) vers une autre application : dépôt du comptable (iSuite, etc.), Fichiers, WhatsApp… */
+  async 'share-pdf'() {
+    const q = getQuote(editingId); if (!q) return;
+    if (!session.config.pdf) return toast('Création du PDF indisponible sur ce serveur');
+    const inv = isInv(q), name = pdfName(q);
+    const m = openModal(`<div><h2>Partager ${inv ? 'la facture' : 'le devis'}</h2>
+      <p class="muted" style="margin:0 0 12px">Envoyez le PDF vers une autre application de votre téléphone, par exemple le dépôt de documents de votre comptable.</p>
+      <ol class="share-steps"><li>Appuyez sur <b>Partager le PDF</b>.</li><li>Choisissez l'application de votre comptable (ex. <b>iSuite Mobile</b>).</li><li>Rangez-le dans ${inv ? '<b>Fact. Vente</b>' : 'le bon dossier'}.</li></ol>
+      <p class="muted" style="font-size:.8rem">L'application n'apparaît pas ? Choisissez <b>Enregistrer dans Fichiers</b>, puis dans l'application du comptable, touchez <b>+</b> et importez le fichier.</p>
+      <div class="form-err" id="shErr" hidden></div>
+      <div class="row" style="justify-content:flex-end;margin-top:14px"><button type="button" class="btn" data-act="close-modal">Fermer</button><button type="button" class="btn" id="shDl" disabled>⬇ Télécharger</button><button type="button" class="btn primary" id="shGo" disabled>Création du PDF…</button></div></div>`);
+    const go = $('#shGo'), dl = $('#shDl'), err = $('#shErr');
+    let file;
+    try { const blob = await docPdf(q); file = new File([blob], name, { type: 'application/pdf' }); }
+    catch (e) { err.textContent = 'PDF impossible : ' + e.message; err.hidden = false; go.textContent = 'Indisponible'; return; }
+    const canShare = !!(navigator.canShare && navigator.canShare({ files: [file] }));
+    dl.disabled = false; dl.onclick = () => { savePdf(file, name); toast('PDF téléchargé'); };
+    if (!canShare) { go.textContent = 'Partage indisponible ici'; err.textContent = 'Ce navigateur ne permet pas le partage de fichiers : ouvrez le site sur votre téléphone, ou téléchargez le PDF.'; err.hidden = false; return; }
+    go.disabled = false; go.textContent = '📤 Partager le PDF';
+    go.onclick = async () => {   /* appel direct au toucher : exigé par iPhone */
+      try { await navigator.share({ files: [file], title: `${q.opts.docLabel} ${q.number}` }); m.close(); toast('Document partagé'); }
+      catch (e) { if (e.name !== 'AbortError') { err.textContent = 'Partage impossible : ' + e.message; err.hidden = false; } }
+    };
   },
   'send-mail'() {
     const q = getQuote(editingId); if (!q) return;
@@ -1164,3 +1182,16 @@ document.addEventListener('wheel', e => {
   const t = e.target;
   if (t && t.tagName === 'INPUT' && t.type === 'number' && document.activeElement === t) t.blur();
 }, { passive: true, capture: true });
+
+/* PDF du document affiché, créé par le serveur */
+async function docPdf(q) {
+  const r = await fetch('/api/pdf', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'sitedevis' },
+    body: JSON.stringify({ html: $('#doc').innerHTML, accent: accentOf(), label: `${q.opts.docLabel} N° ${q.number}`, date: flongdate(q.date), filename: `${q.opts.docLabel}-${q.number}` }) });
+  if (!r.ok) { let m = ''; try { m = (await r.json()).error; } catch (e) { /* ignore */ } throw new Error(m || 'Erreur ' + r.status); }
+  return r.blob();
+}
+const pdfName = q => `${q.opts.docLabel}-${q.number}.pdf`.replace(/[^\w.\- ]+/g, '');
+function savePdf(blob, name) {
+  const url = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
