@@ -1062,3 +1062,26 @@ table.list th.center, table.list td.center { text-align: center; }
 .rc-spin { width: 38px; height: 38px; margin: 0 auto; border-radius: 50%; border: 4px solid color-mix(in srgb, var(--accent) 25%, transparent); border-top-color: var(--accent); animation: rcspin .8s linear infinite; }
 @keyframes rcspin { to { transform: rotate(360deg); } }
 label.btn { margin: 0; }
+
+/* ===== Accès comptable ===== */
+.sh-list { display: grid; gap: 10px; }
+.sh-row { display: flex; gap: 12px; align-items: center; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; flex-wrap: wrap; }
+.sh-row .grow { flex: 1; min-width: 200px; }
+.sh-acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.sh-chips { display: flex; gap: 5px; flex-wrap: wrap; margin: 6px 0 4px; }
+.sh-chip { font-size: .72rem; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.sh-perms { display: grid; gap: 8px; }
+.sh-perm { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; margin: 0; text-transform: none; letter-spacing: 0; font-size: .92rem; color: var(--text); }
+.sh-perm:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.sh-perm input { margin-top: 3px; }
+.sh-perm small { display: block; color: var(--muted); font-size: .8rem; font-weight: 400; }
+.sh-link { display: flex; gap: 8px; margin: 10px 0; }
+.sh-link input { flex: 1; min-width: 0; font-size: .82rem; }
+/* lecture seule : tout ce qui modifie disparaît */
+body.viewer [data-act]:not([data-act="edit"]):not([data-act="back"]):not([data-act="pdf"]):not([data-act="print"]):not([data-act="close-modal"]):not([data-act="client-tab"]):not([data-act="stat-tab"]):not([data-act="cp-period"]):not([data-act="cp-move"]):not([data-act="cp-export"]):not([data-act="bilan-open"]):not([data-act="bilan-pdf"]):not([data-act="bilan-all"]):not([data-act="rc-zip"]):not([data-act="exp-cat"]):not([data-act="user-menu"]):not([data-act="viewer-quit"]):not([data-act="more-menu"]):not([data-act="legal-open"]):not([data-act^="filter"]):not([data-act^="tab"]):not([data-act^="sort"]):not([data-act^="month"]):not([data-act^="page"]):not([data-act^="stat-"]):not([data-act^="cp-"]) { display: none !important; }
+body.viewer #app label.btn, body.viewer #app details:has([data-cp]), body.viewer.v-stats #app > .tabs, body.viewer .bulkbar, body.viewer #app input[type=checkbox] { display: none !important; }
+.viewer-doc .preview-wrap { padding: 18px; background: var(--bg2); border: 1px solid var(--line); border-radius: var(--radius); overflow: auto; }
+.viewer-doc .doc { margin: 0 auto; }
+body.viewer:not(.v-rc) [data-act="rc-zip"], body.viewer:not(.v-rc) .rc-clip { display: none !important; }
+.sh-perm input { width: auto; flex: none; }
+.sh-perm span { flex: 1; text-align: left; }

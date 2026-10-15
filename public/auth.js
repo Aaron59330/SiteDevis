@@ -307,6 +307,7 @@ document.addEventListener('click', e => { if (!e.target.closest('#userbox')) $('
 function updateTopbar() {
   const u = session.user, a = session.access;
   if (!u) return;
+  if (session.viewer) return viewerTopbar();
   const bd = $('#topbar .brand'); if (bd) bd.innerHTML = brandHtml(session.config.siteName);
   /* Ordre du travail au quotidien (devis → factures → clients → chantiers → catalogue → chiffres → outils),
      puis, séparés, les réglages ; Personnalisation / Abonnement / Administration restent aussi dans le menu du compte (avatar)
@@ -326,7 +327,7 @@ function updateTopbar() {
   const initials = u.name.split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
   $('#userbox').innerHTML = `<button class="avatar" data-act="user-menu" title="${esc(u.email)}">${esc(initials)}</button>
     <div class="pop"><div class="pop-head"><b>${esc(u.name)}</b><span class="muted">${esc(u.email)}</span></div>
-      <button data-act="goto-custom">Personnalisation</button><button data-act="goto-account">Mon compte</button><button data-act="goto-billing">Abonnement &amp; factures</button>
+      <button data-act="goto-custom">Personnalisation</button><button data-act="goto-account">Mon compte</button><button data-act="share-open">Accès comptable</button><button data-act="goto-billing">Abonnement &amp; factures</button>
       ${u.role === 'admin' ? '<button data-act="goto-admin">Administration</button>' : ''}<button data-act="logout" class="danger">Déconnexion</button></div>`;
 }
 

@@ -76,7 +76,7 @@
     }
   }
   const base = window.updateTopbar;
-  window.updateTopbar = updateTopbar = function () { base.apply(this, arguments); bell(); setTimeout(daily, 1200); if (lastUnread == null) setTimeout(pollAdmin, 800); };
+  window.updateTopbar = updateTopbar = function () { base.apply(this, arguments); if (session.viewer) return; bell(); setTimeout(daily, 1200); if (lastUnread == null) setTimeout(pollAdmin, 800); };
   setInterval(() => { bell(); daily(); }, 30 * 60e3);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { bell(); daily(); } });
   const close = () => { const p = document.getElementById('notifPop'); if (p) p.hidden = true; };

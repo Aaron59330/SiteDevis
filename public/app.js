@@ -74,7 +74,7 @@ function setSaved(txt, fade) {
   if (fade) savedTimer = setTimeout(() => { el.textContent = ''; }, 1800);
 }
 function save() {
-  if (!session.user) return;
+  if (!session.user || session.viewer) return;
   dirty = true; setSaved('Enregistrement…');
   clearTimeout(pushTimer); pushTimer = setTimeout(push, 500);
 }
@@ -241,7 +241,7 @@ function render() {
   const ms = $('#moreSheet'); if (ms) ms.hidden = true;
   const app = $('#app');
   if (view === 'quotes') app.innerHTML = renderQuotes();
-  else if (view === 'editor') app.innerHTML = renderEditor();
+  else if (view === 'editor') app.innerHTML = session.viewer ? viewerDoc() : renderEditor();
   else if (view === 'clients') app.innerHTML = renderClients();
   else if (view === 'company') app.innerHTML = renderCompany();
   else if (EXTRA[view]) app.innerHTML = EXTRA[view]();
@@ -254,7 +254,8 @@ function navFor() {
   return view === 'account' ? 'billing' : view === 'site' ? 'sites' : view;
 }
 function go(v, id = null) {
-  if (v === 'editor' && !requireAccess()) return;
+  if (v === 'editor' && !session.viewer && !requireAccess()) return;
+  if (session.viewer && !viewerCan(v)) return;
   if (v === 'editor') pane = 'form';
   view = v; editingId = id; render();
 }
@@ -1097,7 +1098,7 @@ function moveLine(i, d) {
 /* ---------- Événements ---------- */
 document.addEventListener('click', e => {
   const t = e.target.closest('[data-act]');
-  if (t && actions[t.dataset.act]) { e.preventDefault(); actions[t.dataset.act](t); }
+  if (t && actions[t.dataset.act]) { e.preventDefault(); if (session.viewer && !viewerAct(t.dataset.act)) toast('Accès en lecture seule'); else actions[t.dataset.act](t); }
   const nav = e.target.closest('#nav button');
   if (nav) go(nav.dataset.view);
 });
@@ -1183,9 +1184,11 @@ document.addEventListener('wheel', e => {
   if (t && t.tagName === 'INPUT' && t.type === 'number' && document.activeElement === t) t.blur();
 }, { passive: true, capture: true });
 
+/* espace comptable (lecture seule) : les requêtes partagées portent ?s=1 */
+const vq = () => (session.viewer ? '?s=1' : '');
 /* PDF du document affiché, créé par le serveur */
 async function docPdf(q) {
-  const r = await fetch('/api/pdf', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'sitedevis' },
+  const r = await fetch('/api/pdf' + vq(), { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'sitedevis' },
     body: JSON.stringify({ html: $('#doc').innerHTML, accent: accentOf(), label: `${q.opts.docLabel} N° ${q.number}`, date: flongdate(q.date), filename: `${q.opts.docLabel}-${q.number}` }) });
   if (!r.ok) { let m = ''; try { m = (await r.json()).error; } catch (e) { /* ignore */ } throw new Error(m || 'Erreur ' + r.status); }
   return r.blob();

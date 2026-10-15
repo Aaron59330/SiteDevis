@@ -35,7 +35,15 @@ async function startApp(me, params) {
   if (p.get('verified') === '0') banner = { ok: false, text: 'Lien de confirmation invalide ou expiré. Reconnectez-vous pour en recevoir un nouveau.' };
   if (p.get('reset')) { mode = 'reset'; token = p.get('reset'); }
   let me = null;
-  try { me = await api('GET', '/api/me'); } catch (e) { /* non connecté */ }
+  /* lien d'accès comptable (?acces=…) : ouvre l'espace partagé en lecture seule */
+  const acces = p.get('acces');
+  if (acces) {
+    history.replaceState({}, '', location.pathname);
+    try { await api('POST', '/api/share/open', { token: acces }); }
+    catch (e) { return renderAuth('login', { banner: { ok: false, text: e.message } }); }
+  }
+  if (!acces) { try { me = await api('GET', '/api/me'); } catch (e) { /* non connecté */ } }
+  if (!me) { try { const sh = await api('GET', '/api/share/data'); return startViewer(sh); } catch (e) { /* pas d'accès comptable */ } }
   // retire les paramètres (?verified, ?reset…) ; garde la page de l'accueil (#/tarifs…) quand on n'est pas connecté
   history.replaceState({}, '', location.pathname + (me ? '' : (location.hash.match(/^#\/[\w-]*$/) || [''])[0]));
   if (!me || mode === 'reset') return renderAuth(mode, { banner, token });

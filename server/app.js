@@ -184,7 +184,11 @@ async function handle(req, res, url) {
       ctx.raw = await readBody(req, url.pathname === '/api/data' ? 12e6 : url.pathname === '/api/pdf' || url.pathname === '/api/facturx' ? 7e6 : url.pathname === '/api/send-document' ? 7e6 : url.pathname === '/api/pdf/batch' ? 40e6 : url.pathname === '/api/import/pdf' ? 12e6 : url.pathname === '/api/import/photo' ? 22e6 : url.pathname === '/api/receipts' ? 14e6 : 1e6);
       if (r.auth !== 'webhook' && ctx.raw) { try { ctx.body = JSON.parse(ctx.raw); } catch (e) { throw err(400, 'JSON invalide.'); } }
     }
-    if (r.auth !== 'none' && r.auth !== 'webhook') {
+    if (r.auth === 'share' || r.auth === 'any') {
+      if (r.auth === 'any' && url.searchParams.get('s') !== '1') ctx.user = sessionUser(req);   // ?s=1 : demande faite depuis l'espace comptable
+      if (!ctx.user) ctx.share = shareFromReq(req);
+      if (!ctx.user && !ctx.share) throw err(401, 'Connexion requise.', { code: 'auth' });
+    } else if (r.auth !== 'none' && r.auth !== 'webhook') {
       ctx.user = sessionUser(req);
       if (!ctx.user) throw err(401, 'Connexion requise.', { code: 'auth' });
       if (r.auth === 'admin' && ctx.user.role !== 'admin') throw err(403, 'Accès réservé aux administrateurs.');
@@ -366,10 +370,10 @@ route('POST', '/api/pdf/batch', 'user', async ctx => {
 });
 
 /* ---------- Téléchargement PDF du devis ou de la facture ---------- */
-route('POST', '/api/pdf', 'user', async ctx => {
+route('POST', '/api/pdf', 'any', async ctx => {
   if (!pdf.available()) throw err(501, 'Le téléchargement PDF n\'est pas disponible sur ce serveur.', { code: 'no_pdf' });
-  if (!access(ctx.user).active) throw err(402, 'Un abonnement actif est nécessaire.', { code: 'payment_required' });
-  limit('pdf:' + ctx.user.id, 40, 3600e3);
+  if (ctx.share) { if (!['factures', 'devis', 'compta'].some(k => ctx.share.perms.includes(k))) throw err(403, 'Accès non autorisé.'); limit('pdf:s' + ctx.share.id, 60, 3600e3); }
+  else { if (!access(ctx.user).active) throw err(402, 'Un abonnement actif est nécessaire.', { code: 'payment_required' }); limit('pdf:' + ctx.user.id, 40, 3600e3); }
   const b = ctx.body || {};
   if (typeof b.html !== 'string' || b.html.length < 50 || b.html.length > 5.5e6) throw err(400, 'Document invalide.');
   const name = String(b.filename || 'document').replace(/[^\w.\- ]+/g, '').trim().slice(0, 80) || 'document';
@@ -462,18 +466,20 @@ route('POST', '/api/receipts', 'user', async ctx => {
     return ok({ id: sv.id, mime: sv.mime, read: null, readError: e.expose || (e.status && e.status < 500) ? e.message : 'Lecture automatique impossible pour le moment : complétez les montants à la main.' });
   }
 });
-route('GET', '/api/receipts/:id', 'user', ctx => {
-  const f = receipts.find(ctx.user.id, ctx.params.id);
+const receiptOwner = ctx => { if (ctx.user) return ctx.user.id; if (ctx.share.perms.includes('justificatifs')) return ctx.share.ownerId; throw err(403, 'Accès aux justificatifs non autorisé.'); };
+route('GET', '/api/receipts/:id', 'any', ctx => {
+  const f = receipts.find(receiptOwner(ctx), ctx.params.id);
   if (!f) throw err(404, 'Justificatif introuvable.');
   return { inlineFile: require('fs').readFileSync(f.file), type: f.mime, filename: 'justificatif.' + f.ext };
 });
 route('DELETE', '/api/receipts/:id', 'user', ctx => { receipts.remove(ctx.user.id, ctx.params.id); return ok(); });
-route('POST', '/api/receipts/zip', 'user', ctx => {
+route('POST', '/api/receipts/zip', 'any', ctx => {
   const list = Array.isArray(ctx.body.files) ? ctx.body.files.slice(0, 2000) : [];
-  limit('rcptzip:' + ctx.user.id, 20, 3600e3);
+  const uid = receiptOwner(ctx);
+  limit('rcptzip:' + (ctx.user ? uid : 's' + ctx.share.id), 20, 3600e3);
   const files = [], used = new Set(); let total = 0;
   for (const it of list) {
-    const f = it && receipts.find(ctx.user.id, it.id); if (!f) continue;
+    const f = it && receipts.find(uid, it.id); if (!f) continue;
     let name = String(it.name || 'justificatif').replace(/[^\w.\- ]+/g, '').trim().slice(0, 90) || 'justificatif', n = name, i = 2;
     while (used.has(n)) n = name + '-' + i++; used.add(n);
     const data = require('fs').readFileSync(f.file); total += data.length;
@@ -482,6 +488,80 @@ route('POST', '/api/receipts/zip', 'user', ctx => {
   }
   if (!files.length) throw err(404, 'Aucun justificatif sur la période.');
   return { zipFile: zip(files), filename: String(ctx.body.name || 'justificatifs').replace(/[^\w.\- ]+/g, '').slice(0, 60) + '.zip' };
+});
+
+/* ---------- Accès comptable : un utilisateur ouvre une partie de son espace, en lecture seule, à son comptable ---------- */
+const SHARE_PERMS = ['factures', 'devis', 'clients', 'compta', 'justificatifs'];
+const shareCookie = (v, maxAge) => `ssh=${v}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${maxAge}${process.env.COOKIE_SECURE === 'true' ? '; Secure' : ''}`;
+function shareFromReq(req) {
+  const m = /(?:^|;\s*)ssh=([a-f0-9]{64})/.exec(req.headers.cookie || '');
+  if (!m) return null;
+  const h = sha(m[1]), sh = (db.shares || []).find(x => x.h === h);
+  if (!sh || (sh.expiresAt && sh.expiresAt < now())) return null;
+  const owner = findUser(sh.ownerId); if (!owner || owner.suspended) return null;
+  if (!sh.lastAt || Date.now() - new Date(sh.lastAt) > 600e3) { sh.lastAt = now(); store.save(); }
+  return sh;
+}
+const cleanPerms = p => SHARE_PERMS.filter(k => Array.isArray(p) && p.includes(k));
+const expiry = m => { m = Number(m); return [1, 3, 6, 12].includes(m) ? new Date(Date.now() + m * 30.5 * 864e5).toISOString() : ''; };
+const publicShare = x => ({ id: x.id, name: x.name, email: x.email, perms: x.perms, createdAt: x.createdAt, lastAt: x.lastAt || '', expiresAt: x.expiresAt || '', opened: !!x.lastAt });
+async function shareMail(ctx, sh, link) {
+  if (!sh.email || !mail.configured()) return false;
+  const co = ((store.getUserData(ctx.user.id) || {}).company || {}).name || ctx.user.name;
+  const what = { factures: 'les factures', devis: 'les devis', clients: 'la liste des clients', compta: 'la comptabilité (recettes, charges, bilan, exports)', justificatifs: 'les justificatifs d\'achat' };
+  await mail.send(sh.email, `${co} vous donne accès à son espace ${db.settings.siteName}`,
+    `Bonjour${sh.name ? ' ' + sh.name : ''},\n\n${co} vous a ouvert un accès en lecture seule à son espace ${db.settings.siteName}, pour consulter :\n${sh.perms.map(k => '• ' + what[k]).join('\n')}\n\nAucun compte n'est nécessaire : ouvrez simplement ce lien personnel (ne le transférez pas).\n\n${link}\n${sh.expiresAt ? `\nCet accès est valable jusqu'au ${new Date(sh.expiresAt).toLocaleDateString('fr-FR')}.` : ''}\n\nBonne journée,\n${db.settings.siteName}`,
+    { replyTo: ctx.user.email, button: 'Ouvrir l\'espace' });
+  return true;
+}
+route('GET', '/api/shares', 'user', ctx => ({ rows: (db.shares || []).filter(x => x.ownerId === ctx.user.id).map(publicShare) }));
+route('POST', '/api/shares', 'user', async ctx => {
+  const b = ctx.body || {}; db.shares = db.shares || [];
+  if (db.shares.filter(x => x.ownerId === ctx.user.id).length >= 10) throw err(400, '10 accès au maximum : supprimez-en un.');
+  const perms = cleanPerms(b.perms); if (!perms.length) throw err(400, 'Choisissez au moins une chose à partager.');
+  const email = str(b.email, 160).toLowerCase(); if (email && !/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(email)) throw err(400, 'Adresse email invalide.');
+  limit('share:' + ctx.user.id, 30, 3600e3);
+  const tok = rnd(32), sh = { id: rnd(8), ownerId: ctx.user.id, h: sha(tok), name: str(b.name, 80), email, perms, createdAt: now(), expiresAt: expiry(b.months), lastAt: '' };
+  db.shares.push(sh); audit(ctx.user, 'accès comptable créé', email || sh.name); store.save();
+  const link = `${APP_URL()}/?acces=${tok}`;
+  let sent = false; if (b.send) { try { sent = await shareMail(ctx, sh, link); } catch (e) { console.error('Email accès :', e.message); } }
+  return ok({ share: publicShare(sh), link, sent });
+});
+const myShare = ctx => { const sh = (db.shares || []).find(x => x.id === ctx.params.id && x.ownerId === ctx.user.id); if (!sh) throw err(404, 'Accès introuvable.'); return sh; };
+route('PATCH', '/api/shares/:id', 'user', ctx => {
+  const sh = myShare(ctx), b = ctx.body || {};
+  if (b.perms) { const p = cleanPerms(b.perms); if (!p.length) throw err(400, 'Choisissez au moins une chose à partager.'); sh.perms = p; }
+  if (b.name != null) sh.name = str(b.name, 80);
+  if (b.months != null) sh.expiresAt = expiry(b.months);
+  store.save(); return ok({ share: publicShare(sh) });
+});
+route('POST', '/api/shares/:id/link', 'user', async ctx => {
+  const sh = myShare(ctx), tok = rnd(32); sh.h = sha(tok); store.save();   // l'ancien lien ne fonctionne plus
+  const link = `${APP_URL()}/?acces=${tok}`;
+  let sent = false; if (ctx.body && ctx.body.send) { try { sent = await shareMail(ctx, sh, link); } catch (e) { console.error('Email accès :', e.message); } }
+  return ok({ link, sent });
+});
+route('DELETE', '/api/shares/:id', 'user', ctx => { const sh = myShare(ctx); db.shares = db.shares.filter(x => x !== sh); audit(ctx.user, 'accès comptable retiré', sh.email || sh.name); store.save(); return ok(); });
+/* côté comptable */
+route('POST', '/api/share/open', 'none', ctx => {
+  limit('shareopen:' + ctx.ip, 30, 3600e3);
+  const tok = String((ctx.body || {}).token || ''); if (!/^[a-f0-9]{64}$/.test(tok)) throw err(400, 'Lien invalide.');
+  const sh = (db.shares || []).find(x => x.h === sha(tok));
+  if (!sh) throw err(404, 'Ce lien d\'accès n\'est plus valable. Demandez-en un nouveau à votre client.');
+  if (sh.expiresAt && sh.expiresAt < now()) throw err(410, 'Cet accès a expiré. Demandez à votre client de le prolonger.');
+  ctx.setCookie = shareCookie(tok, 180 * 86400);
+  return ok();
+});
+route('POST', '/api/share/quit', 'none', ctx => { ctx.setCookie = shareCookie('', 0); return ok(); });
+route('GET', '/api/share/data', 'share', ctx => {
+  const sh = ctx.share, P = k => sh.perms.includes(k), d = store.getUserData(sh.ownerId) || {}, owner = findUser(sh.ownerId);
+  const all = Array.isArray(d.quotes) ? d.quotes : [], inv = q => q.kind === 'facture';
+  let quotes = all.filter(q => (inv(q) && (P('factures') || P('compta'))) || (!inv(q) && P('devis')));
+  if (P('compta') && !P('devis')) { const ids = new Set(all.filter(inv).map(q => q.fromQuoteId).filter(Boolean)); quotes = quotes.concat(all.filter(q => !inv(q) && ids.has(q.id))); }   // devis liés : répartition matériaux / services
+  const data = { company: d.company || {}, settings: d.settings || {}, quotes, clients: P('clients') ? (d.clients || []) : (d.clients || []).filter(c => quotes.some(q => q.clientId === c.id)).map(c => ({ id: c.id, name: c.name, type: c.type })),
+    compta: P('compta') ? (d.compta || {}) : undefined, expenses: P('compta') ? (d.expenses || []).map(e => P('justificatifs') ? e : { ...e, file: '', fileMime: '' }) : [],
+    catalog: P('compta') ? (d.catalog || []).map(c => ({ id: c.id, ref: c.ref, desc: c.desc, type: c.type, unit: c.unit })) : [], suppliers: [], sites: [] };
+  return { share: { name: sh.name, email: sh.email, perms: sh.perms, expiresAt: sh.expiresAt || '', owner: (d.company && d.company.name) || (owner && owner.name) || '' }, data };
 });
 
 /* ---------- Relecture IA des devis ---------- */
@@ -614,6 +694,7 @@ route('POST', '/api/me/password', 'user', ctx => {
 
 function deleteUser(u) {
   receipts.removeAll(u.id);
+  db.shares = (db.shares || []).filter(x => x.ownerId !== u.id);
   db.users = db.users.filter(x => x !== u);
   db.sessions = db.sessions.filter(s => s.userId !== u.id);
   db.tokens = db.tokens.filter(t => t.userId !== u.id);
