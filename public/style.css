@@ -1048,3 +1048,17 @@ table.list th.center, table.list td.center { text-align: center; }
 .calc-h span { color: var(--muted); font-size: .86rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .calc-h:hover b { color: var(--accent); }
 @media (max-width: 760px) { .calc-wrap { grid-template-columns: 1fr; } }
 .share-steps { margin: 0 0 10px; padding-left: 20px; line-height: 1.7; }
+/* Justificatifs d'achat */
+.rc-box { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; min-height: 40px; }
+.rc-thumb { width: 64px; height: 64px; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); display: grid; place-items: center; background: var(--bg2); flex: none; }
+.rc-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.rc-pdf { font-weight: 800; font-size: .8rem; color: var(--danger); }
+.rc-acts { display: flex; gap: 8px; }
+.rc-msg { margin: 0 0 12px; padding: 9px 12px; border-radius: 10px; font-size: .86rem; background: color-mix(in srgb, var(--ok) 12%, transparent); }
+.rc-msg.bad { background: color-mix(in srgb, var(--warn) 16%, transparent); }
+.rc-clip { text-decoration: none; font-size: .9rem; }
+.rc-wait { text-align: center; padding: 18px 6px; }
+.rc-wait h2 { margin: 14px 0 6px; font-size: 1.1rem; }
+.rc-spin { width: 38px; height: 38px; margin: 0 auto; border-radius: 50%; border: 4px solid color-mix(in srgb, var(--accent) 25%, transparent); border-top-color: var(--accent); animation: rcspin .8s linear infinite; }
+@keyframes rcspin { to { transform: rotate(360deg); } }
+label.btn { margin: 0; }

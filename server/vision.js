@@ -56,10 +56,10 @@ const SHAPE = `Réponds uniquement par un objet JSON de cette forme exacte (aucu
  "lines":[{"type":"item"|"title"|"subtotal","ref":"","desc":"","qty":0,"unit":"","unit_price":0,"vat_percent":0}],
  "discount_percent":0,"payments":[{"percent":0,"label":""}],"notes":"","total_ht":0,"total_ttc":0}`;
 
-async function gemini(imgs) {
+async function gemini(imgs, system) {
   const parts = [...imgs.map(i => ({ inline_data: { mime_type: i.mime, data: i.buf.toString('base64') } })),
     { text: imgs.length > 1 ? 'Ces images sont les pages successives du document. Extrais son contenu.' : 'Extrais le contenu de ce document.' }];
-  const payload = { systemInstruction: { parts: [{ text: ai.IMPORT_SYSTEM + ai.PHOTO_EXTRA + '\n\n' + SHAPE }] }, contents: [{ role: 'user', parts }], generationConfig: { responseMimeType: 'application/json', temperature: 0.1 } };
+  const payload = { systemInstruction: { parts: [{ text: system || (ai.IMPORT_SYSTEM + ai.PHOTO_EXTRA + '\n\n' + SHAPE) }] }, contents: [{ role: 'user', parts }], generationConfig: { responseMimeType: 'application/json', temperature: 0.1 } };
   /* réflexion courte : réponse bien plus rapide (les modèles récents « réfléchissent » longtemps par défaut) */
   const thinking = m => /gemini-3/.test(m) ? { thinkingLevel: 'low' } : /gemini-2\.5-flash/.test(m) ? { thinkingBudget: /lite/.test(m) ? 0 : 1024 } : null;
   const noThink = new Set();
@@ -160,4 +160,4 @@ async function read(imgs) {
   return importer.normalizeDoc(p.doc, 'texte', [...(p.warnings || []), 'Lecture automatique du texte imprimé : l\'écriture manuscrite n\'est pas comprise. Vérifiez chaque ligne.']);
 }
 
-module.exports = { available, kind, read, ocr };
+module.exports = { available, kind, read, ocr, gemini, geminiOk, tessOk: () => tessOk };

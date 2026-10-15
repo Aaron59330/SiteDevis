@@ -170,7 +170,7 @@
     <div class="row between" style="margin-bottom:16px;flex-wrap:wrap;gap:12px">
       <div class="seg2">${[['month', 'Mois'], ['quarter', 'Trimestre'], ['year', 'Année']].map(([k, l]) => `<button data-act="cp-period" data-p="${k}" class="${c.period === k ? 'on' : ''}">${l}</button>`).join('')}</div>
       <div class="monthnav"><button class="btn small" data-act="cp-move" data-d="-1" aria-label="Période précédente">‹</button><b>${esc(p.label)}</b><button class="btn small" data-act="cp-move" data-d="1" aria-label="Période suivante">›</button></div>
-      <div class="row"><button class="btn" data-act="cp-export" data-k="recettes" title="Obligatoire pour les micro-entreprises">⬇ Livre des recettes</button><button class="btn" data-act="cp-export" data-k="achats">⬇ Registre des charges</button><button class="btn" data-act="bilan-open" title="Synthèse annuelle, déclarations à faire et où les envoyer">📋 Bilan de l’année</button><button class="btn primary" data-act="exp-new">＋ Ajouter une charge</button></div>
+      <div class="row"><button class="btn" data-act="cp-export" data-k="recettes" title="Obligatoire pour les micro-entreprises">⬇ Livre des recettes</button><button class="btn" data-act="cp-export" data-k="achats">⬇ Registre des charges</button><button class="btn" data-act="bilan-open" title="Synthèse annuelle, déclarations à faire et où les envoyer">📋 Bilan de l’année</button><button class="btn" data-act="rc-zip" title="Toutes les photos et PDF de tickets et factures de la période, pour votre comptable">⬇ Justificatifs</button><button class="btn" data-act="exp-new">＋ Ajouter une charge</button><label class="btn primary" title="Photo ou PDF d'un ticket de caisse, d'une facture de matériaux, de carburant… : lu automatiquement et ajouté aux charges">📷 Ajouter un ticket / une facture<input type="file" id="rcIn" accept="image/*,application/pdf" multiple hidden></label></div>
     </div>
     <div class="stats">
       ${card(money(F.R.ttc), `Recettes encaissées (${F.R.cashed.length})`, (F.R.venteTtc > 0.005 && F.R.serviceTtc > 0.005) || F.R.venteTtc > 0.005 ? `Ventes ${money(F.micro ? F.R.venteTtc : F.R.venteHt)} · Services ${money(F.micro ? F.R.serviceTtc : F.R.serviceHt)}${F.micro ? '' : ' (HT)'}` : F.micro ? 'Prestations de services' : `dont ${money(F.R.ht)} HT`, cmp(F.R.ttc, PF.R.ttc, 'vs période préc.'))}
@@ -198,10 +198,10 @@
     <div class="card" style="margin-bottom:16px"><div class="row between" style="flex-wrap:wrap;gap:8px;margin-bottom:10px"><h2 style="margin:0">Charges — ${esc(p.label)}</h2>
       ${cats.length > 1 ? `<div class="chips"><button class="cchip ${!ui.cat ? 'on' : ''}" data-act="exp-cat" data-c="">Toutes</button>${cats.map(k => `<button class="cchip ${ui.cat === k ? 'on' : ''}" data-act="exp-cat" data-c="${esc(k)}">${esc(k)}</button>`).join('')}</div>` : ''}</div>
       ${list.length ? `<table class="list"><thead><tr><th>Date</th><th>Libellé</th><th>Catégorie</th><th class="right">HT</th><th class="right">TVA</th><th class="right">TTC</th><th>Paiement</th><th></th></tr></thead><tbody>
-        ${list.map(e => `<tr><td data-label="Date">${fdate(e.date)}</td><td data-label="Libellé"><b>${esc(e.label)}</b>${e.supplier ? `<div class="muted" style="font-size:.8rem">${esc(e.supplier)}</div>` : ''}${e.recurring && e.recurring !== 'none' ? ` <span class="badge brouillon" title="${REC[e.recurring]}">↻ ${REC[e.recurring].toLowerCase()}</span>` : ''}</td>
+        ${list.map(e => `<tr><td data-label="Date">${fdate(e.date)}</td><td data-label="Libellé"><b>${esc(e.label)}</b>${e.file ? ` <a href="/api/receipts/${esc(e.file)}" target="_blank" rel="noopener" class="rc-clip" title="Voir le justificatif">📎</a>` : ''}${e.supplier ? `<div class="muted" style="font-size:.8rem">${esc(e.supplier)}</div>` : ''}${e.recurring && e.recurring !== 'none' ? ` <span class="badge brouillon" title="${REC[e.recurring]}">↻ ${REC[e.recurring].toLowerCase()}</span>` : ''}</td>
           <td data-label="Catégorie">${esc(e.cat || 'Autres')}</td><td class="right" data-label="HT">${money(num(e.ht))}</td><td class="right" data-label="TVA">${money(num(e.ttc) - num(e.ht))}</td><td class="right" data-label="TTC"><b>${money(num(e.ttc))}</b></td>
           <td data-label="Paiement">${esc(e.pay || '')}</td><td class="right" style="white-space:nowrap"><button class="btn small" data-act="exp-edit" data-id="${e.srcId || e.id}">Modifier</button> <button class="btn small danger" data-act="exp-del" data-id="${e.srcId || e.id}" title="Supprimer">🗑</button></td></tr>`).join('')}
-      </tbody></table>` : `<div class="empty">Aucune charge sur la période.<br><br><button class="btn primary" data-act="exp-new">＋ Ajouter une charge</button></div>`}
+      </tbody></table>` : `<div class="empty">Aucune charge sur la période.<br><span class="muted" style="font-size:.86rem">Prenez en photo vos tickets et factures (matériaux, carburant, repas…) : ils sont lus automatiquement et comptés ici.</span><br><br><label class="btn primary">📷 Ajouter un ticket / une facture<input type="file" id="rcIn2" accept="image/*,application/pdf" multiple hidden></label> <button class="btn" data-act="exp-new">＋ Saisir à la main</button></div>`}
     </div>
     <details class="card"><summary style="cursor:pointer"><b>Régime et réglages</b> <span class="muted" style="font-size:.85rem">— ${F.micro ? 'Micro-entreprise' : 'Régime réel (TVA)'}</span></summary>
       <div class="grid2" style="margin-top:14px">
@@ -220,9 +220,14 @@
   }
 
   /* ---------- Saisie d'une charge ---------- */
-  function expModal(id) {
-    const e = db.expenses.find(x => x.id === id) || { date: today(), label: '', supplier: '', cat: 'Achats de matériaux et fournitures', ht: '', vat: db.company.vatExempt ? 0 : 20, ttc: '', pay: 'Carte bancaire', recurring: 'none', until: '', note: '' };
-    const m = openModal(`<form id="expForm"><h2>${id ? 'Modifier la charge' : 'Nouvelle charge'}</h2>
+  function expModal(id, pre, onDone) {
+    const e = db.expenses.find(x => x.id === id) || { date: today(), label: '', supplier: '', cat: 'Achats de matériaux et fournitures', ht: '', vat: db.company.vatExempt ? 0 : 20, ttc: '', pay: 'Carte bancaire', recurring: 'none', until: '', note: '', ...(pre || {}) };
+    const st = { file: e.file || '', mime: e.fileMime || '', added: pre && pre.file ? [pre.file] : [], saved: false };
+    const dup = pre && pre.ttc ? db.expenses.find(x => x.date === pre.date && Math.abs(num(x.ttc) - num(pre.ttc)) < 0.01) : null;
+    const m = openModal(`<form id="expForm"><h2>${id ? 'Modifier la charge' : pre ? 'Vérifiez le justificatif' : 'Nouvelle charge'}</h2>
+      ${pre && pre.msg ? `<p class="rc-msg ${pre.msgBad ? 'bad' : ''}">${esc(pre.msg)}</p>` : ''}
+      ${dup ? `<p class="rc-msg bad">Attention : une charge du même jour et du même montant existe déjà (« ${esc(dup.label)} »). Ce ticket est peut-être déjà enregistré.</p>` : ''}
+      <div class="field"><label>Justificatif</label><div id="rcBox" class="rc-box"></div></div>
       <div class="grid2"><div class="field"><label>Date *</label><input type="date" name="date" value="${e.date}" required></div>
         <div class="field"><label>Catégorie</label><select name="cat">${CATS.map(k => `<option ${e.cat === k ? 'selected' : ''}>${esc(k)}</option>`).join('')}</select></div></div>
       <div class="field"><label>Libellé *</label><input name="label" value="${esc(e.label)}" required placeholder="Ex : achat de marchandises, plein de carburant, assurance, abonnement…"></div>
@@ -243,11 +248,88 @@
     f.onsubmit = ev => {
       ev.preventDefault();
       if (!E.label.value.trim() || !E.date.value || !(num(E.ttc.value) > 0)) { const er = f.querySelector('.form-err'); er.hidden = false; er.textContent = 'Indiquez la date, le libellé et le montant TTC.'; return; }
-      const data = { date: E.date.value, label: E.label.value.trim(), supplier: E.supplier.value.trim(), cat: E.cat.value, ttc: r2(num(E.ttc.value)), vat: num(E.vat.value), ht: E.ht.value === '' ? r2(num(E.ttc.value) / (1 + num(E.vat.value) / 100)) : r2(num(E.ht.value)), pay: E.pay.value, recurring: E.recurring.value, until: E.recurring.value === 'none' ? '' : E.until.value, note: E.note.value.trim() };
-      if (id) Object.assign(db.expenses.find(x => x.id === id), data); else db.expenses.push({ id: uid(), ...data });
-      save(); m.close(); toast(id ? 'Charge modifiée' : 'Charge ajoutée'); render();
+      const data = { date: E.date.value, label: E.label.value.trim(), supplier: E.supplier.value.trim(), cat: E.cat.value, ttc: r2(num(E.ttc.value)), vat: num(E.vat.value), ht: E.ht.value === '' ? r2(num(E.ttc.value) / (1 + num(E.vat.value) / 100)) : r2(num(E.ht.value)), pay: E.pay.value, recurring: E.recurring.value, until: E.recurring.value === 'none' ? '' : E.until.value, note: E.note.value.trim(), file: st.file, fileMime: st.file ? st.mime : '' };
+      const old = id && db.expenses.find(x => x.id === id);
+      if (old && old.file && old.file !== st.file) rcDelete(old.file);
+      if (old) Object.assign(old, data); else db.expenses.push({ id: uid(), ...data });
+      st.saved = true; save(); m.close(); toast(id ? 'Charge modifiée' : 'Charge ajoutée'); if (!onDone) render();
     };
+    /* fichiers envoyés puis abandonnés (fenêtre fermée sans enregistrer, ou remplacés) : supprimés du serveur */
+    m.addEventListener('close', () => { st.added.filter(f => f !== (st.saved ? st.file : (old0 && old0.file))).forEach(rcDelete); if (onDone) onDone(st.saved); }, { once: true });
+    const old0 = id && db.expenses.find(x => x.id === id);
+    const box = f.querySelector('#rcBox');
+    const drawBox = () => {
+      box.innerHTML = st.file
+        ? `<a href="/api/receipts/${esc(st.file)}" target="_blank" rel="noopener" class="rc-thumb">${/^image/.test(st.mime) ? `<img src="/api/receipts/${esc(st.file)}" alt="Justificatif">` : '<span class="rc-pdf">PDF</span>'}</a>
+           <div class="rc-acts"><a class="btn small" href="/api/receipts/${esc(st.file)}" target="_blank" rel="noopener">Voir</a><button type="button" class="btn small danger" id="rcRm">Retirer</button></div>`
+        : `<label class="btn small">📎 Joindre une photo ou un PDF<input type="file" id="rcOne" accept="image/*,application/pdf" hidden></label><span class="muted" style="font-size:.8rem">Les montants seront lus automatiquement.</span>`;
+      const rm = box.querySelector('#rcRm'); if (rm) rm.onclick = () => { st.file = ''; st.mime = ''; drawBox(); };
+      const inp = box.querySelector('#rcOne'); if (inp) inp.onchange = async () => {
+        const file = inp.files[0]; if (!file) return;
+        box.innerHTML = '<span class="muted">Envoi et lecture du justificatif…</span>';
+        try {
+          const r = await rcUpload(file, true); st.file = r.id; st.mime = r.mime; st.added.push(r.id);
+          if (r.read) { const v = rcFields(r.read); [['date', v.date], ['label', v.label], ['supplier', v.supplier], ['ttc', v.ttc]].forEach(([k, x]) => { if (x && !E[k].value) E[k].value = x; });
+            if (v.ttc && !id) { E.cat.value = v.cat || E.cat.value; E.vat.value = String(v.vat); E.ht.value = v.ht; if (v.pay) E.pay.value = v.pay; } }
+          toast(r.read ? 'Justificatif lu : vérifiez les montants' : (r.readError || 'Justificatif joint'));
+        } catch (er) { toast(er.message); }
+        drawBox();
+      };
+    };
+    drawBox();
     setTimeout(() => E.label.focus(), 30);
+  }
+
+  /* ---------- Justificatifs : envoi, lecture automatique, file d'attente ---------- */
+  async function rcUpload(file, read) {
+    if (file.size > 25e6) throw new Error(file.name + ' : fichier trop lourd');
+    const isPdf = /pdf$/i.test(file.type || file.name);
+    if (!isPdf && !/^image\//.test(file.type || 'image/')) throw new Error(file.name + ' : choisissez une photo ou un PDF');
+    let bytes;
+    if (isPdf) { if (file.size > 10e6) throw new Error(file.name + ' : PDF trop lourd (10 Mo maximum)'); bytes = await file.arrayBuffer(); }
+    else bytes = (await prepareJpeg(file, 0.85, 2000)).bytes;
+    const r = await fetch('/api/receipts', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'sitedevis' }, body: JSON.stringify({ data: b64(bytes), read: !!read }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || 'Erreur ' + r.status);
+    return j;
+  }
+  const rcDelete = fid => { if (fid) fetch('/api/receipts/' + encodeURIComponent(fid), { method: 'DELETE', credentials: 'same-origin', headers: { 'X-Requested-With': 'sitedevis' } }).catch(() => {}); };
+  /* champs lus -> champs de la charge (TVA : micro-entreprise sans TVA récupérable = on garde le taux lu, le HT est recalculé) */
+  function rcFields(d) {
+    const vat = [0, 5.5, 10, 20].includes(d.vatRate) ? d.vatRate : (db.company.vatExempt ? 0 : 20);
+    const ttc = d.ttc ? r2(d.ttc) : '', ht = d.ttc ? (d.ht && d.ht <= d.ttc ? r2(d.ht) : r2(d.ttc / (1 + vat / 100))) : '';
+    return { date: d.date || '', supplier: d.supplier || '', label: d.label || (d.supplier ? ({ 'Carburant et déplacements': 'Carburant', 'Repas et réceptions': 'Repas', 'Outillage et matériel': 'Outillage' }[d.category] || 'Achat') + ' ' + d.supplier : ''), cat: d.category || '', ttc, ht, vat, pay: d.pay || '', number: d.number || '' };
+  }
+  async function rcQueue(files) {
+    if (!requireAccess()) return;
+    files = [...files].slice(0, 20);
+    for (let i = 0; i < files.length; i++) {
+      openModal(`<div class="rc-wait"><div class="rc-spin"></div><h2>Lecture du justificatif${files.length > 1 ? ` ${i + 1} / ${files.length}` : ''}…</h2><p class="muted">${esc(files[i].name || 'photo')}<br>Montant, date, magasin et catégorie sont repérés automatiquement.</p></div>`);
+      let pre;
+      try {
+        const r = await rcUpload(files[i], true);
+        const v = r.read ? rcFields(r.read) : {};
+        pre = { file: r.id, fileMime: r.mime, date: v.date || today(), label: v.label || '', supplier: v.supplier || '', cat: v.cat || 'Achats de matériaux et fournitures', ttc: v.ttc || '', ht: v.ht || '', vat: v.ttc ? v.vat : (db.company.vatExempt ? 0 : 20), pay: v.pay || 'Carte bancaire', recurring: 'none', until: '', note: v.number ? 'Facture / ticket n° ' + v.number : '',
+          msg: r.read ? (v.ttc ? 'Lu automatiquement : vérifiez le montant, la date et la catégorie avant d’enregistrer.' : 'Le montant n’a pas été trouvé : complétez-le.') : (r.readError || 'Complétez les informations.'), msgBad: !r.read || !v.ttc };
+      } catch (e) {
+        const m = openModal(`<div><h2>Justificatif non envoyé</h2><p>${esc(e.message)}</p><div class="row" style="justify-content:flex-end"><button class="btn primary" data-act="close-modal">${i < files.length - 1 ? 'Continuer' : 'Fermer'}</button></div></div>`);
+        await new Promise(res => m.addEventListener('close', res, { once: true })); continue;
+      }
+      await new Promise(res => expModal(null, pre, res));
+    }
+    render();
+  }
+  document.addEventListener('change', e => { if (e.target.id === 'rcIn' || e.target.id === 'rcIn2') { const fl = [...e.target.files]; e.target.value = ''; if (fl.length) rcQueue(fl); } });
+  async function rcZip(p, btn) {
+    const files = occurrences(p).filter(e => e.file && !e.virtual).map(e => ({ id: e.file, name: `${e.date}_${(e.supplier || e.label || 'achat').slice(0, 40)}_${String(r2(num(e.ttc))).replace('.', ',')}EUR` }));
+    if (!files.length) return toast('Aucun justificatif joint sur la période');
+    const old = btn && btn.innerHTML; if (btn) { btn.disabled = true; btn.textContent = 'Préparation…'; }
+    try {
+      const r = await fetch('/api/receipts/zip', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'sitedevis' }, body: JSON.stringify({ files, name: 'justificatifs-' + p.label.replace(/\s+/g, '-') }) });
+      if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || 'Erreur ' + r.status); }
+      const url = URL.createObjectURL(await r.blob()), a = document.createElement('a'); a.href = url; a.download = 'justificatifs-' + p.label.replace(/\s+/g, '-') + '.zip'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000);
+    } catch (e) { toast('Justificatifs : ' + e.message); }
+    if (btn) { btn.disabled = false; btn.innerHTML = old; }
   }
 
   /* ---------- Exports CSV (séparateur ; , virgule décimale, ouverture directe dans Excel) ---------- */
@@ -259,8 +341,8 @@
       receipts(p).cashed.sort((a, b) => (a.paidAt || a.date).localeCompare(b.paidAt || b.date)).forEach(f => { const t = totals(f), sp = invSplit(f); rows.push([f.paidAt || f.date, f.number, (f.clientText || '').split('\n')[0], f.title || '', n(t.ht), n(t.vat), n(t.ttc), n(t.ttc * sp.vente), n(t.ttc * sp.service), f.payMethod || '']); });
       name = 'livre-des-recettes';
     } else {
-      rows = [['Date', 'Libellé', 'Fournisseur', 'Catégorie', 'Montant HT', 'TVA', 'Montant TTC', 'Paiement', 'Note']];
-      occurrences(p).reverse().forEach(e => rows.push([e.date, e.label, e.supplier, e.cat, n(num(e.ht)), n(num(e.ttc) - num(e.ht)), n(num(e.ttc)), e.pay, e.note || '']));
+      rows = [['Date', 'Libellé', 'Fournisseur', 'Catégorie', 'Montant HT', 'TVA', 'Montant TTC', 'Paiement', 'Note', 'Justificatif']];
+      occurrences(p).reverse().forEach(e => rows.push([e.date, e.label, e.supplier, e.cat, n(num(e.ht)), n(num(e.ttc) - num(e.ht)), n(num(e.ttc)), e.pay, e.note || '', e.file && !e.virtual ? 'oui' : '']));
       name = 'registre-des-charges';
     }
     const csv = '﻿' + rows.map(r => r.map(q).join(';')).join('\r\n');
@@ -380,10 +462,11 @@
     'bilan-year'(t) { bilanYear = Number(t.dataset.y); bilanModal(); },
     async 'bilan-pdf'(t) { if (!session.config.pdf) return window.print(); const old = t.innerHTML; t.disabled = true; t.textContent = 'Création…'; try { await bilanPdf(curBilanYear()); toast('Bilan téléchargé'); } catch (e) { toast('PDF impossible : ' + e.message); } t.disabled = false; t.innerHTML = old; },
     async 'bilan-all'(t) { const y = curBilanYear(), P = { from: y + '-01-01', to: y + '-12-31', label: 'Année ' + y }; const old = t.innerHTML; t.disabled = true; t.textContent = 'Préparation…';
-      try { if (session.config.pdf) await bilanPdf(y); exportCsv('recettes', P); await new Promise(r => setTimeout(r, 400)); exportCsv('achats', P); toast('Dossier de clôture téléchargé'); } catch (e) { toast('Impossible : ' + e.message); } t.disabled = false; t.innerHTML = old; },
+      try { if (session.config.pdf) await bilanPdf(y); exportCsv('recettes', P); await new Promise(r => setTimeout(r, 400)); exportCsv('achats', P); if (db.expenses.some(e => e.file && inP(e.date, P))) { await new Promise(r => setTimeout(r, 400)); await rcZip(P); } toast('Dossier de clôture téléchargé'); } catch (e) { toast('Impossible : ' + e.message); } t.disabled = false; t.innerHTML = old; },
     'exp-new'() { if (requireAccess()) expModal(null); },
     'exp-edit'(t) { expModal(t.dataset.id); },
-    'exp-del'(t) { const e = db.expenses.find(x => x.id === t.dataset.id); if (e && confirm(`Supprimer « ${e.label} »${e.recurring && e.recurring !== 'none' ? ' et toutes ses échéances' : ''} ?`)) { db.expenses = db.expenses.filter(x => x !== e); save(); render(); } },
+    'exp-del'(t) { const e = db.expenses.find(x => x.id === t.dataset.id); if (e && confirm(`Supprimer « ${e.label} »${e.recurring && e.recurring !== 'none' ? ' et toutes ses échéances' : ''} ?`)) { db.expenses = db.expenses.filter(x => x !== e); if (e.file) rcDelete(e.file); save(); render(); } },
+    'rc-zip'(t) { rcZip(period(), t); },
     'exp-cat'(t) { ui.cat = t.dataset.c; render(); }
   });
   document.addEventListener('change', e => { const t = e.target; if (view !== 'stats' || !t.dataset || !t.dataset.cp) return; cfg()[t.dataset.cp] = t.type === 'checkbox' ? t.checked : t.value; save(); render(); });

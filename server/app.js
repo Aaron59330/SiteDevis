@@ -11,6 +11,7 @@ const vision = require('./vision');
 const facturx = require('./facturx');
 const { zip } = require('./zip');
 const storefetch = require('./storefetch');
+const receipts = require('./receipts');
 const storefetchLookup = (...a) => storefetch.lookup(...a);
 let importFreeOk = false; importer.available().then(v => { importFreeOk = v; });
 const { db } = store;
@@ -180,7 +181,7 @@ async function handle(req, res, url) {
       if (origin && new URL(origin).host !== req.headers.host) throw err(403, 'Origine refusée.');
     }
     if (req.method !== 'GET' && req.method !== 'HEAD') {
-      ctx.raw = await readBody(req, url.pathname === '/api/data' ? 12e6 : url.pathname === '/api/pdf' || url.pathname === '/api/facturx' ? 7e6 : url.pathname === '/api/send-document' ? 7e6 : url.pathname === '/api/pdf/batch' ? 40e6 : url.pathname === '/api/import/pdf' ? 12e6 : url.pathname === '/api/import/photo' ? 22e6 : 1e6);
+      ctx.raw = await readBody(req, url.pathname === '/api/data' ? 12e6 : url.pathname === '/api/pdf' || url.pathname === '/api/facturx' ? 7e6 : url.pathname === '/api/send-document' ? 7e6 : url.pathname === '/api/pdf/batch' ? 40e6 : url.pathname === '/api/import/pdf' ? 12e6 : url.pathname === '/api/import/photo' ? 22e6 : url.pathname === '/api/receipts' ? 14e6 : 1e6);
       if (r.auth !== 'webhook' && ctx.raw) { try { ctx.body = JSON.parse(ctx.raw); } catch (e) { throw err(400, 'JSON invalide.'); } }
     }
     if (r.auth !== 'none' && r.auth !== 'webhook') {
@@ -190,6 +191,7 @@ async function handle(req, res, url) {
     }
     const out = await r.fn(ctx);
     if (out && Buffer.isBuffer(out.zipFile)) return send(200, { 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="${out.filename}"`, 'Cache-Control': 'no-store' }, out.zipFile);
+    if (out && Buffer.isBuffer(out.inlineFile)) return send(200, { 'Content-Type': out.type, 'Content-Disposition': `inline; filename="${out.filename}"`, 'Cache-Control': 'private, max-age=86400', 'X-Content-Type-Options': 'nosniff', ...(out.type === 'application/pdf' ? {} : { 'Content-Security-Policy': "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'" }) }, out.inlineFile);
     if (out && Buffer.isBuffer(out.pdfFile)) return send(200, { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="${out.filename}"`, 'Cache-Control': 'no-store' }, out.pdfFile);
     const h = { 'Cache-Control': 'no-store' };
     if (ctx.setCookie) h['Set-Cookie'] = ctx.setCookie;
@@ -440,6 +442,48 @@ route('POST', '/api/import/photo', 'user', async ctx => {
   }
 });
 
+/* ---------- Justificatifs d'achat (photo ou PDF) : enregistrement + lecture automatique ---------- */
+route('POST', '/api/receipts', 'user', async ctx => {
+  if (!access(ctx.user).active) throw err(402, 'Un abonnement actif est nécessaire.', { code: 'payment_required' });
+  limit('rcpt:' + ctx.user.id, 120, 3600e3);
+  const data = ctx.body && ctx.body.data;
+  if (typeof data !== 'string' || data.length < 100 || data.length > 13.5e6) throw err(400, 'Fichier invalide (10 Mo maximum).');
+  const buf = Buffer.from(data, 'base64');
+  if (buf.length > 10e6) throw err(400, 'Fichier trop lourd (10 Mo maximum).');
+  const sv = receipts.save(ctx.user.id, buf);
+  if (sv.error) throw err(400, sv.error);
+  if (!ctx.body.read) return ok({ id: sv.id, mime: sv.mime });
+  try {
+    limit('rcptread:' + ctx.user.id, 60, 3600e3); limit('aiday:' + ctx.user.id, 200, 86400e3);
+    const r = await receipts.read(buf, sv.mime);
+    return ok({ id: sv.id, mime: sv.mime, read: r.data, source: r.source });
+  } catch (e) {
+    console.error('Lecture justificatif :', e.status || '', e.message);
+    return ok({ id: sv.id, mime: sv.mime, read: null, readError: e.expose || (e.status && e.status < 500) ? e.message : 'Lecture automatique impossible pour le moment : complétez les montants à la main.' });
+  }
+});
+route('GET', '/api/receipts/:id', 'user', ctx => {
+  const f = receipts.find(ctx.user.id, ctx.params.id);
+  if (!f) throw err(404, 'Justificatif introuvable.');
+  return { inlineFile: require('fs').readFileSync(f.file), type: f.mime, filename: 'justificatif.' + f.ext };
+});
+route('DELETE', '/api/receipts/:id', 'user', ctx => { receipts.remove(ctx.user.id, ctx.params.id); return ok(); });
+route('POST', '/api/receipts/zip', 'user', ctx => {
+  const list = Array.isArray(ctx.body.files) ? ctx.body.files.slice(0, 2000) : [];
+  limit('rcptzip:' + ctx.user.id, 20, 3600e3);
+  const files = [], used = new Set(); let total = 0;
+  for (const it of list) {
+    const f = it && receipts.find(ctx.user.id, it.id); if (!f) continue;
+    let name = String(it.name || 'justificatif').replace(/[^\w.\- ]+/g, '').trim().slice(0, 90) || 'justificatif', n = name, i = 2;
+    while (used.has(n)) n = name + '-' + i++; used.add(n);
+    const data = require('fs').readFileSync(f.file); total += data.length;
+    if (total > 400e6) throw err(400, 'Trop de justificatifs pour une seule archive : choisissez une période plus courte.');
+    files.push({ name: n + '.' + f.ext, data });
+  }
+  if (!files.length) throw err(404, 'Aucun justificatif sur la période.');
+  return { zipFile: zip(files), filename: String(ctx.body.name || 'justificatifs').replace(/[^\w.\- ]+/g, '').slice(0, 60) + '.zip' };
+});
+
 /* ---------- Relecture IA des devis ---------- */
 route('POST', '/api/ai/review', 'user', async ctx => {
   if (db.settings.aiEnabled === false) throw err(503, 'La relecture n\'est pas activée.');
@@ -569,6 +613,7 @@ route('POST', '/api/me/password', 'user', ctx => {
 });
 
 function deleteUser(u) {
+  receipts.removeAll(u.id);
   db.users = db.users.filter(x => x !== u);
   db.sessions = db.sessions.filter(s => s.userId !== u.id);
   db.tokens = db.tokens.filter(t => t.userId !== u.id);
