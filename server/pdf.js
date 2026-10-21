@@ -56,6 +56,10 @@ function pageCss(o) {
     @page :first { margin-top: 4mm; @top-left { content: none; } @top-right { content: none; } }`;
 }
 
+/* hauteur utile des pages A4 (voir pageCss) : 1re page 297 − 4 − 6,3 mm, suivantes 297 − 14 − 6,3 mm, avec une petite marge */
+const FIRST = 285, NEXT = 275.5;
+const pages = buf => (buf.toString('latin1').match(/\/Type\s*\/Page(?!s)/g) || []).length;
+
 async function render(o) {
   const doc = `<!doctype html><html lang="fr" data-theme="light"><head><meta charset="utf-8">
 <style>${siteCss()}</style><style>${pageCss(o)}</style></head>
@@ -67,7 +71,19 @@ async function render(o) {
     const page = await ctx.newPage();
     await page.setContent(doc, { waitUntil: 'load', timeout: 15000 });
     await page.emulateMedia({ media: 'print' });
-    return await page.pdf({ preferCSSPageSize: true, printBackground: true, displayHeaderFooter: false, timeout: 20000 });
+    const opts = { preferCSSPageSize: true, printBackground: true, displayHeaderFooter: false, timeout: 20000 };
+    let pdf = await page.pdf(opts);
+    /* Document de plusieurs pages : le bas (totaux, bon pour accord, mentions) va en bas de la DERNIÈRE page.
+       La page fait au moins n pages de haut ; s'il en faut une de plus (sauts de page), on réduit un peu. */
+    const n = pages(pdf);
+    if (n > 1 && n < 30) {
+      for (let cut = 0; cut <= 40; cut += 8) {
+        await page.evaluate(h => { document.getElementById('doc').style.minHeight = h + 'mm'; }, FIRST + (n - 1) * NEXT - cut);
+        const p2 = await page.pdf(opts);
+        if (pages(p2) === n) { pdf = p2; break; }
+      }
+    }
+    return pdf;
   } finally { await ctx.close().catch(() => {}); }
 }
 
