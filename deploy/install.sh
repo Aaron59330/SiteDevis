@@ -139,6 +139,8 @@ if [ "$FIRST" = 1 ]; then sed -i '/^ADMIN_PASSWORD=/d' "$ENVF"; fi
 
 # ---------- 6. HTTPS (Caddy) ----------
 say "Configuration du HTTPS pour $DOMAIN"
+mkdir -p /etc/caddy/conf.d
+[ -n "$(ls /etc/caddy/conf.d/*.caddy 2>/dev/null)" ] || echo "# services supplémentaires (un fichier .caddy par service)" > /etc/caddy/conf.d/00-services.caddy
 cat > /etc/caddy/Caddyfile <<CADDY
 $DOMAIN {
 	encode gzip
@@ -147,6 +149,8 @@ $DOMAIN {
 www.$DOMAIN {
 	redir https://$DOMAIN{uri} permanent
 }
+# autres services hébergés sur ce serveur (ex. panneau du bot Discord) : un fichier par service
+import /etc/caddy/conf.d/*.caddy
 CADDY
 systemctl enable caddy >/dev/null
 systemctl reload caddy || systemctl restart caddy
