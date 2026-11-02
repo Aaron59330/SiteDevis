@@ -14,6 +14,17 @@ command -v openssl >/dev/null || apt-get install -y -qq openssl >/dev/null
 
 say() { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
 URL="$(grep '^APP_URL=' "$ENVF" | cut -d= -f2- | tr -d '"')"
+DIR="$(cd "$(dirname "$0")" && pwd)"
+envval() { grep "^$1=" "$ENVF" | tail -1 | cut -d= -f2- | tr -d '"'; }
+# vérification : appel réel à Enable Banking avec la configuration du serveur, sous l'utilisateur du service
+runtest() {
+  say "Vérification de la connexion à Enable Banking"
+  local T; T="$(mktemp --suffix=.js)"; cp "$DIR/banque-test.js" "$T"; chmod 644 "$T"
+  local rc=0
+  runuser -u "$SVC" -- env ENABLEBANKING_APP_ID="$(envval ENABLEBANKING_APP_ID)" ENABLEBANKING_KEY_FILE="$(envval ENABLEBANKING_KEY_FILE)" APP_URL="$URL" /usr/bin/node "$T" || rc=$?
+  rm -f "$T"; return $rc
+}
+if [ "${1:-}" = "--test" ]; then runtest; exit $?; fi
 
 say "Connexion bancaire (Enable Banking)"
 echo "Avant de continuer, sur https://enablebanking.com (Control Panel) :"
@@ -23,7 +34,7 @@ echo "  3. Laissez Enable Banking générer la clé : un fichier .pem est télé
 echo
 
 # ---------- 1. Identifiant de l'application ----------
-CUR="$(grep '^ENABLEBANKING_APP_ID=' "$ENVF" | cut -d= -f2- || true)"
+CUR="${1:-$(envval ENABLEBANKING_APP_ID || true)}"
 read -r -p "Identifiant de l'application (Application ID)${CUR:+ [$CUR]} : " APPID
 APPID="$(printf '%s' "${APPID:-$CUR}" | tr -d '[:space:]"')"
 [[ "$APPID" =~ ^[A-Za-z0-9._-]{8,}$ ]] || { echo "Identifiant invalide (il ressemble à 1a2b3c4d-…)."; exit 1; }
@@ -63,7 +74,8 @@ chmod 600 "$ENVF"
 say "Redémarrage du site"
 systemctl restart "$SVC"; sleep 2
 if systemctl is-active --quiet "$SVC"; then
-  echo "✓ Connexion bancaire activée."
+  echo "✓ Site redémarré avec la connexion bancaire."
+  runtest || { echo "La configuration est enregistrée, mais la vérification a échoué (voir ci-dessus)."; exit 1; }
   echo
   echo "Dernière étape, dans le Control Panel Enable Banking : ouvrez votre application et"
   echo "« Link accounts » (liez votre propre compte bancaire) pour l'activer en mode restreint."
