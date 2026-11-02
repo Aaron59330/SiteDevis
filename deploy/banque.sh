@@ -36,7 +36,10 @@ echo
 # ---------- 1. Identifiant de l'application ----------
 CUR="${1:-$(envval ENABLEBANKING_APP_ID || true)}"
 read -r -p "Identifiant de l'application (Application ID)${CUR:+ [$CUR]} : " APPID
-APPID="$(printf '%s' "${APPID:-$CUR}" | tr -d '[:space:]"')"
+APPID="$(printf '%s' "${APPID:-$CUR}" | tr -d '"')"
+# un identifiant Enable Banking ressemble à abb7e4cc-b615-438a-b0b5-0f0df1daec77 : on le retrouve même au milieu d'autre texte collé
+UUID="$(printf '%s' "$APPID" | grep -oiE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1 || true)"
+APPID="${UUID:-$(printf '%s' "$APPID" | tr -d '[:space:]')}"
 [[ "$APPID" =~ ^[A-Za-z0-9._-]{8,}$ ]] || { echo "Identifiant invalide (il ressemble à 1a2b3c4d-…)."; exit 1; }
 
 # ---------- 2. Clé privée ----------
