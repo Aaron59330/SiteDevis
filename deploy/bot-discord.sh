@@ -69,9 +69,9 @@ done
 
 # ---------- Dépendances ----------
 say "Installation des dépendances (quelques minutes la première fois)"
-chown -R discordbot:discordbot "$APP"
-(cd "$APP" && runuser -u discordbot -- env PATH="$NODE/bin:$PATH" HOME="$BASE" npm_config_cache="$BASE/.npm" "$NODE/bin/npm" ci --omit=dev --no-audit --no-fund --loglevel=error)
 chown discordbot:discordbot "$BASE"
+mkdir -p "$BASE/.npm"; chown -R discordbot:discordbot "$APP" "$BASE/.npm"
+(cd "$APP" && runuser -u discordbot -- env PATH="$NODE/bin:$PATH" HOME="$BASE" npm_config_cache="$BASE/.npm" "$NODE/bin/npm" ci --omit=dev --no-audit --no-fund --loglevel=error --update-notifier=false)
 
 # ---------- Service ----------
 say "Service « $SVC » (démarrage automatique)"
