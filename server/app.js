@@ -567,7 +567,7 @@ route('GET', '/api/share/data', 'share', ctx => {
 
 /* ---------- Trésorerie : comptes bancaires et opérations ---------- */
 const bankErr = e => { if (e instanceof HttpError) throw e; throw err(e.status && e.status < 500 ? e.status : 502, e.message || 'Banque indisponible.'); };
-route('GET', '/api/bank', 'user', ctx => ({ ...bank.view(bank.load(ctx.user.id)), connect: bank.ebConfigured() }));
+route('GET', '/api/bank', 'user', ctx => ({ ...bank.view(bank.load(ctx.user.id)), connect: bank.ebConfigured(), ...(ctx.user.role === 'admin' && !bank.ebConfigured() ? { missing: bank.ebMissing() } : {}) }));
 route('GET', '/api/bank/banks', 'user', async () => { if (!bank.ebConfigured()) throw err(501, 'La connexion bancaire n\'est pas activée sur ce serveur.'); try { return { banks: await bank.banks('FR') }; } catch (e) { bankErr(e); } });
 route('POST', '/api/bank/connect', 'user', async ctx => {
   if (!bank.ebConfigured()) throw err(501, 'La connexion bancaire n\'est pas activée sur ce serveur.');

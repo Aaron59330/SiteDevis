@@ -66,6 +66,15 @@ function importStatement(uid, b) {
 
 /* ---------- Enable Banking ---------- */
 let keyCache = null;
+/* ce qui manque pour activer la connexion (affiché à l'administrateur) */
+function ebMissing() {
+  const out = [];
+  if (!process.env.ENABLEBANKING_APP_ID) out.push('ENABLEBANKING_APP_ID est vide dans /etc/sitedevis.env');
+  if (!process.env.ENABLEBANKING_KEY_FILE) out.push('ENABLEBANKING_KEY_FILE est vide dans /etc/sitedevis.env');
+  else if (!fs.existsSync(process.env.ENABLEBANKING_KEY_FILE)) out.push('le fichier de clé ' + process.env.ENABLEBANKING_KEY_FILE + ' est introuvable (ou illisible par le service)');
+  else { try { crypto.createPrivateKey(fs.readFileSync(process.env.ENABLEBANKING_KEY_FILE)); } catch (e) { out.push('le fichier de clé n\'est pas une clé privée valide (.pem)'); } }
+  return out;
+}
 const ebConfigured = () => !!(process.env.ENABLEBANKING_APP_ID && process.env.ENABLEBANKING_KEY_FILE && fs.existsSync(process.env.ENABLEBANKING_KEY_FILE));
 function jwt() {
   if (!keyCache) keyCache = crypto.createPrivateKey(fs.readFileSync(process.env.ENABLEBANKING_KEY_FILE));
@@ -191,4 +200,4 @@ function startAutoSync() {
   setTimeout(tick, 60e3); setInterval(tick, 3600e3).unref();
 }
 
-module.exports = { load, view, importStatement, updateAccount, ebConfigured, banks, startAuth, finishAuth, sync, removeAccount, patchTx, removeAll, startAutoSync };
+module.exports = { ebMissing, load, view, importStatement, updateAccount, ebConfigured, banks, startAuth, finishAuth, sync, removeAccount, patchTx, removeAll, startAutoSync };

@@ -141,11 +141,11 @@
     if (!ui.data) { load(); return `<h1>Trésorerie</h1><div class="card"><div class="empty">Chargement de vos comptes…</div></div>`; }
     const D = ui.data, has = D.accounts.length > 0;
     const head = `<div class="row between" style="margin-bottom:16px;flex-wrap:wrap;gap:10px"><h1 style="margin:0">Trésorerie</h1>
-      <div class="row">${has ? `<button class="btn" data-act="tr-sync" title="Récupérer les dernières opérations">${icon('refresh')} Actualiser</button>` : ''}<button class="btn" data-act="tr-import">${icon('upload')} Importer un relevé</button>${D.connect ? `<button class="btn primary" data-act="tr-connect">${icon('building')} Connecter ma banque</button>` : ''}</div></div>`;
+      <div class="row">${has ? `<button class="btn" data-act="tr-sync" title="Récupérer les dernières opérations">${icon('refresh')} Actualiser</button>` : ''}<button class="btn" data-act="tr-import">${icon('upload')} Importer un relevé</button><button class="btn primary" data-act="tr-connect">${icon('building')} Connecter ma banque</button></div></div>`;
     if (!has) return head + `<div class="card tr-hero"><div class="tr-hero-ic">${icon('building')}</div><h2>Suivez votre argent automatiquement</h2>
       <p class="muted">Solde, encaissements, dépenses classées par catégorie, évolution de votre trésorerie et argent mis de côté pour l’URSSAF et les impôts : tout au même endroit.</p>
-      <div class="row" style="justify-content:center;margin-top:18px">${D.connect ? `<button class="btn primary" data-act="tr-connect">${icon('building')} Connecter mon compte pro</button>` : ''}<button class="btn ${D.connect ? '' : 'primary'}" data-act="tr-import">${icon('upload')} Importer un relevé (CSV, OFX)</button><button class="btn" data-act="tr-demo">Essayer avec un exemple</button></div>
-      ${D.connect ? '<p class="muted" style="font-size:.8rem;margin-top:14px">Connexion sécurisée et agréée (DSP2) : vous vous identifiez sur le site de votre banque, OptiDevis ne voit jamais vos codes et ne peut faire aucun paiement.</p>' : '<p class="muted" style="font-size:.8rem;margin-top:14px">Téléchargez le relevé de votre compte depuis l’espace en ligne de votre banque (format CSV ou OFX), puis importez-le ici.</p>'}</div>`;
+      <div class="row" style="justify-content:center;margin-top:18px"><button class="btn primary" data-act="tr-connect">${icon('building')} Connecter mon compte pro</button><button class="btn" data-act="tr-import">${icon('upload')} Importer un relevé (CSV, OFX)</button><button class="btn" data-act="tr-demo">Essayer avec un exemple</button></div>
+      <p class="muted" style="font-size:.8rem;margin-top:14px">Connexion sécurisée et agréée (DSP2) : vous vous identifiez sur le site de votre banque, OptiDevis ne voit jamais vos codes et ne peut faire aucun paiement. Vous pouvez aussi importer le relevé (CSV ou OFX) téléchargé depuis l’espace en ligne de votre banque.</p></div>`;
 
     const ym = today().slice(0, 7), pm = ymAdd(ym, -1), all = txs();
     const sum = (L, f) => r2(L.filter(f).reduce((s, t) => s + t.amount, 0));
@@ -341,6 +341,18 @@
   /* ---------- Connexion bancaire ---------- */
   async function connectModal() {
     if (!requireAccess()) return;
+    if (!ui.data.connect) {
+      const miss = ui.data.missing;
+      return openModal(`<div><div class="row between"><h2 style="margin:0">Connecter ma banque</h2><button class="btn small" data-act="close-modal">Fermer</button></div>
+        ${miss ? `<p style="margin:10px 0">La connexion bancaire automatique n’est <b>pas encore activée</b> sur votre serveur. Il manque :</p><ul class="tr-miss">${miss.map(x => `<li>${esc(x)}</li>`).join('')}</ul>
+          <ol class="share-steps"><li>Créez l’application sur <b>enablebanking.com</b> (environnement Production), avec l’adresse de retour <code>${esc(location.origin)}/api/bank/callback</code>, et téléchargez la clé privée <code>.pem</code>.</li>
+          <li>Copiez la clé sur le serveur : <code>/etc/sitedevis-bank.pem</code>, puis <code>chown sitedevis /etc/sitedevis-bank.pem && chmod 600 /etc/sitedevis-bank.pem</code>.</li>
+          <li>Dans <code>/etc/sitedevis.env</code> : <code>ENABLEBANKING_APP_ID=</code>l’identifiant de l’application et <code>ENABLEBANKING_KEY_FILE=/etc/sitedevis-bank.pem</code>, puis <code>systemctl restart sitedevis</code>.</li>
+          <li>Dans le tableau de bord Enable Banking, liez votre propre compte (« Link accounts ») pour activer l’application.</li></ol>
+          <p class="muted" style="font-size:.8rem">Le détail est dans le guide DEPLOIEMENT.md (partie C). Ne transmettez jamais la clé privée par email ou en conversation.</p>`
+        : `<p style="margin:10px 0">La connexion automatique à votre banque arrive bientôt.</p><p class="muted">En attendant, téléchargez le relevé de votre compte (format CSV ou OFX) depuis l’espace en ligne de votre banque et importez-le : tout est calculé de la même façon.</p>`}
+        <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn primary" data-act="tr-import">${icon('upload')} Importer un relevé</button></div></div>`);
+    }
     const m = openModal(`<div><div class="row between"><h2 style="margin:0">Connecter ma banque</h2><button class="btn small" data-act="close-modal">Fermer</button></div>
       <p class="muted" style="margin:8px 0 12px">Choisissez votre banque : vous serez redirigé vers son site pour vous identifier et autoriser la lecture de vos comptes (90 à 180 jours, renouvelable). OptiDevis ne voit jamais vos identifiants et ne peut faire aucun virement.</p>
       <div class="seg2" style="margin-bottom:10px"><button type="button" class="on" data-psu="business">Compte professionnel</button><button type="button" data-psu="personal">Compte personnel</button></div>

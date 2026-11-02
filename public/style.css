@@ -1152,3 +1152,5 @@ body.viewer:not(.v-rc) [data-act="rc-zip"], body.viewer:not(.v-rc) .rc-clip { di
   .tr-filters select { min-width: 0; width: 100%; }
   .tr-tx { align-items: flex-start; } .tr-amt { margin-top: 2px; font-size: .92rem; }
 }
+.tr-miss { margin: 0 0 12px; padding-left: 20px; color: var(--danger); font-size: .9rem; }
+.share-steps code, .tr-miss code { font-size: .8rem; word-break: break-all; }
