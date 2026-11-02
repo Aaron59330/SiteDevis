@@ -576,10 +576,11 @@ route('POST', '/api/bank/connect', 'user', async ctx => {
   const name = str(ctx.body.bank, 120); if (!name) throw err(400, 'Choisissez votre banque.');
   try { return ok({ url: await bank.startAuth(ctx.user.id, name, APP_URL() + '/api/bank/callback', ctx.body.psu) }); } catch (e) { bankErr(e); }
 });
-route('GET', '/api/bank/callback', 'user', async ctx => {
+/* retour de la banque : l'utilisateur est retrouvé grâce à « state » (il peut revenir dans un navigateur où il n'est pas connecté) */
+route('GET', '/api/bank/callback', 'none', async ctx => {
   const q = ctx.query;
-  if (q.error || !q.code) return { redirect: '/?bank=' + encodeURIComponent(q.error_description || q.error || 'annule') };
-  try { await bank.finishAuth(ctx.user.id, str(q.code, 400), str(q.state, 64)); return { redirect: '/?bank=ok' }; }
+  limit('bankcb:' + ctx.ip, 30, 3600e3);
+  try { const r = await bank.finishAuth(str(q.code, 600), str(q.state, 64), str(q.error_description || q.error, 200)); return { redirect: '/?bank=' + (r.ok ? 'ok' : 'err') }; }
   catch (e) { console.error('Banque (retour) :', e.message); return { redirect: '/?bank=' + encodeURIComponent(e.message) }; }
 });
 route('POST', '/api/bank/sync', 'user', async ctx => {

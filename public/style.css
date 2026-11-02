@@ -1154,3 +1154,6 @@ body.viewer:not(.v-rc) [data-act="rc-zip"], body.viewer:not(.v-rc) .rc-clip { di
 }
 .tr-miss { margin: 0 0 12px; padding-left: 20px; color: var(--danger); font-size: .9rem; }
 .share-steps code, .tr-miss code { font-size: .8rem; word-break: break-all; }
+.tr-last { display: flex; gap: 14px; align-items: center; justify-content: space-between; margin-bottom: 14px; padding: 14px 16px; border-radius: 12px; font-size: .9rem; }
+.tr-last.ok { background: color-mix(in srgb, var(--ok) 13%, transparent); border: 1px solid color-mix(in srgb, var(--ok) 40%, transparent); }
+.tr-last.bad { background: color-mix(in srgb, var(--danger) 11%, transparent); border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent); }

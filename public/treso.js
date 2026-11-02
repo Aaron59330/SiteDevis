@@ -142,7 +142,11 @@
     const D = ui.data, has = D.accounts.length > 0;
     const head = `<div class="row between" style="margin-bottom:16px;flex-wrap:wrap;gap:10px"><h1 style="margin:0">Trésorerie</h1>
       <div class="row">${has ? `<button class="btn" data-act="tr-sync" title="Récupérer les dernières opérations">${icon('refresh')} Actualiser</button>` : ''}<button class="btn" data-act="tr-import">${icon('upload')} Importer un relevé</button><button class="btn primary" data-act="tr-connect">${icon('building')} Connecter ma banque</button></div></div>`;
-    if (!has) return head + `<div class="card tr-hero"><div class="tr-hero-ic">${icon('building')}</div><h2>Suivez votre argent automatiquement</h2>
+    /* résultat de la dernière connexion bancaire (affiché au retour de la banque, et tant qu'un échec n'est pas réglé) */
+    const L = D.last, recent = L && Date.now() - new Date(L.at) < (ui.showLast ? 864e5 : 3 * 864e5);
+    const lastBox = recent && (ui.showLast || !L.ok) ? `<div class="tr-last ${L.ok ? 'ok' : 'bad'}"><div><b>${L.ok ? '✓ Banque connectée' : 'La connexion bancaire n’a pas abouti'}</b><div>${esc(L.msg)}</div>
+      <div class="muted" style="font-size:.76rem">${fdate(L.at.slice(0, 10))} à ${L.at.slice(11, 16)} (UTC)</div></div>${L.ok ? '' : `<button class="btn small primary" data-act="tr-connect">Réessayer</button>`}</div>` : '';
+    if (!has) return head + lastBox + `<div class="card tr-hero"><div class="tr-hero-ic">${icon('building')}</div><h2>Suivez votre argent automatiquement</h2>
       <p class="muted">Solde, encaissements, dépenses classées par catégorie, évolution de votre trésorerie et argent mis de côté pour l’URSSAF et les impôts : tout au même endroit.</p>
       <div class="row" style="justify-content:center;margin-top:18px"><button class="btn primary" data-act="tr-connect">${icon('building')} Connecter mon compte pro</button><button class="btn" data-act="tr-import">${icon('upload')} Importer un relevé (CSV, OFX)</button><button class="btn" data-act="tr-demo">Essayer avec un exemple</button></div>
       <p class="muted" style="font-size:.8rem;margin-top:14px">Connexion sécurisée et agréée (DSP2) : vous vous identifiez sur le site de votre banque, OptiDevis ne voit jamais vos codes et ne peut faire aucun paiement. Vous pouvez aussi importer le relevé (CSV ou OFX) téléchargé depuis l’espace en ligne de votre banque.</p></div>`;
@@ -164,7 +168,7 @@
     const byCat = {}; all.filter(t => t.amount < 0 && t.date >= from).forEach(t => { const c = catOf(t); byCat[c] = (byCat[c] || 0) - t.amount; });
     const cats = Object.entries(byCat).sort((a, b) => b[1] - a[1]), catTot = cats.reduce((s, c) => s + c[1], 0) || 1;
 
-    return head + `
+    return head + lastBox + `
     ${D.accounts.some(a => a.error) ? `<div class="tr-alert">${D.accounts.filter(a => a.error).map(a => `<div><b>${esc(a.name)}</b> : ${esc(a.error)} ${a.provider === 'enablebanking' && D.connect ? '<button class="btn small" data-act="tr-connect">Reconnecter</button>' : ''}</div>`).join('')}</div>` : ''}
     <div class="stats tr-kpis">
       ${card(`<span class="${bal < 0 ? 'neg' : ''}">${money(bal)}</span>`, 'Solde bancaire', noBal ? '<button class="linkbtn" data-act="tr-accounts">Indiquer le solde d’un compte</button>' : `${D.accounts.length} compte${D.accounts.length > 1 ? 's' : ''} · ${lastSync()}`, 'tr-main')}
@@ -464,5 +468,5 @@
   /* ---------- Intégration ---------- */
   EXTRA.treso = page;
   /* retour de la banque après connexion (?bank=ok) : ouvert par boot.js */
-  window.trBankReturn = msg => { ui.data = null; view = 'treso'; toast(msg === 'ok' ? '✓ Banque connectée : vos opérations arrivent' : 'Connexion bancaire : ' + msg); };
+  window.trBankReturn = msg => { ui.data = null; ui.showLast = true; view = 'treso'; if (msg !== 'ok' && msg !== 'err') toast('Connexion bancaire : ' + msg); };
 })();

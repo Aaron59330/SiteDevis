@@ -17,8 +17,8 @@ const r2 = x => Math.round((Number(x) + Number.EPSILON) * 100) / 100;
 
 /* ---------- Fichier de l'utilisateur ---------- */
 function load(uid) {
-  try { const d = JSON.parse(fs.readFileSync(file(uid), 'utf8')); return { accounts: d.accounts || [], tx: d.tx || [], pending: d.pending || [] }; }
-  catch (e) { return { accounts: [], tx: [], pending: [] }; }
+  try { const d = JSON.parse(fs.readFileSync(file(uid), 'utf8')); return { accounts: d.accounts || [], tx: d.tx || [], last: d.last || null }; }
+  catch (e) { return { accounts: [], tx: [], last: null }; }
 }
 function save(uid, d) {
   fs.mkdirSync(dir(), { recursive: true, mode: 0o700 });
@@ -30,6 +30,7 @@ function save(uid, d) {
 const removeAll = uid => { try { fs.unlinkSync(file(uid)); } catch (e) { /* ignore */ } };
 /* vue envoyée au navigateur (sans identifiants de session bancaire) */
 const view = d => ({
+  last: d.last || null,
   accounts: d.accounts.map(a => ({ id: a.id, provider: a.provider, name: a.name, bank: a.bank || '', iban: a.iban ? a.iban.replace(/^(.{4}).*(.{4})$/, '$1 •••• $2') : '', currency: a.currency || 'EUR',
     balance: a.balance, balanceAt: a.balanceAt || '', lastSync: a.lastSync || '', validUntil: a.validUntil || '', error: a.error || '' })),
   tx: d.tx
@@ -99,21 +100,46 @@ async function banks(country = 'FR') {
   banksCache = { at: Date.now(), list: (j.aspsps || []).map(a => ({ name: a.name, country: a.country, logo: a.logo || '', business: !Array.isArray(a.psu_types) || a.psu_types.includes('business') })).sort((a, b) => a.name.localeCompare(b.name, 'fr')) };
   return banksCache.list;
 }
+/* connexions en cours : état -> utilisateur (fichier commun, car le retour de la banque peut s'ouvrir
+   dans un autre navigateur ou dans l'application de la banque, où l'utilisateur n'est pas connecté à OptiDevis) */
+const pendFile = () => path.join(dir(), '_pending.json');
+function pendings() { try { return JSON.parse(fs.readFileSync(pendFile(), 'utf8')).filter(p => p.exp > Date.now()); } catch (e) { return []; } }
+function setPendings(list) { fs.mkdirSync(dir(), { recursive: true, mode: 0o700 }); fs.writeFileSync(pendFile(), JSON.stringify(list), { mode: 0o600 }); }
+function note(uid, ok, msg, n) { const d = load(uid); d.last = { at: new Date().toISOString(), ok, msg: String(msg || '').slice(0, 300), n: n || 0 }; save(uid, d); }
 async function startAuth(uid, bankName, redirectUrl, psuType) {
-  const d = load(uid), state = crypto.randomBytes(16).toString('hex');
+  const state = crypto.randomBytes(16).toString('hex');
   const validUntil = new Date(Date.now() + 179 * 864e5).toISOString();
-  const j = await eb('POST', '/auth', { access: { valid_until: validUntil }, aspsp: { name: bankName, country: 'FR' }, state, redirect_url: redirectUrl, psu_type: psuType === 'personal' ? 'personal' : 'business' });
-  d.pending = (d.pending || []).filter(p => p.exp > Date.now()).concat({ state, bank: bankName, exp: Date.now() + 30 * 60e3 });
-  save(uid, d);
+  const psu = psuType === 'personal' ? 'personal' : 'business';
+  const j = await eb('POST', '/auth', { access: { valid_until: validUntil }, aspsp: { name: bankName, country: 'FR' }, state, redirect_url: redirectUrl, psu_type: psu });
+  setPendings(pendings().concat({ state, uid: String(uid), bank: bankName, psu, exp: Date.now() + 60 * 60e3 }));
+  console.log('Banque : connexion demandée', bankName, psu);
   return j.url;
 }
-async function finishAuth(uid, code, state) {
-  const d = load(uid), p = (d.pending || []).find(x => x.state === state && x.exp > Date.now());
-  if (!p) throw Object.assign(new Error('Connexion expirée : recommencez.'), { status: 400 });
-  d.pending = d.pending.filter(x => x !== p);
-  const s = await eb('POST', '/sessions', { code });
+/* retour de la banque : renvoie l'id de l'utilisateur concerné */
+async function finishAuth(code, state, error) {
+  const all = pendings(), p = all.find(x => x.state === state);
+  if (!p) throw Object.assign(new Error('Lien de retour expiré ou déjà utilisé : recommencez la connexion depuis la Trésorerie.'), { status: 400 });
+  setPendings(all.filter(x => x !== p));
+  const uid = p.uid;
+  if (error || !code) { const msg = 'La banque a interrompu la connexion' + (error ? ' (' + error + ')' : '') + '. Recommencez, en choisissant le bon type de compte (professionnel ou personnel).'; note(uid, false, msg); console.error('Banque (retour) :', p.bank, error || 'sans code'); return { uid, ok: false, msg }; }
+  try {
+    const s = await eb('POST', '/sessions', { code });
+    let accounts = s.accounts || [];
+    if (!accounts.length && s.session_id) { try { const g = await eb('GET', '/sessions/' + encodeURIComponent(s.session_id)); accounts = g.accounts || []; } catch (e) { /* ignore */ } }
+    console.log('Banque : session ouverte', p.bank, accounts.length + ' compte(s)');
+    if (!accounts.length) { const msg = 'La banque n\'a partagé aucun compte. Recommencez et cochez votre compte professionnel au moment de l\'autorisation.'; note(uid, false, msg); return { uid, ok: false, msg }; }
+    await addAccounts(uid, p, s, accounts);
+    const r = await sync(uid, true), d = load(uid);
+    const n = d.accounts.filter(a => a.provider === 'enablebanking' && a.session === s.session_id).length;
+    const msg = r.errors.length ? 'Compte connecté, mais la banque refuse la lecture : ' + r.errors[0] : `${n} compte${n > 1 ? 's' : ''} connecté${n > 1 ? 's' : ''}, ${r.added} opération${r.added > 1 ? 's' : ''} récupérée${r.added > 1 ? 's' : ''}.`;
+    note(uid, !r.errors.length, msg, r.added);
+    return { uid, ok: !r.errors.length, msg };
+  } catch (e) { const msg = 'Connexion à la banque impossible : ' + e.message; note(uid, false, msg); console.error('Banque (retour) :', p.bank, e.message); return { uid, ok: false, msg }; }
+}
+async function addAccounts(uid, p, s, accounts) {
+  const d = load(uid);
   const validUntil = (s.access && s.access.valid_until) || '';
-  for (const a of s.accounts || []) {
+  for (const a of accounts) {
     const uidA = typeof a === 'string' ? a : a.uid; if (!uidA) continue;
     let acc = d.accounts.find(x => x.provider === 'enablebanking' && x.uid === uidA);
     const iban = (a.account_id && a.account_id.iban) || '';
@@ -125,7 +151,6 @@ async function finishAuth(uid, code, state) {
     Object.assign(acc, { session: s.session_id, bank: p.bank, name: a.name || a.product || (iban ? 'Compte ' + iban.slice(-4) : p.bank), iban, validUntil, error: '' });
   }
   save(uid, d);
-  await sync(uid, true);
 }
 const pickBalance = list => {
   const order = ['ITAV', 'CLAV', 'ITBD', 'XPCD', 'CLBD', 'OTHR'];
@@ -151,11 +176,20 @@ async function sync(uid, force) {
       const last = d.tx.filter(t => t.acc === acc.id && !t.pending).map(t => t.date).sort().pop();
       const from = last ? new Date(new Date(last) - 10 * 864e5).toISOString().slice(0, 10) : new Date(Date.now() - 365 * 864e5).toISOString().slice(0, 10);
       d.tx = d.tx.filter(t => !(t.acc === acc.id && t.pending));   // les opérations « en cours » sont remplacées à chaque fois
-      let key = '', pages = 0, list = [];
-      do {
-        const j = await eb('GET', `/accounts/${encodeURIComponent(acc.uid)}/transactions?date_from=${from}${key ? '&continuation_key=' + encodeURIComponent(key) : ''}`);
-        list = list.concat((j.transactions || []).map(ebTx)); key = j.continuation_key || ''; pages++;
-      } while (key && pages < 30);
+      const fetchAll = async since => {
+        let key = '', pages = 0, list = [];
+        do {
+          const j = await eb('GET', `/accounts/${encodeURIComponent(acc.uid)}/transactions?date_from=${since}${key ? '&continuation_key=' + encodeURIComponent(key) : ''}`);
+          list = list.concat((j.transactions || []).map(ebTx)); key = j.continuation_key || ''; pages++;
+        } while (key && pages < 30);
+        return list;
+      };
+      let list;
+      try { list = await fetchAll(from); }
+      catch (e) {   // certaines banques limitent l'historique (souvent 90 jours) : on réessaie plus court
+        if (last || e.code === 401 || e.code === 403 || e.code === 429) throw e;
+        list = await fetchAll(new Date(Date.now() - 89 * 864e5).toISOString().slice(0, 10));
+      }
       added += merge(d, acc.id, list);
       acc.lastSync = new Date().toISOString(); acc.error = '';
     } catch (e) { acc.error = e.message; errors.push(e.message); }
@@ -190,7 +224,7 @@ function patchTx(uid, ids, data) {
 function startAutoSync() {
   if (!ebConfigured()) return;
   const tick = async () => {
-    let files = []; try { files = fs.readdirSync(dir()).filter(f => f.endsWith('.json')); } catch (e) { return; }
+    let files = []; try { files = fs.readdirSync(dir()).filter(f => f.endsWith('.json') && !f.startsWith('_')); } catch (e) { return; }
     for (const f of files) {
       const uid = f.slice(0, -5), d = load(uid);
       if (!d.accounts.some(a => a.provider === 'enablebanking')) continue;

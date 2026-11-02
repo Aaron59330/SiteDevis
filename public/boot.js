@@ -22,6 +22,7 @@ async function startApp(me, params) {
     } catch (e) { toast(e.message); }
   } else if (params && params.get('checkout') === 'cancel') { view = 'billing'; toast('Paiement annulé'); }
   else if (params && params.get('bank') && window.trBankReturn) trBankReturn(params.get('bank'));
+  else { let b = null; try { b = sessionStorage.getItem('od-bank'); sessionStorage.removeItem('od-bank'); } catch (e) { /* ignore */ } if (b && window.trBankReturn) trBankReturn(b); }
   render();
   if (legacy && session.access.active) { save(); toast('Vos devis locaux ont été importés dans votre compte'); }
 }
@@ -47,6 +48,8 @@ async function startApp(me, params) {
   if (!me) { try { const sh = await api('GET', '/api/share/data'); return startViewer(sh); } catch (e) { /* pas d'accès comptable */ } }
   // retire les paramètres (?verified, ?reset…) ; garde la page de l'accueil (#/tarifs…) quand on n'est pas connecté
   history.replaceState({}, '', location.pathname + (me ? '' : (location.hash.match(/^#\/[\w-]*$/) || [''])[0]));
+  /* retour de la banque dans un navigateur non connecté : on ouvrira la Trésorerie après la connexion */
+  if (!me && p.get('bank')) { try { sessionStorage.setItem('od-bank', p.get('bank')); } catch (e) { /* ignore */ } }
   if (!me || mode === 'reset') return renderAuth(mode, { banner, token });
   await startApp(me, p);
 })();
