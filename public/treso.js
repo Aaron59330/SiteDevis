@@ -57,7 +57,7 @@
   };
 
   /* ---------- Données ---------- */
-  const ui = { data: null, loading: false, kind: 'all', cat: '', q: '', month: '', range: '90', limit: 80 };
+  const ui = { data: null, loading: false, kind: 'all', cat: '', q: '', month: '', range: '1', end: '', limit: 80 };
   const r2 = x => Math.round((x + Number.EPSILON) * 100) / 100;
   const txs = () => (ui.data ? ui.data.tx : []);
   async function load(force) {
@@ -95,29 +95,45 @@
 
   /* ---------- Graphiques ---------- */
   /* solde jour par jour, reconstitué à partir du solde actuel et des opérations */
-  function balanceSeries(days) {
+  /* période affichée : toujours des mois entiers, du 1er au dernier jour (1, 2, 3 ou 12 mois jusqu'au mois choisi) */
+  const lastDay = ym => { const [y, m] = ym.split('-').map(Number); return ym + '-' + String(new Date(y, m, 0).getDate()).padStart(2, '0'); };
+  function period() {
+    const cur = today().slice(0, 7), end = ui.end && ui.end <= cur ? ui.end : cur, n = Number(ui.range) || 1, start = ymAdd(end, 1 - n);
+    const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+    const label = n === 1 ? cap(ymLabel(end)) : start.slice(0, 4) === end.slice(0, 4) ? `${cap(ymShort(start))} – ${ymShort(end)} ${end.slice(0, 4)}` : `${cap(ymShort(start))} ${start.slice(0, 4)} – ${ymShort(end)} ${end.slice(0, 4)}`;
+    return { n, start, end, from: start + '-01', to: lastDay(end), label, isCur: end === cur };
+  }
+  function balanceSeries(from, to) {
     const accs = ui.data.accounts.filter(a => a.balance != null), ids = new Set(accs.map(a => a.id));
     let b = accs.reduce((s, a) => s + a.balance, 0);
     const L = txs().filter(t => ids.has(t.acc)).slice().sort((x, y) => y.date.localeCompare(x.date));
-    const out = []; let i = 0; const d = new Date(today() + 'T12:00:00');
-    for (let k = 0; k < days; k++) {
-      const iso = d.toISOString().slice(0, 10);
+    const now = today(), val = {}; let i = 0; const d = new Date((to < now ? to : now) + 'T12:00:00');
+    while (i < L.length && L[i].date > (to < now ? to : now)) { b -= L[i].amount; i++; }
+    for (;;) {   // du jour le plus récent vers le 1er du mois de départ
+      const iso = d.toISOString().slice(0, 10); if (iso < from) break;
       while (i < L.length && L[i].date > iso) { b -= L[i].amount; i++; }
-      out.push({ date: iso, v: r2(b) }); d.setDate(d.getDate() - 1);
+      val[iso] = r2(b); d.setDate(d.getDate() - 1);
     }
-    return out.reverse();
+    const out = [], e = new Date(from + 'T12:00:00');
+    for (;;) { const iso = e.toISOString().slice(0, 10); if (iso > to) break; out.push({ date: iso, v: iso <= now ? val[iso] : null }); e.setDate(e.getDate() + 1); }
+    return out;
   }
-  function areaChart(S) {
+  function areaChart(All) {
     const W = 760, H = 290, pad = { l: 8, r: 8, t: 22, b: 28 };
+    const S = All.filter(s => s.v != null);   // les jours à venir du mois restent vides
+    if (!S.length) return '<div class="empty">Aucune donnée sur cette période.</div>';
     const vals = S.map(s => s.v), max = Math.max(...vals, 0), min = Math.min(...vals, 0), span = (max - min) || 1;
-    const x = i => pad.l + (W - pad.l - pad.r) * i / Math.max(1, S.length - 1), y = v => pad.t + (H - pad.t - pad.b) * (1 - (v - min) / (span * 1.08));
+    const X = i => pad.l + (W - pad.l - pad.r) * i / Math.max(1, All.length - 1), x = i => X(i), y = v => pad.t + (H - pad.t - pad.b) * (1 - (v - min) / (span * 1.08));
     const pts = S.map((s, i) => `${x(i).toFixed(1)},${y(s.v).toFixed(1)}`).join(' ');
     let o = `<svg viewBox="0 0 ${W} ${H}" class="chart tr-area" role="img" aria-label="Évolution du solde"><defs><linearGradient id="trg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--accent)" stop-opacity=".35"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0"/></linearGradient></defs>`;
     for (let k = 0; k <= 3; k++) { const yy = pad.t + (H - pad.t - pad.b) * k / 3, v = min + span * 1.08 * (1 - k / 3); o += `<line x1="${pad.l}" x2="${W - pad.r}" y1="${yy}" y2="${yy}" class="gl"/><text x="${pad.l + 2}" y="${yy - 5}" class="lab tr-ylab">${Math.round(v).toLocaleString('fr-FR')} €</text>`; }
     if (min < 0) o += `<line x1="${pad.l}" x2="${W - pad.r}" y1="${y(0)}" y2="${y(0)}" class="gl zero"/>`;
     o += `<polygon points="${x(0)},${y(Math.max(min, 0))} ${pts} ${x(S.length - 1)},${y(Math.max(min, 0))}" fill="url(#trg)"/><polyline points="${pts}" class="tr-line" fill="none"/>`;
-    const step = Math.max(1, Math.round(S.length / 6));
-    S.forEach((s, i) => { if (i % step === 0 || i === S.length - 1) o += `<text x="${Math.min(W - 30, Math.max(24, x(i)))}" y="${H - 8}" text-anchor="middle" class="lab">${S.length > 120 ? ymShort(s.date.slice(0, 7)) : s.date.slice(8, 10) + '/' + s.date.slice(5, 7)}</text>`; });
+    /* graduations : 1, 5, 10… pour un mois ; le 1er de chaque mois au-delà */
+    const oneMonth = All.length <= 31;
+    All.forEach((s, i) => { const dd = s.date.slice(8, 10);
+      const show = oneMonth ? ['01', '05', '10', '15', '20', '25'].includes(dd) || i === All.length - 1 : dd === '01';
+      if (show) o += `${oneMonth ? '' : `<line x1="${X(i)}" x2="${X(i)}" y1="${pad.t}" y2="${H - pad.b}" class="gl tr-vgl"/>`}<text x="${Math.min(W - 18, Math.max(16, X(i) + (oneMonth ? 0 : (W - pad.l - pad.r) / All.length * 14)))}" y="${H - 8}" text-anchor="middle" class="lab">${oneMonth ? Number(dd) : ymShort(s.date.slice(0, 7))}</text>`; });
     S.forEach((s, i) => { if (i % Math.max(1, Math.round(S.length / 60)) === 0 || i === S.length - 1) o += `<circle cx="${x(i)}" cy="${y(s.v)}" r="7" class="tr-hit"><title>${fdate(s.date)} : ${money(s.v)}</title></circle>`; });
     const last = S[S.length - 1]; o += `<circle cx="${x(S.length - 1)}" cy="${y(last.v)}" r="4.5" class="tr-dot"/>`;
     return o + '</svg>';
@@ -164,8 +180,8 @@
     const pendingInv = db.quotes.filter(q => isInv(q) && q.status === 'envoye'), pendingAmt = pendingInv.reduce((s, q) => s + totals(q).due, 0);
     const billedYear = db.quotes.filter(q => isInv(q) && (q.status === 'envoye' || q.status === 'payee') && (q.date || '').slice(0, 4) === year).reduce((s, q) => s + totals(q).ttc, 0);
     /* dépenses par catégorie */
-    const days = ui.range === '30' ? 30 : ui.range === '365' ? 365 : 90, from = new Date(Date.now() - (days - 1) * 864e5).toISOString().slice(0, 10);
-    const byCat = {}; all.filter(t => t.amount < 0 && t.date >= from).forEach(t => { const c = catOf(t); byCat[c] = (byCat[c] || 0) - t.amount; });
+    const Pd = period(), from = Pd.from;
+    const byCat = {}; all.filter(t => t.amount < 0 && t.date >= from && t.date <= Pd.to).forEach(t => { const c = catOf(t); byCat[c] = (byCat[c] || 0) - t.amount; });
     const cats = Object.entries(byCat).sort((a, b) => b[1] - a[1]), catTot = cats.reduce((s, c) => s + c[1], 0) || 1;
 
     return head + lastBox + `
@@ -178,8 +194,11 @@
     </div>
     <div class="tr-grid">
       <div class="card"><div class="row between" style="flex-wrap:wrap;gap:8px"><h2 style="margin:0">Évolution de la trésorerie</h2>
-        <div class="seg2">${[['30', '30 j'], ['90', '3 mois'], ['365', '12 mois']].map(([k, l]) => `<button data-act="tr-range" data-r="${k}" class="${ui.range === k ? 'on' : ''}">${l}</button>`).join('')}</div></div>
-        ${noBal && !D.accounts.some(a => a.balance != null) ? '<div class="empty">Indiquez le solde actuel de votre compte pour tracer son évolution.<br><br><button class="btn" data-act="tr-accounts">Indiquer le solde</button></div>' : areaChart(balanceSeries(days))}</div>
+        <div class="seg2">${[['1', 'Mois'], ['2', '2 mois'], ['3', '3 mois'], ['12', '1 an']].map(([k, l]) => `<button data-act="tr-range" data-r="${k}" class="${ui.range === k ? 'on' : ''}">${l}</button>`).join('')}</div></div>
+        ${(() => { const BS = balanceSeries(Pd.from, Pd.to), known = BS.filter(s => s.v != null), d0 = known[0], d1 = known[known.length - 1], delta = d0 && d1 ? r2(d1.v - d0.v) : 0;
+          return `<div class="tr-per"><div class="monthnav"><button class="btn small" data-act="tr-per" data-d="-1" aria-label="Période précédente">‹</button><b>${esc(Pd.label)}</b><button class="btn small" data-act="tr-per" data-d="1" aria-label="Période suivante" ${Pd.isCur ? 'disabled' : ''}>›</button></div>
+            ${d0 ? `<span class="muted">${fdate(Pd.from)} → ${fdate(d1.date)} : <b class="${delta >= 0 ? 'pos' : 'neg'}">${delta >= 0 ? '+ ' : '− '}${money(Math.abs(delta))}</b></span>` : ''}</div>
+            ${noBal && !D.accounts.some(a => a.balance != null) ? '<div class="empty">Indiquez le solde actuel de votre compte pour tracer son évolution.<br><br><button class="btn" data-act="tr-accounts">Indiquer le solde</button></div>' : areaChart(BS)}`; })()}</div>
       <div class="card"><div class="row between"><h2 style="margin:0">Cagnottes</h2><button class="btn small" data-act="tr-env-new">＋ Cagnotte</button></div>
         <p class="muted" style="font-size:.8rem;margin:4px 0 12px">De l’argent mis de côté virtuellement : il reste sur votre compte mais n’est plus compté comme disponible.</p>
         <div class="tr-envs">${envs().map(e => { const v = envAmount(e), tg = num(e.target);
@@ -195,7 +214,7 @@
         <div class="tr-ca-rows"><div><span>Facturé en ${year}</span><b>${money(billedYear)}</b></div><div><span>Factures en attente de paiement (${pendingInv.length})</span><b>${money(pendingAmt)}</b></div>
         <div><span>Trésorerie prévue après encaissement</span><b>${money(bal + pendingAmt)}</b></div></div></div>
     </div>
-    <div class="card" style="margin-bottom:16px"><div class="row between" style="flex-wrap:wrap;gap:8px"><h2 style="margin:0">Dépenses par catégorie</h2><span class="muted" style="font-size:.85rem">${days === 30 ? '30 derniers jours' : days === 90 ? '3 derniers mois' : '12 derniers mois'} · ${money(cats.reduce((s, c) => s + c[1], 0))}</span></div>
+    <div class="card" style="margin-bottom:16px"><div class="row between" style="flex-wrap:wrap;gap:8px"><h2 style="margin:0">Dépenses par catégorie</h2><span class="muted" style="font-size:.85rem">${esc(Pd.label)} · ${money(cats.reduce((s, c) => s + c[1], 0))}</span></div>
       ${cats.length ? `<div class="tr-cats">${cats.map(([k, v]) => `<button class="tr-cat" data-act="tr-filter-cat" data-c="${k}"><span class="tr-dotc" style="background:${CAT[k].color}"></span><span class="grow">${esc(CAT[k].label)}</span><b>${money(v)}</b><span class="muted">${Math.round(v / catTot * 100)} %</span><span class="tr-bar"><i style="width:${v / catTot * 100}%;background:${CAT[k].color}"></i></span></button>`).join('')}</div>` : '<div class="empty">Aucune dépense sur la période.</div>'}</div>
     ${txList()}`;
   }
@@ -264,6 +283,7 @@
   }
   Object.assign(actions, {
     'tr-range'(b) { ui.range = b.dataset.r; render(); },
+    'tr-per'(b) { const P = period(), nx = ymAdd(P.end, Number(b.dataset.d) * P.n), cur = today().slice(0, 7); ui.end = nx > cur ? cur : nx; render(); },
     'tr-kind'(b) { ui.kind = b.dataset.k; ui.limit = 80; render(); },
     'tr-more'() { ui.limit += 150; render(); },
     'tr-filter-cat'(b) { ui.cat = b.dataset.c; ui.kind = 'all'; render(); setTimeout(() => { const l = $('#trList'); if (l) l.scrollIntoView({ behavior: 'smooth' }); }, 50); },
