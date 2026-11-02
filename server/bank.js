@@ -162,7 +162,7 @@ function ebTx(t) {
   const amt = Number(t.transaction_amount && t.transaction_amount.amount) * (t.credit_debit_indicator === 'DBIT' ? -1 : 1);
   const who = t.credit_debit_indicator === 'DBIT' ? t.creditor && t.creditor.name : t.debtor && t.debtor.name;
   const info = Array.isArray(t.remittance_information) ? t.remittance_information.join(' ') : String(t.remittance_information || '');
-  return { id: t.entry_reference || t.transaction_id || '', date: (t.booking_date || t.value_date || t.transaction_date || '').slice(0, 10), amount: amt, label: [who, info].filter(Boolean).join(' — ') || t.bank_transaction_code && t.bank_transaction_code.description || 'Opération', who: who || '', pending: t.status === 'PDNG' };
+  return { id: t.entry_reference || t.transaction_id || '', date: String(t.booking_date || t.value_date || t.transaction_date || t.booking_date_time || t.value_date_time || '').slice(0, 10), amount: amt, label: [who, info].filter(Boolean).join(' — ') || t.bank_transaction_code && t.bank_transaction_code.description || 'Opération', who: who || '', pending: t.status === 'PDNG' };
 }
 /* actualise les comptes connectés ; force = demande de l'utilisateur */
 async function sync(uid, force) {
@@ -176,10 +176,12 @@ async function sync(uid, force) {
       const last = d.tx.filter(t => t.acc === acc.id && !t.pending).map(t => t.date).sort().pop();
       const from = last ? new Date(new Date(last) - 10 * 864e5).toISOString().slice(0, 10) : new Date(Date.now() - 365 * 864e5).toISOString().slice(0, 10);
       d.tx = d.tx.filter(t => !(t.acc === acc.id && t.pending));   // les opérations « en cours » sont remplacées à chaque fois
+      let raw0 = '';
       const fetchAll = async since => {
         let key = '', pages = 0, list = [];
         do {
           const j = await eb('GET', `/accounts/${encodeURIComponent(acc.uid)}/transactions?date_from=${since}${key ? '&continuation_key=' + encodeURIComponent(key) : ''}`);
+          if (!pages) raw0 = Object.keys(j).join(',') + ((j.transactions || [])[0] ? ' | opération : ' + Object.keys(j.transactions[0]).join(',') : '');
           list = list.concat((j.transactions || []).map(ebTx)); key = j.continuation_key || ''; pages++;
         } while (key && pages < 30);
         return list;
@@ -190,7 +192,11 @@ async function sync(uid, force) {
         if (last || e.code === 401 || e.code === 403 || e.code === 429) throw e;
         list = await fetchAll(new Date(Date.now() - 89 * 864e5).toISOString().slice(0, 10));
       }
-      added += merge(d, acc.id, list);
+      const n0 = added; added += merge(d, acc.id, list);
+      /* journal de diagnostic (sans montants) : ce que la banque a renvoyé */
+      const bad = list.filter(t => !/^\d{4}-\d{2}-\d{2}$/.test(t.date)).length;
+      console.log(`Banque : lecture ${acc.bank || ''} — solde ${b != null ? 'reçu' : 'ABSENT (types : ' + (bal.balances || []).map(x => x.balance_type).join(',') + ')'}, ${list.length} opération(s) reçue(s) depuis ${from}, ${added - n0} nouvelle(s)${bad ? `, ${bad} sans date lisible` : ''}`);
+      if (!list.length && raw0) console.log('Banque : réponse vide, champs reçus :', raw0);
       acc.lastSync = new Date().toISOString(); acc.error = '';
     } catch (e) { acc.error = e.message; errors.push(e.message); }
   }
