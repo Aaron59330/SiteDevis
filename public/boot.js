@@ -21,6 +21,7 @@ async function startApp(me, params) {
       if (r.status === 'paid' && window.celebrate) celebrate(); toast(r.status === 'paid' ? '✓ Paiement confirmé, merci !' : 'Paiement en attente de confirmation…');
     } catch (e) { toast(e.message); }
   } else if (params && params.get('checkout') === 'cancel') { view = 'billing'; toast('Paiement annulé'); }
+  else if (params && params.get('bank') && window.trBankReturn) trBankReturn(params.get('bank'));
   render();
   if (legacy && session.access.active) { save(); toast('Vos devis locaux ont été importés dans votre compte'); }
 }

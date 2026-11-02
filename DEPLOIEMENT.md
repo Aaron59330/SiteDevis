@@ -32,6 +32,7 @@ Les clés se placent dans `/etc/sitedevis.env` sur le serveur : `nano /etc/sited
 | **Stripe** (stripe.com) | Encaisser les abonnements par carte | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` |
 | **Anthropic** (console.anthropic.com) | Relecture des devis par l'IA | `ANTHROPIC_API_KEY` (+ `ANTHROPIC_MODEL=claude-haiku-5-5` pour une option moins chère) |
 | **SerpApi** (serpapi.com) | Recherche automatique de prix de matériaux | `SERPAPI_KEY` |
+| **Enable Banking** (enablebanking.com) | Trésorerie : connexion automatique du compte bancaire (DSP2) | `ENABLEBANKING_APP_ID`, `ENABLEBANKING_KEY_FILE` |
 
 ### Resend (emails)
 1. Créez un compte, puis **Domains → Add Domain** avec votre domaine.
@@ -50,6 +51,17 @@ Dès qu'une clé Stripe est présente, le paiement de démonstration est désact
 1. Créez une clé sur console.anthropic.com et ajoutez du crédit (facturation à l'usage).
 2. Mettez-la dans `ANTHROPIC_API_KEY`, redémarrez : le bouton « Relire avec l'IA » apparaît dans les devis.
 3. Activation ou coupure à tout moment : Administration → Réglages.
+
+### Enable Banking (connexion bancaire de la Trésorerie)
+Sans cette configuration, la Trésorerie fonctionne avec l'import de relevés (CSV ou OFX téléchargés depuis la banque).
+1. Créez un compte sur enablebanking.com, puis **Applications → Register new application**, environnement **Production**.
+2. **Redirect URL** : `https://votre-domaine.fr/api/bank/callback`.
+3. Laissez Enable Banking **générer la clé privée** : un fichier `.pem` est téléchargé. Ne la donnez à personne (ni par email, ni dans une conversation).
+4. Copiez ce fichier sur le serveur, par exemple avec `scp fichier.pem root@IP:/etc/sitedevis-bank.pem`, puis :
+   `chown sitedevis /etc/sitedevis-bank.pem && chmod 600 /etc/sitedevis-bank.pem`
+5. Dans `/etc/sitedevis.env` : `ENABLEBANKING_APP_ID=` l'identifiant de l'application (affiché dans le tableau de bord) et `ENABLEBANKING_KEY_FILE=/etc/sitedevis-bank.pem`, puis `systemctl restart sitedevis`.
+6. Activation : dans le tableau de bord Enable Banking, **liez votre propre compte** (« Link accounts ») : l'application passe en mode restreint et peut lire les comptes liés. Pour l'ouvrir à tous vos abonnés, demandez la levée de restriction (contrat avec Enable Banking).
+7. Test : Trésorerie → **Connecter ma banque**. Les comptes s'actualisent ensuite automatiquement environ 3 fois par jour.
 
 ## Partie D — Réglages à faire dans le site (en administrateur)
 1. **Mon compte** : changez le mot de passe admin.

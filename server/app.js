@@ -12,6 +12,7 @@ const facturx = require('./facturx');
 const { zip } = require('./zip');
 const storefetch = require('./storefetch');
 const receipts = require('./receipts');
+const bank = require('./bank');
 const storefetchLookup = (...a) => storefetch.lookup(...a);
 let importFreeOk = false; importer.available().then(v => { importFreeOk = v; });
 const { db } = store;
@@ -181,7 +182,7 @@ async function handle(req, res, url) {
       if (origin && new URL(origin).host !== req.headers.host) throw err(403, 'Origine refusée.');
     }
     if (req.method !== 'GET' && req.method !== 'HEAD') {
-      ctx.raw = await readBody(req, url.pathname === '/api/data' ? 12e6 : url.pathname === '/api/pdf' || url.pathname === '/api/facturx' ? 7e6 : url.pathname === '/api/send-document' ? 7e6 : url.pathname === '/api/pdf/batch' ? 40e6 : url.pathname === '/api/import/pdf' ? 12e6 : url.pathname === '/api/import/photo' ? 22e6 : url.pathname === '/api/receipts' ? 14e6 : 1e6);
+      ctx.raw = await readBody(req, url.pathname === '/api/data' ? 12e6 : url.pathname === '/api/pdf' || url.pathname === '/api/facturx' ? 7e6 : url.pathname === '/api/send-document' ? 7e6 : url.pathname === '/api/pdf/batch' ? 40e6 : url.pathname === '/api/import/pdf' ? 12e6 : url.pathname === '/api/import/photo' ? 22e6 : url.pathname === '/api/receipts' ? 14e6 : url.pathname === '/api/bank/import' ? 8e6 : 1e6);
       if (r.auth !== 'webhook' && ctx.raw) { try { ctx.body = JSON.parse(ctx.raw); } catch (e) { throw err(400, 'JSON invalide.'); } }
     }
     if (r.auth === 'share' || r.auth === 'any') {
@@ -564,6 +565,44 @@ route('GET', '/api/share/data', 'share', ctx => {
   return { share: { name: sh.name, email: sh.email, perms: sh.perms, expiresAt: sh.expiresAt || '', owner: (d.company && d.company.name) || (owner && owner.name) || '' }, data };
 });
 
+/* ---------- Trésorerie : comptes bancaires et opérations ---------- */
+const bankErr = e => { if (e instanceof HttpError) throw e; throw err(e.status && e.status < 500 ? e.status : 502, e.message || 'Banque indisponible.'); };
+route('GET', '/api/bank', 'user', ctx => ({ ...bank.view(bank.load(ctx.user.id)), connect: bank.ebConfigured() }));
+route('GET', '/api/bank/banks', 'user', async () => { if (!bank.ebConfigured()) throw err(501, 'La connexion bancaire n\'est pas activée sur ce serveur.'); try { return { banks: await bank.banks('FR') }; } catch (e) { bankErr(e); } });
+route('POST', '/api/bank/connect', 'user', async ctx => {
+  if (!bank.ebConfigured()) throw err(501, 'La connexion bancaire n\'est pas activée sur ce serveur.');
+  if (!access(ctx.user).active) throw err(402, 'Un abonnement actif est nécessaire.', { code: 'payment_required' });
+  limit('bankc:' + ctx.user.id, 10, 3600e3);
+  const name = str(ctx.body.bank, 120); if (!name) throw err(400, 'Choisissez votre banque.');
+  try { return ok({ url: await bank.startAuth(ctx.user.id, name, APP_URL() + '/api/bank/callback', ctx.body.psu) }); } catch (e) { bankErr(e); }
+});
+route('GET', '/api/bank/callback', 'user', async ctx => {
+  const q = ctx.query;
+  if (q.error || !q.code) return { redirect: '/?bank=' + encodeURIComponent(q.error_description || q.error || 'annule') };
+  try { await bank.finishAuth(ctx.user.id, str(q.code, 400), str(q.state, 64)); return { redirect: '/?bank=ok' }; }
+  catch (e) { console.error('Banque (retour) :', e.message); return { redirect: '/?bank=' + encodeURIComponent(e.message) }; }
+});
+route('POST', '/api/bank/sync', 'user', async ctx => {
+  limit('banks:' + ctx.user.id, 12, 3600e3);
+  try { const r = await bank.sync(ctx.user.id, true); return ok({ ...r, ...bank.view(bank.load(ctx.user.id)) }); } catch (e) { bankErr(e); }
+});
+route('POST', '/api/bank/import', 'user', ctx => {
+  if (!access(ctx.user).active) throw err(402, 'Un abonnement actif est nécessaire.', { code: 'payment_required' });
+  limit('banki:' + ctx.user.id, 60, 3600e3);
+  try { const r = bank.importStatement(ctx.user.id, ctx.body || {}); return ok({ ...r, ...bank.view(bank.load(ctx.user.id)) }); } catch (e) { bankErr(e); }
+});
+route('PATCH', '/api/bank/accounts/:id', 'user', ctx => {
+  const d = bank.updateAccount(ctx.user.id, ctx.params.id, ctx.body || {}); if (!d) throw err(404, 'Compte introuvable.');
+  return ok(bank.view(d));
+});
+route('DELETE', '/api/bank/accounts/:id', 'user', async ctx => { await bank.removeAccount(ctx.user.id, ctx.params.id); return ok(bank.view(bank.load(ctx.user.id))); });
+route('PATCH', '/api/bank/tx', 'user', ctx => {
+  const ids = Array.isArray(ctx.body.ids) ? ctx.body.ids.map(String).slice(0, 5000) : [];
+  const data = {}; ['cat', 'note', 'link'].forEach(k => { if (k in (ctx.body.set || {})) data[k] = ctx.body.set[k]; });
+  return ok({ n: bank.patchTx(ctx.user.id, ids, data) });
+});
+bank.startAutoSync();
+
 /* ---------- Relecture IA des devis ---------- */
 route('POST', '/api/ai/review', 'user', async ctx => {
   if (db.settings.aiEnabled === false) throw err(503, 'La relecture n\'est pas activée.');
@@ -694,6 +733,7 @@ route('POST', '/api/me/password', 'user', ctx => {
 
 function deleteUser(u) {
   receipts.removeAll(u.id);
+  bank.removeAll(u.id);
   db.shares = (db.shares || []).filter(x => x.ownerId !== u.id);
   db.users = db.users.filter(x => x !== u);
   db.sessions = db.sessions.filter(s => s.userId !== u.id);
