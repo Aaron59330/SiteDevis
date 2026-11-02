@@ -36,6 +36,9 @@ echo
 # ---------- 1. Identifiant de l'application ----------
 CUR="${1:-$(envval ENABLEBANKING_APP_ID || true)}"
 read -r -p "Identifiant de l'application (Application ID)${CUR:+ [$CUR]} : " APPID
+# chemin de la clé tapé ici par erreur : on garde l'identifiant proposé et on utilise ce chemin pour la clé
+KEYPATH=""
+if [[ "$APPID" == /* || "$APPID" == *.pem ]]; then KEYPATH="$APPID"; APPID=""; fi
 APPID="$(printf '%s' "${APPID:-$CUR}" | tr -d '"')"
 # un identifiant Enable Banking ressemble à abb7e4cc-b615-438a-b0b5-0f0df1daec77 : on le retrouve même au milieu d'autre texte collé
 UUID="$(printf '%s' "$APPID" | grep -oiE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1 || true)"
@@ -47,7 +50,7 @@ echo
 echo "Clé privée : deux possibilités"
 echo "  a) le fichier est déjà sur le serveur (envoyé avec scp) : indiquez son chemin, ex. /root/cle.pem"
 echo "  b) laissez vide puis COLLEZ le contenu du fichier .pem (de -----BEGIN à -----END … KEY-----)"
-read -r -p "Chemin du fichier .pem (vide = coller) : " SRC
+if [ -n "$KEYPATH" ]; then SRC="$KEYPATH"; echo "Chemin du fichier .pem : $SRC"; else read -r -p "Chemin du fichier .pem (vide = coller) : " SRC; fi
 TMP="$(mktemp)"; chmod 600 "$TMP"; trap 'rm -f "$TMP"' EXIT
 if [ -n "$SRC" ]; then
   [ -f "$SRC" ] || { echo "Fichier introuvable : $SRC"; exit 1; }
