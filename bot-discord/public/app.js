@@ -2,16 +2,16 @@ const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const state = { user: null, csrf: "", clientId: "", guilds: [], guildId: "", guild: null, config: null, page: "overview", dirty: false, botReady: false };
 const defaults = {
-  welcome: { enabled: false, channelId: "", message: "👋 Bienvenue {user} sur **{server}** ! Nous sommes maintenant {memberCount}.", imageUrl: "", embedColor: "#7c6cff", embedEnabled: true, avatarEnabled: false, avatarUrl: "", footerEnabled: false, footerText: "" },
+  welcome: { enabled: false, channelId: "", message: "👋 Bienvenue {user} sur **{server}** ! Nous sommes maintenant {memberCount}.", imageUrl: "", embedColor: "#81aadf", embedEnabled: true, avatarEnabled: false, avatarUrl: "", footerEnabled: false, footerText: "" },
   autorole: { enabled: false, roleId: "" },
   tickets: { enabled: false, panelChannelId: "", categoryId: "", supportRoleId: "", panelTitle: "Besoin d’aide ?", panelDescription: "Choisis le type de ta demande.", imageUrl: "", ticketTypes: [
     { id: "question", label: "Question", description: "J’ai une question sur le serveur.", emoji: "❓", formQuestion: "Quelle est ta question ?" },
     { id: "support", label: "Aide / support", description: "J’ai besoin d’aide avec un problème.", emoji: "🛟", formQuestion: "Décris le problème et ce que tu as déjà essayé." },
     { id: "report", label: "Signaler un problème", description: "Je souhaite signaler un incident.", emoji: "🚩", formQuestion: "Décris l’incident et indique les éléments utiles." }
-  ], embedColor: "#7c6cff", formsEnabled: false, claimEnabled: false, transcriptsEnabled: false, reopenEnabled: false, autoCloseEnabled: false, autoCloseDays: 7, logsEnabled: false, logChannelId: "" },
+  ], embedColor: "#81aadf", formsEnabled: false, claimEnabled: false, transcriptsEnabled: false, reopenEnabled: false, autoCloseEnabled: false, autoCloseDays: 7, logsEnabled: false, logChannelId: "" },
   anonymous: { enabled: false, channelId: "" },
   commands: { clearMessages: false, slowmode: false, userInfo: false, serverInfo: false, avatar: false },
-  fivem: { enabled: false, host: "", port: 30120, protocol: "http", connectUrl: "", panelEnabled: false, panelChannelId: "", panelMessageId: "", panelTitle: "État du serveur FiveM", embedColor: "#7c6cff", autoRefresh: false, refreshSeconds: 60, commandEnabled: false }
+  fivem: { enabled: false, host: "", port: 30120, protocol: "http", connectUrl: "", panelEnabled: false, panelChannelId: "", panelMessageId: "", panelTitle: "État du serveur FiveM", embedColor: "#81aadf", autoRefresh: false, refreshSeconds: 60, commandEnabled: false }
 };
 
 function escapeHtml(value) {
@@ -172,7 +172,7 @@ function renderConfig() {
   $("#anonymousEnabled").checked = config.anonymous?.enabled === true;
   $("#welcomeMessage").value = config.welcome.message;
   $("#welcomeImageUrl").value = config.welcome.imageUrl || "";
-  $("#welcomeEmbedColor").value = config.welcome.embedColor || "#7c6cff";
+  $("#welcomeEmbedColor").value = config.welcome.embedColor || "#81aadf";
   $("#welcomeEmbedEnabled").checked = config.welcome.embedEnabled !== false;
   $("#welcomeAvatarEnabled").checked = config.welcome.avatarEnabled === true;
   $("#welcomeAvatarUrl").value = config.welcome.avatarUrl || "";
@@ -181,7 +181,7 @@ function renderConfig() {
   $("#ticketTitle").value = config.tickets.panelTitle;
   $("#ticketDescription").value = config.tickets.panelDescription;
   $("#ticketImageUrl").value = config.tickets.imageUrl || "";
-  $("#ticketEmbedColor").value = config.tickets.embedColor || "#7c6cff";
+  $("#ticketEmbedColor").value = config.tickets.embedColor || "#81aadf";
   $("#ticketFormsEnabled").checked = config.tickets.formsEnabled === true;
   $("#ticketClaimEnabled").checked = config.tickets.claimEnabled === true;
   $("#ticketTranscriptsEnabled").checked = config.tickets.transcriptsEnabled === true;
@@ -201,7 +201,7 @@ function renderConfig() {
   $("#fivemConnectUrl").value = config.fivem?.connectUrl || "";
   $("#fivemPanelEnabled").checked = config.fivem?.panelEnabled === true;
   $("#fivemPanelTitle").value = config.fivem?.panelTitle || "État du serveur FiveM";
-  $("#fivemEmbedColor").value = config.fivem?.embedColor || "#7c6cff";
+  $("#fivemEmbedColor").value = config.fivem?.embedColor || "#81aadf";
   $("#fivemEmbedColorValue").textContent = $("#fivemEmbedColor").value;
   $("#fivemAutoRefresh").checked = config.fivem?.autoRefresh === true;
   $("#fivemRefreshSeconds").value = config.fivem?.refreshSeconds || 60;
@@ -456,7 +456,7 @@ function resetMessageComposer() {
   $("#messageEmbedImage").value = "";
   $("#messageEmbedImagePosition").value = "image";
   $("#messageEmbedFooter").value = "";
-  $("#messageEmbedColor").value = "#7c6cff";
+  $("#messageEmbedColor").value = "#81aadf";
   $("#messageSentLink").hidden = true;
   renderMessageButtons([]);
   updateComposerPreview();

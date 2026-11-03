@@ -91,7 +91,7 @@ function pollPayload(poll) {
   const total = [...counts.values()].reduce((sum, count) => sum + count, 0);
   const closed = Boolean(poll.closed_at) || (poll.ends_at && poll.ends_at <= Date.now());
   const lines = poll.options.map((option, index) => `**${index + 1}. ${option}** — ${counts.get(index) || 0} vote(s)`).join("\n");
-  const embed = new EmbedBuilder().setColor(parseInt((poll.embed_color || "#ff941c").slice(1), 16)).setTitle(poll.question)
+  const embed = new EmbedBuilder().setColor(parseInt((poll.embed_color || "#3566a6").slice(1), 16)).setTitle(poll.question)
     .setDescription(`${lines}\n\n**Total : ${total} vote(s)**${poll.ends_at ? `\nFin : <t:${Math.floor(poll.ends_at / 1000)}:R>` : ""}`)
     .setFooter({ text: closed ? "Sondage clôturé · Les résultats restent consultables." : "Clique sur un choix pour voter · Ton vote peut être modifié." });
   if (poll.image_url) embed.setImage(poll.image_url);
@@ -123,7 +123,7 @@ export async function publishPoll(guildId, input) {
   if (!permissions?.has(PermissionFlagsBits.SendMessages) || !permissions.has(PermissionFlagsBits.EmbedLinks)) throw new Error("Le bot doit pouvoir envoyer des messages et intégrer des liens dans ce salon.");
   const poll = {
     id: crypto.randomUUID(), guildId, channelId: input.channelId, question: input.question,
-    optionsJson: JSON.stringify(input.options), embedColor: input.embedColor || "#ff941c", imageUrl: input.imageUrl || "",
+    optionsJson: JSON.stringify(input.options), embedColor: input.embedColor || "#3566a6", imageUrl: input.imageUrl || "",
     createdBy: input.createdBy, createdAt: Date.now(),
     endsAt: Date.now() + input.durationHours * 60 * 60 * 1000
   };
@@ -144,7 +144,7 @@ export async function finishPoll(pollId) {
 
 function giveawayPayload(giveaway, ended = false) {
   const entries = getGiveawayEntryCount(giveaway.id);
-  const embed = new EmbedBuilder().setColor(parseInt((giveaway.embed_color || "#ff941c").slice(1), 16)).setTitle("🎁 Tirage au sort")
+  const embed = new EmbedBuilder().setColor(parseInt((giveaway.embed_color || "#3566a6").slice(1), 16)).setTitle("🎁 Tirage au sort")
     .setDescription(`**Lot : ${giveaway.prize}**\n\nGagnant(s) : **${giveaway.winners_count}**\nParticipants : **${entries}**${ended ? "\n\n🔒 **Terminé**" : `\n\nFin : <t:${Math.floor(giveaway.ends_at / 1000)}:R>`}`)
     .setFooter({ text: ended ? "Tirage terminé" : "Clique sur Participer pour t’inscrire." });
   if (giveaway.image_url) embed.setImage(giveaway.image_url);
@@ -175,7 +175,7 @@ export async function publishGiveaway(guildId, input) {
   const giveaway = {
     id: crypto.randomUUID(), guild_id: guildId, channel_id: input.channelId, message_id: "",
     prize: input.prize, winners_count: input.winnersCount, created_by: input.createdBy,
-    embed_color: input.embedColor || "#ff941c", image_url: input.imageUrl || "",
+    embed_color: input.embedColor || "#3566a6", image_url: input.imageUrl || "",
     created_at: Date.now(), ends_at: Date.now() + input.durationHours * 60 * 60 * 1000,
     ended_at: null, winners_json: "[]"
   };

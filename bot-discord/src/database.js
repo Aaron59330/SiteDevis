@@ -32,7 +32,7 @@ db.exec(`
     message_id TEXT NOT NULL DEFAULT '',
     question TEXT NOT NULL,
     options_json TEXT NOT NULL,
-    embed_color TEXT NOT NULL DEFAULT '#ff941c',
+    embed_color TEXT NOT NULL DEFAULT '#3566a6',
     image_url TEXT NOT NULL DEFAULT '',
     created_by TEXT NOT NULL,
     created_at INTEGER NOT NULL,
@@ -62,7 +62,7 @@ db.exec(`
     message_id TEXT NOT NULL DEFAULT '',
     prize TEXT NOT NULL,
     winners_count INTEGER NOT NULL,
-    embed_color TEXT NOT NULL DEFAULT '#ff941c',
+    embed_color TEXT NOT NULL DEFAULT '#3566a6',
     image_url TEXT NOT NULL DEFAULT '',
     created_by TEXT NOT NULL,
     created_at INTEGER NOT NULL,
@@ -91,7 +91,7 @@ if (!ticketColumns.has("claimed_by")) db.exec("ALTER TABLE tickets ADD COLUMN cl
 if (!ticketColumns.has("ticket_type")) db.exec("ALTER TABLE tickets ADD COLUMN ticket_type TEXT NOT NULL DEFAULT ''");
 for (const table of ["polls", "giveaways"]) {
   const columns = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map(column => column.name));
-  if (!columns.has("embed_color")) db.exec(`ALTER TABLE ${table} ADD COLUMN embed_color TEXT NOT NULL DEFAULT '#ff941c'`);
+  if (!columns.has("embed_color")) db.exec(`ALTER TABLE ${table} ADD COLUMN embed_color TEXT NOT NULL DEFAULT '#3566a6'`);
   if (!columns.has("image_url")) db.exec(`ALTER TABLE ${table} ADD COLUMN image_url TEXT NOT NULL DEFAULT ''`);
 }
 

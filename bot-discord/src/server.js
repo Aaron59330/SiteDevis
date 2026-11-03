@@ -259,7 +259,7 @@ app.post("/api/guilds/:guildId/polls", requireAuth, requireCsrf, requireGuildAcc
     if (options.length < 2 || options.some(option => !option)) return res.status(400).json({ error: "Un sondage doit avoir entre 2 et 10 choix non vides." });
     if (new Set(options.map(option => option.toLocaleLowerCase("fr-FR"))).size !== options.length) return res.status(400).json({ error: "Les choix du sondage doivent être différents." });
     if (!Number.isInteger(durationHours) || durationHours < 1 || durationHours > 720) return res.status(400).json({ error: "La durée du vote doit être comprise entre 1 et 720 heures." });
-    const embedColor = String(req.body?.embedColor || "#ff941c");
+    const embedColor = String(req.body?.embedColor || "#3566a6");
     const imageUrl = String(req.body?.imageUrl || "").trim();
     if (!/^#[0-9a-fA-F]{6}$/.test(embedColor)) return res.status(400).json({ error: "Choisis une couleur d’embed valide." });
     if (imageUrl && (imageUrl.length > 2048 || !isHttpsUrl(imageUrl))) return res.status(400).json({ error: "L’image doit utiliser une URL HTTPS valide (2 048 caractères maximum)." });
@@ -289,7 +289,7 @@ app.post("/api/guilds/:guildId/giveaways", requireAuth, requireCsrf, requireGuil
     if (!prize) return res.status(400).json({ error: "Décris le lot à gagner." });
     if (!Number.isInteger(durationHours) || durationHours < 1 || durationHours > 720) return res.status(400).json({ error: "La durée du tirage doit être comprise entre 1 et 720 heures." });
     if (!Number.isInteger(winnersCount) || winnersCount < 1 || winnersCount > 10) return res.status(400).json({ error: "Choisis entre 1 et 10 gagnants." });
-    const embedColor = String(req.body?.embedColor || "#ff941c");
+    const embedColor = String(req.body?.embedColor || "#3566a6");
     const imageUrl = String(req.body?.imageUrl || "").trim();
     if (!/^#[0-9a-fA-F]{6}$/.test(embedColor)) return res.status(400).json({ error: "Choisis une couleur d’embed valide." });
     if (imageUrl && (imageUrl.length > 2048 || !isHttpsUrl(imageUrl))) return res.status(400).json({ error: "L’image doit utiliser une URL HTTPS valide (2 048 caractères maximum)." });
@@ -347,7 +347,7 @@ app.post("/api/guilds/:guildId/messages", requireAuth, requireCsrf, requireGuild
       embedEnabled: input.embedEnabled === true,
       embedTitle: text(input.embedTitle, 256),
       embedDescription: text(input.embedDescription, 4096),
-      embedColor: /^#[0-9a-fA-F]{6}$/.test(String(input.embedColor ?? "")) ? String(input.embedColor).toLowerCase() : "#7c6cff",
+      embedColor: /^#[0-9a-fA-F]{6}$/.test(String(input.embedColor ?? "")) ? String(input.embedColor).toLowerCase() : "#81aadf",
       embedImageUrl: text(input.embedImageUrl, 2048),
       embedImagePosition: input.embedImagePosition === "thumbnail" ? "thumbnail" : "image",
       embedFooter: text(input.embedFooter, 2048),
