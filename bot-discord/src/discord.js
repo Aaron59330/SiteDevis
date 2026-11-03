@@ -859,3 +859,34 @@ export function botGuildSummary(guildId) {
       .map(role => ({ id: role.id, name: role.name, color: role.hexColor, assignable: botCanManageRoles && role.position < botHighestRole && canGrantWithButton(role, guild) }))
   };
 }
+
+/* ---------- Profil du bot propre à chaque serveur (pseudo, avatar, bannière, bio) ---------- */
+export function botProfile(guildId) {
+  const guild = bot.guilds.cache.get(guildId);
+  if (!guild || !bot.user) return null;
+  const me = guild.members.me;
+  return {
+    username: bot.user.username,
+    globalName: bot.user.globalName || bot.user.username,
+    defaultAvatar: bot.user.displayAvatarURL({ size: 256 }),
+    defaultBanner: typeof bot.user.bannerURL === "function" ? (bot.user.bannerURL({ size: 600 }) || "") : "",
+    nick: me?.nickname || "",
+    avatar: me?.avatar ? me.avatarURL({ size: 256 }) : "",
+    banner: me?.banner && typeof me.bannerURL === "function" ? (me.bannerURL({ size: 600 }) || "") : "",
+    canChangeNick: Boolean(me?.permissions.has(PermissionFlagsBits.ChangeNickname))
+  };
+}
+export async function updateBotProfile(guildId, changes) {
+  const guild = bot.guilds.cache.get(guildId);
+  if (!guild) throw new Error("Le bot n’est pas présent sur ce serveur.");
+  const options = {};
+  for (const key of ["nick", "bio", "avatar", "banner"]) if (changes[key] !== undefined) options[key] = changes[key] || null;
+  if (!Object.keys(options).length) return;
+  try { await guild.members.editMe({ ...options, reason: "Profil modifié depuis le panneau AERO BOT" }); }
+  catch (error) {
+    const message = String(error?.message || "");
+    if (error?.status === 429 || /rate|too fast|trop/i.test(message)) throw new Error("Discord limite les changements d’avatar et de bannière : réessaie dans quelques minutes.");
+    if (error?.status === 403 || /Missing Permissions/i.test(message)) throw new Error("Le bot n’a pas la permission « Changer le pseudo » sur ce serveur.");
+    throw new Error("Discord a refusé la modification : " + message.slice(0, 160));
+  }
+}

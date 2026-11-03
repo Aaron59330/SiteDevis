@@ -14,7 +14,7 @@ import {
 import { sanitizeConfig } from "./config.js";
 import {
   bot, botGuildSummary, fetchFiveMStatus, finishGiveaway, finishPoll, publishCustomMessage,
-  publishFiveMStatusPanel, publishGiveaway, publishPoll, publishTicketPanel, syncGuildCommands
+  publishFiveMStatusPanel, publishGiveaway, publishPoll, publishTicketPanel, syncGuildCommands, botProfile, updateBotProfile
 } from "./discord.js";
 
 const required = ["DISCORD_TOKEN", "DISCORD_CLIENT_ID", "DISCORD_CLIENT_SECRET", "SESSION_SECRET"];
@@ -52,7 +52,8 @@ app.use(helmet({ contentSecurityPolicy: {
     ...(production ? { upgradeInsecureRequests: [] } : {})
   }
 } }));
-app.use(express.json({ limit: "32kb" }));
+const smallJson = express.json({ limit: "32kb" }), imageJson = express.json({ limit: "14mb" });
+app.use((req, res, next) => (/^\/api\/guilds\/\d{17,20}\/profile$/.test(req.path) ? imageJson : smallJson)(req, res, next));
 app.use(session({
   name: "atelier.sid",
   secret: process.env.SESSION_SECRET,
@@ -387,6 +388,42 @@ app.post("/api/guilds/:guildId/messages", requireAuth, requireCsrf, requireGuild
     const message = await publishCustomMessage(req.params.guildId, data);
     addLog(req.params.guildId, "panneau", "Message personnalisé envoyé", `#${bot.guilds.cache.get(req.params.guildId)?.channels.cache.get(message.channelId)?.name || "?"}`, panelActor(req));
     res.json({ ok: true, channelId: message.channelId, messageId: message.id, url: `https://discord.com/channels/${req.params.guildId}/${message.channelId}/${message.id}` });
+  } catch (error) { next(error); }
+});
+
+/* Profil du bot sur ce serveur */
+const profileHits = new Map();
+app.get("/api/guilds/:guildId/profile", requireAuth, requireGuildAccess, (req, res) => {
+  const profile = botProfile(req.params.guildId);
+  if (!profile) return res.status(409).json({ error: "Le bot n’est pas présent sur ce serveur." });
+  res.json({ ...profile, bio: getGuildConfig(req.params.guildId).profile?.bio || "" });
+});
+app.put("/api/guilds/:guildId/profile", requireAuth, requireCsrf, requireGuildAccess, async (req, res, next) => {
+  try {
+    if (!botProfile(req.params.guildId)) return res.status(409).json({ error: "Le bot n’est pas présent sur ce serveur." });
+    const now = Date.now(), hits = (profileHits.get(req.params.guildId) || []).filter(t => now - t < 10 * 60e3);
+    if (hits.length >= 8) return res.status(429).json({ error: "Trop de modifications : attends quelques minutes." });
+    hits.push(now); profileHits.set(req.params.guildId, hits);
+    const b = req.body || {}, changes = {}, done = [];
+    const image = (value, label) => {
+      if (value === undefined) return undefined;                  // inchangé
+      if (value === null || value === "") return null;            // retour à l'image par défaut
+      const m = /^data:image\/(png|jpeg|gif|webp);base64,([A-Za-z0-9+/=]+)$/.exec(String(value));
+      if (!m) throw Object.assign(new Error(`${label} : choisis une image PNG, JPG, GIF ou WebP.`), { status: 400 });
+      if (Buffer.byteLength(m[2], "base64") > 8 * 1024 * 1024) throw Object.assign(new Error(`${label} : 8 Mo maximum.`), { status: 400 });
+      return String(value);
+    };
+    if (b.nick !== undefined) { changes.nick = String(b.nick).trim().slice(0, 32); done.push(changes.nick ? `nom « ${changes.nick} »` : "nom par défaut"); }
+    if (b.bio !== undefined) { changes.bio = String(b.bio).trim().slice(0, 190); done.push("bio"); }
+    try { changes.avatar = image(b.avatar, "Avatar"); changes.banner = image(b.banner, "Bannière"); }
+    catch (error) { return res.status(error.status || 400).json({ error: error.message }); }
+    if (changes.avatar !== undefined) done.push(changes.avatar ? "avatar" : "avatar par défaut");
+    if (changes.banner !== undefined) done.push(changes.banner ? "bannière" : "bannière par défaut");
+    try { await updateBotProfile(req.params.guildId, changes); }
+    catch (error) { return res.status(400).json({ error: error.message }); }
+    if (changes.bio !== undefined) { const config = getGuildConfig(req.params.guildId); config.profile = { bio: changes.bio }; saveGuildConfig(req.params.guildId, config); }
+    if (done.length) addLog(req.params.guildId, "panneau", "Profil du bot modifié", done.join(", "), panelActor(req));
+    res.json({ ok: true, ...botProfile(req.params.guildId), bio: getGuildConfig(req.params.guildId).profile?.bio || "" });
   } catch (error) { next(error); }
 });
 

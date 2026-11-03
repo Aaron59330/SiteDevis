@@ -120,6 +120,7 @@ async function selectGuild(guildId) {
     state.config = result.config;
     renderConfig();
     if (state.page === "logs") loadLogs(true);
+    if (state.page === "profile") loadProfile();
   } catch (error) {
     showToast(error.message, true);
   }
@@ -602,6 +603,7 @@ function switchPage(page) {
   $("#breadcrumbTitle").textContent = item?.textContent || "Vue d’ensemble";
   if (page === "animations") loadActivities();
   if (page === "logs") loadLogs(true);
+  if (page === "profile") loadProfile();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -864,3 +866,86 @@ $("#logSearch").addEventListener("input", event => { clearTimeout(logState.searc
 $("#logMore").addEventListener("click", () => loadLogs(false));
 $("#logsRefresh").addEventListener("click", () => loadLogs(true));
 setInterval(() => { if (state.page === "logs" && $("#logLive").checked && !document.hidden && !logState.q) loadLogs(true); }, 15000);
+
+/* ---------- Profil du bot sur ce serveur ---------- */
+const profileState = { data: null, avatar: undefined, banner: undefined };   // undefined = inchangé, null = par défaut, chaîne = nouvelle image
+function profileImg(el, url, fallbackText = "") { el.style.backgroundImage = url ? `url("${url.replace(/"/g, "%22")}")` : ""; el.classList.toggle("empty", !url); el.textContent = url ? "" : fallbackText; }
+function renderProfilePreview() {
+  const d = profileState.data || {};
+  const nick = $("#profileNick").value.trim(), bio = $("#profileBio").value.trim();
+  const avatar = profileState.avatar === undefined ? (d.avatar || d.defaultAvatar) : (profileState.avatar || d.defaultAvatar);
+  const banner = profileState.banner === undefined ? (d.banner || d.defaultBanner) : (profileState.banner || d.defaultBanner);
+  $("#profilePreviewName").textContent = nick || d.globalName || "AERO BOT";
+  $("#profilePreviewUser").textContent = d.username || "";
+  $("#profilePreviewBio").textContent = bio || "—";
+  profileImg($("#profilePreviewAvatar"), avatar, "A");
+  profileImg($("#profilePreviewBanner"), banner);
+  profileImg($("#profileAvatarThumb"), avatar, "A");
+  profileImg($("#profileBannerThumb"), banner);
+  $("#profileNickCount").textContent = `${nick.length} / 32`;
+  $("#profileBioCount").textContent = `${bio.length} / 190`;
+}
+async function loadProfile() {
+  profileState.avatar = undefined; profileState.banner = undefined;
+  if (!state.guildId) return;
+  try {
+    const d = await api(`/api/guilds/${state.guildId}/profile`);
+    profileState.data = d;
+    $("#profileNick").value = d.nick || ""; $("#profileNick").placeholder = d.globalName || "AERO BOT";
+    $("#profileDefaultName").textContent = d.globalName || "AERO BOT";
+    $("#profileBio").value = d.bio || "";
+    $("#profileNickWarn").hidden = d.canChangeNick !== false;
+    renderProfilePreview();
+  } catch (error) { showToast(error.message, true); }
+}
+/* image -> data URL ; redimensionnée sauf GIF (animé) */
+function readImage(file, maxW, maxH) {
+  return new Promise((resolve, reject) => {
+    if (!file) return reject(new Error("Aucun fichier."));
+    if (!/^image\/(png|jpeg|gif|webp)$/.test(file.type)) return reject(new Error("Choisis une image PNG, JPG, GIF ou WebP."));
+    if (file.size > 8 * 1024 * 1024) return reject(new Error("Image trop lourde (8 Mo maximum)."));
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Lecture de l’image impossible."));
+    reader.onload = () => {
+      if (file.type === "image/gif") return resolve(reader.result);
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxW / img.width, maxH / img.height);
+        if (scale === 1) return resolve(reader.result);
+        const canvas = document.createElement("canvas"); canvas.width = Math.round(img.width * scale); canvas.height = Math.round(img.height * scale);
+        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL(file.type === "image/jpeg" ? "image/jpeg" : "image/png", 0.9));
+      };
+      img.onerror = () => reject(new Error("Image illisible."));
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+$("#profileAvatarFile").addEventListener("change", async event => { try { profileState.avatar = await readImage(event.target.files[0], 1024, 1024); renderProfilePreview(); } catch (error) { showToast(error.message, true); } event.target.value = ""; });
+$("#profileBannerFile").addEventListener("change", async event => { try { profileState.banner = await readImage(event.target.files[0], 1360, 480); renderProfilePreview(); } catch (error) { showToast(error.message, true); } event.target.value = ""; });
+$("#profileAvatarClear").addEventListener("click", () => { profileState.avatar = null; renderProfilePreview(); });
+$("#profileBannerClear").addEventListener("click", () => { profileState.banner = null; renderProfilePreview(); });
+$("#profileNick").addEventListener("input", renderProfilePreview);
+$("#profileBio").addEventListener("input", renderProfilePreview);
+async function saveProfile(body, button) {
+  if (!state.guildId) return showToast("Choisis d’abord un serveur.", true);
+  const original = button.innerHTML; button.disabled = true; button.textContent = "Enregistrement…";
+  try {
+    const d = await api(`/api/guilds/${state.guildId}/profile`, { method: "PUT", body: JSON.stringify(body) });
+    profileState.data = d; profileState.avatar = undefined; profileState.banner = undefined;
+    $("#profileNick").value = d.nick || ""; $("#profileBio").value = d.bio || "";
+    renderProfilePreview(); showToast("Profil du bot mis à jour sur ce serveur.");
+  } catch (error) { showToast(error.message, true); }
+  finally { button.disabled = false; button.innerHTML = original; }
+}
+$("#profileSave").addEventListener("click", event => {
+  const body = { nick: $("#profileNick").value.trim(), bio: $("#profileBio").value.trim() };
+  if (profileState.avatar !== undefined) body.avatar = profileState.avatar;
+  if (profileState.banner !== undefined) body.banner = profileState.banner;
+  saveProfile(body, event.currentTarget);
+});
+$("#profileReset").addEventListener("click", event => {
+  if (!confirm("Rétablir le nom, la bio, l’avatar et la bannière par défaut sur ce serveur ?")) return;
+  saveProfile({ nick: "", bio: "", avatar: null, banner: null }, event.currentTarget);
+});

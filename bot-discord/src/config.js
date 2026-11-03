@@ -43,6 +43,9 @@ export const defaultConfig = {
     enabled: false,
     channelId: ""
   },
+  profile: {
+    bio: ""
+  },
   commands: {
     clearMessages: false,
     slowmode: false,
@@ -126,6 +129,9 @@ export function sanitizeConfig(input = {}) {
       logsEnabled: input.tickets?.logsEnabled === true,
       logChannelId: id(input.tickets?.logChannelId),
       ticketTypes: ticketTypes.length ? ticketTypes : structuredClone(defaultConfig.tickets.ticketTypes)
+    },
+    profile: {
+      bio: text(input.profile?.bio, 190)
     },
     anonymous: {
       enabled: input.anonymous?.enabled === true,

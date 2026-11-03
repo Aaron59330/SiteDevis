@@ -134,3 +134,22 @@ body{background:#101010;color:#f4f4f4}.sidebar{background:#0b0b0b;border-right-c
 .log-more{display:flex;justify-content:center;padding-top:14px}
 #logsBadge{background:#3566a633;color:#8db3e8}
 @media(max-width:650px){.log-row{flex-wrap:wrap}.log-row time{min-width:0;text-align:left;margin-left:42px;padding:0}.log-tag{margin-left:0}}
+
+/* ===== Profil du bot ===== */
+.profile-upload{display:flex;align-items:center;gap:12px}
+.profile-upload-actions{display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+.profile-upload-actions .text-link{margin-top:0}
+.profile-avatar-thumb,.profile-banner-thumb,.profile-card-avatar,.profile-card-banner{background:#1e2533 center/cover no-repeat;display:grid;place-items:center;color:#8db3e8;font-weight:800}
+.profile-avatar-thumb{width:56px;height:56px;border-radius:50%;flex:none}
+.profile-banner-thumb{width:110px;height:40px;border-radius:8px;flex:none}
+.profile-banner-thumb.empty,.profile-card-banner.empty{background:linear-gradient(120deg,#3566a6,#2a5287)}
+.profile-preview-label{margin:2px 0 8px;color:#6f7786;font-size:8px;font-weight:700;letter-spacing:1px}
+.profile-card{position:relative;overflow:hidden;border:1px solid #2a2f39;border-radius:12px;background:#111214}
+.profile-card-banner{height:84px}
+.profile-card-avatar{position:absolute;top:44px;left:14px;width:72px;height:72px;border-radius:50%;border:6px solid #111214;font-size:24px}
+.profile-card-body{padding:40px 14px 16px}
+.profile-card-name{display:flex;align-items:center;gap:6px}.profile-card-name b{color:#f2f3f5;font-size:16px}
+.profile-card-body small{color:#a7acb5;font-size:11px}
+.profile-card-sep{height:1px;margin:12px 0;background:#2a2d33}
+.profile-card-title{color:#d6d9de;font-size:9px;font-weight:700;letter-spacing:.6px;margin-bottom:5px}
+.profile-card-body p{margin:0;color:#c8ccd2;font-size:11px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
