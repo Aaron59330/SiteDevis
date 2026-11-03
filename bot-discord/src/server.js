@@ -1,0 +1,403 @@
+import "dotenv/config";
+import crypto from "node:crypto";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import express from "express";
+import session from "express-session";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
+import { PermissionFlagsBits } from "discord.js";
+import {
+  db, getGiveaway, getGuildConfig, getPoll, getPollVoteCounts, getPollVoteHistory, getPollVoteHistoryCount, listGiveaways, listPolls,
+  saveGuildConfig, SQLiteSessionStore
+} from "./database.js";
+import { sanitizeConfig } from "./config.js";
+import {
+  bot, botGuildSummary, fetchFiveMStatus, finishGiveaway, finishPoll, publishCustomMessage,
+  publishFiveMStatusPanel, publishGiveaway, publishPoll, publishTicketPanel, syncGuildCommands
+} from "./discord.js";
+
+const required = ["DISCORD_TOKEN", "DISCORD_CLIENT_ID", "DISCORD_CLIENT_SECRET", "SESSION_SECRET"];
+function isHttpsUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && Boolean(url.hostname);
+  }
+  catch { return false; }
+}
+const missing = required.filter(key => !process.env[key]);
+if (missing.length) {
+  console.error(`Configuration manquante : ${missing.join(", ")}. Copiez .env.example vers .env puis complétez les valeurs.`);
+  process.exit(1);
+}
+
+const app = express();
+const port = Number(process.env.PORT || 3000);
+const baseUrl = (process.env.BASE_URL || `http://localhost:${port}`).replace(/\/$/, "");
+const redirectUri = process.env.DISCORD_REDIRECT_URI || `${baseUrl}/auth/callback`;
+const publicDir = fileURLToPath(new URL("../public/", import.meta.url));
+const production = process.env.NODE_ENV === "production";
+if (production) app.set("trust proxy", 1);
+
+app.disable("x-powered-by");
+app.use(helmet({ contentSecurityPolicy: {
+  directives: {
+    defaultSrc: ["'self'"],
+    scriptSrc: ["'self'"],
+    styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+    fontSrc: ["'self'", "https://fonts.gstatic.com"],
+    imgSrc: ["'self'", "data:", "https://cdn.discordapp.com"],
+    connectSrc: ["'self'"],
+    objectSrc: ["'none'"],
+    ...(production ? { upgradeInsecureRequests: [] } : {})
+  }
+} }));
+app.use(express.json({ limit: "32kb" }));
+app.use(session({
+  name: "atelier.sid",
+  secret: process.env.SESSION_SECRET,
+  store: new SQLiteSessionStore(db),
+  resave: false,
+  saveUninitialized: false,
+  cookie: { httpOnly: true, sameSite: "lax", secure: production, maxAge: 7 * 24 * 60 * 60 * 1000 }
+}));
+app.use(express.static(publicDir, { maxAge: production ? "1h" : 0 }));
+
+const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 30, standardHeaders: "draft-8", legacyHeaders: false });
+const apiLimiter = rateLimit({ windowMs: 60 * 1000, limit: 90, standardHeaders: "draft-8", legacyHeaders: false });
+app.use("/auth", loginLimiter);
+app.use("/api", apiLimiter);
+
+function requireAuth(req, res, next) {
+  if (!req.session.user) return res.status(401).json({ error: "Connecte-toi avec Discord pour continuer." });
+  next();
+}
+
+function requireCsrf(req, res, next) {
+  const sent = req.get("x-csrf-token");
+  const expected = req.session.csrfToken;
+  if (!sent || !expected || sent.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(sent), Buffer.from(expected))) {
+    return res.status(403).json({ error: "Session expirée. Recharge la page et réessaie." });
+  }
+  next();
+}
+
+function userCanManage(req, guildId) {
+  const guild = req.session.guilds?.find(item => item.id === guildId);
+  if (!guild) return false;
+  try {
+    const permissions = BigInt(guild.permissions || "0");
+    return (permissions & 0x8n) === 0x8n || (permissions & 0x20n) === 0x20n;
+  } catch { return false; }
+}
+
+function requireGuildAccess(req, res, next) {
+  if (!/^\d{17,20}$/.test(req.params.guildId) || !userCanManage(req, req.params.guildId)) {
+    return res.status(403).json({ error: "Tu dois avoir la permission Gérer le serveur ou Administrateur." });
+  }
+  next();
+}
+
+async function discordFetch(path, init = {}) {
+  const response = await fetch(`https://discord.com/api/v10${path}`, init);
+  if (!response.ok) throw new Error(`Discord API (${response.status})`);
+  return response.json();
+}
+
+app.get("/auth/discord", (req, res) => {
+  const state = crypto.randomBytes(24).toString("hex");
+  req.session.oauthState = state;
+  const params = new URLSearchParams({
+    client_id: process.env.DISCORD_CLIENT_ID,
+    redirect_uri: redirectUri,
+    response_type: "code",
+    scope: "identify guilds",
+    state
+  });
+  res.redirect(`https://discord.com/oauth2/authorize?${params}`);
+});
+
+app.get("/auth/callback", async (req, res, next) => {
+  const { code, state, error } = req.query;
+  if (error) return res.redirect("/?login=cancelled");
+  if (!code || !state || !req.session.oauthState || state !== req.session.oauthState) return res.redirect("/?login=failed");
+  delete req.session.oauthState;
+  try {
+    const tokenResponse = await fetch("https://discord.com/api/v10/oauth2/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: process.env.DISCORD_CLIENT_ID,
+        client_secret: process.env.DISCORD_CLIENT_SECRET,
+        grant_type: "authorization_code",
+        code: String(code),
+        redirect_uri: redirectUri
+      })
+    });
+    if (!tokenResponse.ok) throw new Error("Échange du code OAuth impossible.");
+    const tokenData = await tokenResponse.json();
+    const headers = { Authorization: `${tokenData.token_type} ${tokenData.access_token}` };
+    const [user, guilds] = await Promise.all([
+      discordFetch("/users/@me", { headers }),
+      discordFetch("/users/@me/guilds", { headers })
+    ]);
+    await new Promise((resolve, reject) => req.session.regenerate(error => error ? reject(error) : resolve()));
+    req.session.user = { id: user.id, username: user.global_name || user.username, avatar: user.avatar };
+    req.session.guilds = guilds;
+    req.session.csrfToken = crypto.randomBytes(32).toString("hex");
+    res.redirect("/");
+  } catch (err) { next(err); }
+});
+
+app.post("/auth/logout", requireAuth, requireCsrf, (req, res) => {
+  req.session.destroy(error => {
+    if (error) return res.status(500).json({ error: "Impossible de fermer la session." });
+    res.clearCookie("atelier.sid", { httpOnly: true, sameSite: "lax", secure: production });
+    res.json({ ok: true });
+  });
+});
+
+app.get("/api/me", (req, res) => {
+  if (!req.session.user) return res.json({ authenticated: false, botReady: bot.isReady() });
+  const manageable = (req.session.guilds || []).filter(guild => userCanManage(req, guild.id));
+  const guilds = manageable.map(guild => {
+    const available = botGuildSummary(guild.id);
+    return {
+      id: guild.id,
+      name: guild.name,
+      icon: guild.icon ? `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png?size=64` : null,
+      botInstalled: Boolean(available),
+      memberCount: available?.memberCount || null
+    };
+  });
+  res.json({ authenticated: true, user: req.session.user, csrfToken: req.session.csrfToken, botReady: bot.isReady(), clientId: process.env.DISCORD_CLIENT_ID, guilds });
+});
+
+app.get("/api/guilds/:guildId", requireAuth, requireGuildAccess, (req, res) => {
+  const summary = botGuildSummary(req.params.guildId);
+  if (!summary) return res.status(409).json({ error: "Le bot n’est pas encore présent sur ce serveur." });
+  res.json({ config: getGuildConfig(req.params.guildId), guild: summary });
+});
+
+app.put("/api/guilds/:guildId/config", requireAuth, requireCsrf, requireGuildAccess, async (req, res) => {
+  const summary = botGuildSummary(req.params.guildId);
+  if (!summary) return res.status(409).json({ error: "Le bot n’est pas présent sur ce serveur." });
+  const config = sanitizeConfig(req.body);
+  const channelIds = new Set(summary.channels.map(channel => channel.id));
+  const categoryIds = new Set(summary.categories.map(channel => channel.id));
+  const roleIds = new Set(summary.roles.map(role => role.id));
+  const assignableRoleIds = new Set(summary.roles.filter(role => role.assignable).map(role => role.id));
+  if (config.welcome.enabled && !config.welcome.channelId) return res.status(400).json({ error: "Choisis un salon avant d’activer le message d’arrivée." });
+  if (config.autorole.enabled && !config.autorole.roleId) return res.status(400).json({ error: "Choisis un rôle avant d’activer l’auto-rôle." });
+  if (config.tickets.enabled && !config.tickets.panelChannelId) return res.status(400).json({ error: "Choisis un salon avant d’activer les tickets." });
+  if (config.anonymous.enabled && !config.anonymous.channelId) return res.status(400).json({ error: "Choisis un salon avant d’activer les messages anonymes." });
+  if ((config.tickets.logsEnabled || config.tickets.transcriptsEnabled) && !config.tickets.logChannelId) return res.status(400).json({ error: "Choisis un salon de logs avant d’activer les journaux ou les transcriptions." });
+  if (config.welcome.channelId && !channelIds.has(config.welcome.channelId)) return res.status(400).json({ error: "Choisis un salon de texte existant pour le message d’arrivée." });
+  if (config.autorole.roleId && !roleIds.has(config.autorole.roleId)) return res.status(400).json({ error: "Choisis un rôle existant pour l’auto-rôle." });
+  if (config.autorole.roleId && !assignableRoleIds.has(config.autorole.roleId)) return res.status(400).json({ error: "Place le rôle du bot au-dessus du rôle d’auto-rôle dans Discord." });
+  if (config.tickets.panelChannelId && !channelIds.has(config.tickets.panelChannelId)) return res.status(400).json({ error: "Choisis un salon de texte existant pour le panneau de tickets." });
+  if (config.anonymous.channelId) {
+    if (!channelIds.has(config.anonymous.channelId)) return res.status(400).json({ error: "Choisis un salon textuel existant pour les messages anonymes." });
+    const channel = bot.guilds.cache.get(req.params.guildId)?.channels.cache.get(config.anonymous.channelId);
+    const permissions = channel?.permissionsFor(bot.user);
+    if (config.anonymous.enabled && (!permissions?.has(PermissionFlagsBits.SendMessages) || !permissions.has(PermissionFlagsBits.ManageMessages) || !permissions.has(PermissionFlagsBits.AttachFiles))) {
+      return res.status(400).json({ error: "Dans le salon anonyme, le bot doit pouvoir envoyer des messages, gérer les messages et joindre des fichiers." });
+    }
+  }
+  if (config.tickets.logChannelId && !channelIds.has(config.tickets.logChannelId)) return res.status(400).json({ error: "Choisis un salon de texte existant pour les journaux." });
+  if (config.tickets.categoryId && !categoryIds.has(config.tickets.categoryId)) return res.status(400).json({ error: "Choisis une catégorie existante pour les tickets." });
+  if (config.tickets.supportRoleId && !roleIds.has(config.tickets.supportRoleId)) return res.status(400).json({ error: "Choisis un rôle existant pour le support." });
+  if (config.fivem.enabled && !config.fivem.host) return res.status(400).json({ error: "Indique l’adresse IP ou le nom d’hôte de ton serveur FiveM." });
+  if (config.fivem.panelEnabled && !config.fivem.panelChannelId) return res.status(400).json({ error: "Choisis un salon pour publier le statut FiveM." });
+  if (config.fivem.panelChannelId && !channelIds.has(config.fivem.panelChannelId)) return res.status(400).json({ error: "Choisis un salon textuel existant pour le statut FiveM." });
+  saveGuildConfig(req.params.guildId, config);
+  let commandsSynced = true;
+  try { await syncGuildCommands(req.params.guildId, config); }
+  catch (error) {
+    commandsSynced = false;
+    console.error(`Synchronisation des commandes impossible sur ${req.params.guildId}:`, error.message);
+  }
+  res.json({ ok: true, config, commandsSynced });
+});
+
+app.post("/api/guilds/:guildId/tickets/publish", requireAuth, requireCsrf, requireGuildAccess, async (req, res, next) => {
+  try {
+    const config = getGuildConfig(req.params.guildId);
+    if (!config.tickets.enabled) return res.status(400).json({ error: "Active les tickets et enregistre la configuration avant de publier." });
+    if (!config.tickets.panelChannelId) return res.status(400).json({ error: "Choisis le salon où publier le panneau." });
+    const message = await publishTicketPanel(req.params.guildId, config);
+    res.json({ ok: true, channelId: message.channelId, messageId: message.id });
+  } catch (error) { next(error); }
+});
+
+app.get("/api/guilds/:guildId/activities", requireAuth, requireGuildAccess, (req, res) => {
+  const guild = botGuildSummary(req.params.guildId);
+  if (!guild) return res.status(409).json({ error: "Le bot n’est pas présent sur ce serveur." });
+  const polls = listPolls(req.params.guildId).map(poll => {
+    const counts = getPollVoteCounts(poll.id);
+    const totalVotes = counts.reduce((sum, row) => sum + row.count, 0);
+    return { ...poll, totalVotes, counts, voteChangesCount: getPollVoteHistoryCount(poll.id), voteHistory: getPollVoteHistory(poll.id, 25) };
+  });
+  const giveaways = listGiveaways(req.params.guildId).map(item => {
+    let winners = [];
+    try { winners = JSON.parse(item.winners_json || "[]"); } catch { /* Garde un historique lisible si des données anciennes sont invalides. */ }
+    return { ...item, winners };
+  });
+  res.json({ polls, giveaways });
+});
+
+app.post("/api/guilds/:guildId/polls", requireAuth, requireCsrf, requireGuildAccess, async (req, res, next) => {
+  try {
+    const summary = botGuildSummary(req.params.guildId);
+    if (!summary) return res.status(409).json({ error: "Le bot n’est pas présent sur ce serveur." });
+    const channelId = /^\d{17,20}$/.test(String(req.body?.channelId ?? "")) ? String(req.body.channelId) : "";
+    if (!summary.channels.some(channel => channel.id === channelId)) return res.status(400).json({ error: "Choisis un salon textuel valide." });
+    const question = String(req.body?.question ?? "").trim().slice(0, 200);
+    const options = Array.isArray(req.body?.options) ? req.body.options.slice(0, 10).map(item => String(item ?? "").trim().slice(0, 60)) : [];
+    const durationHours = Number.parseInt(req.body?.durationHours, 10);
+    if (!question) return res.status(400).json({ error: "Écris la question du sondage." });
+    if (options.length < 2 || options.some(option => !option)) return res.status(400).json({ error: "Un sondage doit avoir entre 2 et 10 choix non vides." });
+    if (new Set(options.map(option => option.toLocaleLowerCase("fr-FR"))).size !== options.length) return res.status(400).json({ error: "Les choix du sondage doivent être différents." });
+    if (!Number.isInteger(durationHours) || durationHours < 1 || durationHours > 720) return res.status(400).json({ error: "La durée du vote doit être comprise entre 1 et 720 heures." });
+    const embedColor = String(req.body?.embedColor || "#ff941c");
+    const imageUrl = String(req.body?.imageUrl || "").trim();
+    if (!/^#[0-9a-fA-F]{6}$/.test(embedColor)) return res.status(400).json({ error: "Choisis une couleur d’embed valide." });
+    if (imageUrl && (imageUrl.length > 2048 || !isHttpsUrl(imageUrl))) return res.status(400).json({ error: "L’image doit utiliser une URL HTTPS valide (2 048 caractères maximum)." });
+    const result = await publishPoll(req.params.guildId, { channelId, question, options, durationHours, embedColor, imageUrl, createdBy: req.session.user.id });
+    res.json({ ok: true, pollId: result.pollId, messageId: result.message.id });
+  } catch (error) { next(error); }
+});
+
+app.post("/api/guilds/:guildId/polls/:pollId/close", requireAuth, requireCsrf, requireGuildAccess, async (req, res, next) => {
+  try {
+    const poll = getPoll(req.params.pollId);
+    if (!poll || poll.guild_id !== req.params.guildId) return res.status(404).json({ error: "Sondage introuvable." });
+    const closed = await finishPoll(poll.id);
+    res.json({ ok: true, closed });
+  } catch (error) { next(error); }
+});
+
+app.post("/api/guilds/:guildId/giveaways", requireAuth, requireCsrf, requireGuildAccess, async (req, res, next) => {
+  try {
+    const summary = botGuildSummary(req.params.guildId);
+    if (!summary) return res.status(409).json({ error: "Le bot n’est pas présent sur ce serveur." });
+    const channelId = /^\d{17,20}$/.test(String(req.body?.channelId ?? "")) ? String(req.body.channelId) : "";
+    if (!summary.channels.some(channel => channel.id === channelId)) return res.status(400).json({ error: "Choisis un salon textuel valide." });
+    const prize = String(req.body?.prize ?? "").trim().slice(0, 200);
+    const durationHours = Number.parseInt(req.body?.durationHours, 10);
+    const winnersCount = Number.parseInt(req.body?.winnersCount, 10);
+    if (!prize) return res.status(400).json({ error: "Décris le lot à gagner." });
+    if (!Number.isInteger(durationHours) || durationHours < 1 || durationHours > 720) return res.status(400).json({ error: "La durée du tirage doit être comprise entre 1 et 720 heures." });
+    if (!Number.isInteger(winnersCount) || winnersCount < 1 || winnersCount > 10) return res.status(400).json({ error: "Choisis entre 1 et 10 gagnants." });
+    const embedColor = String(req.body?.embedColor || "#ff941c");
+    const imageUrl = String(req.body?.imageUrl || "").trim();
+    if (!/^#[0-9a-fA-F]{6}$/.test(embedColor)) return res.status(400).json({ error: "Choisis une couleur d’embed valide." });
+    if (imageUrl && (imageUrl.length > 2048 || !isHttpsUrl(imageUrl))) return res.status(400).json({ error: "L’image doit utiliser une URL HTTPS valide (2 048 caractères maximum)." });
+    const result = await publishGiveaway(req.params.guildId, { channelId, prize, durationHours, winnersCount, embedColor, imageUrl, createdBy: req.session.user.id });
+    res.json({ ok: true, giveawayId: result.giveawayId, messageId: result.message.id });
+  } catch (error) { next(error); }
+});
+
+app.post("/api/guilds/:guildId/giveaways/:giveawayId/end", requireAuth, requireCsrf, requireGuildAccess, async (req, res, next) => {
+  try {
+    const giveaway = getGiveaway(req.params.giveawayId);
+    if (!giveaway || giveaway.guild_id !== req.params.guildId) return res.status(404).json({ error: "Tirage introuvable." });
+    const result = await finishGiveaway(giveaway.id);
+    res.json({ ok: true, ...result });
+  } catch (error) { next(error); }
+});
+
+app.post("/api/guilds/:guildId/fivem/test", requireAuth, requireCsrf, requireGuildAccess, async (req, res, next) => {
+  try {
+    const config = getGuildConfig(req.params.guildId);
+    if (!config.fivem.host) return res.status(400).json({ error: "Enregistre d’abord l’adresse de ton serveur FiveM." });
+    const status = await fetchFiveMStatus(config.fivem);
+    res.json({ ok: true, status });
+  } catch (error) { res.status(400).json({ error: error.message || "Impossible de lire le serveur FiveM." }); }
+});
+
+app.post("/api/guilds/:guildId/fivem/publish", requireAuth, requireCsrf, requireGuildAccess, async (req, res, next) => {
+  try {
+    const config = getGuildConfig(req.params.guildId);
+    if (!config.fivem.enabled) return res.status(400).json({ error: "Active puis enregistre le module FiveM avant de publier." });
+    if (!config.fivem.panelEnabled) return res.status(400).json({ error: "Active puis enregistre le panneau de statut FiveM." });
+    if (!config.fivem.panelChannelId) return res.status(400).json({ error: "Choisis puis enregistre le salon du panneau FiveM." });
+    const message = await publishFiveMStatusPanel(req.params.guildId, config.fivem, config.fivem.panelMessageId);
+    config.fivem.panelMessageId = message.id;
+    saveGuildConfig(req.params.guildId, config);
+    res.json({ ok: true, channelId: message.channelId, messageId: message.id });
+  } catch (error) { next(error); }
+});
+
+app.post("/api/guilds/:guildId/messages", requireAuth, requireCsrf, requireGuildAccess, async (req, res, next) => {
+  try {
+    const guild = botGuildSummary(req.params.guildId);
+    if (!guild) return res.status(409).json({ error: "Le bot n’est pas présent sur ce serveur." });
+    const input = req.body || {};
+    const text = (value, max) => String(value ?? "").trim().slice(0, max);
+    const isHttps = value => {
+      try { return new URL(value).protocol === "https:"; }
+      catch { return false; }
+    };
+    const channelId = /^\d{17,20}$/.test(String(input.channelId ?? "")) ? String(input.channelId) : "";
+    if (!guild.channels.some(channel => channel.id === channelId)) return res.status(400).json({ error: "Choisis un salon de texte valide." });
+    const data = {
+      channelId,
+      content: text(input.content, 2000),
+      embedEnabled: input.embedEnabled === true,
+      embedTitle: text(input.embedTitle, 256),
+      embedDescription: text(input.embedDescription, 4096),
+      embedColor: /^#[0-9a-fA-F]{6}$/.test(String(input.embedColor ?? "")) ? String(input.embedColor).toLowerCase() : "#7c6cff",
+      embedImageUrl: text(input.embedImageUrl, 2048),
+      embedImagePosition: input.embedImagePosition === "thumbnail" ? "thumbnail" : "image",
+      embedFooter: text(input.embedFooter, 2048),
+      buttons: Array.isArray(input.buttons) ? input.buttons.slice(0, 5).map(button => ({
+        label: text(button?.label, 80),
+        type: button?.type === "role" ? "role" : "link",
+        url: text(button?.url, 512),
+        roleId: /^\d{17,20}$/.test(String(button?.roleId ?? "")) ? String(button.roleId) : ""
+      })) : []
+    };
+    if (data.embedImageUrl && !isHttps(data.embedImageUrl)) return res.status(400).json({ error: "L’image doit utiliser un lien HTTPS." });
+    for (const button of data.buttons) {
+      if (!button.label) return res.status(400).json({ error: "Chaque bouton doit avoir un libellé." });
+      if (button.type === "role") {
+        if (!button.roleId) return res.status(400).json({ error: "Choisis un rôle pour chaque bouton de rôle." });
+        if (!guild.roles.some(role => role.id === button.roleId && role.assignable)) return res.status(400).json({ error: "Le rôle choisi n’est pas attribuable par le bot. Vérifie la permission Gérer les rôles et la hiérarchie des rôles." });
+        continue;
+      }
+      let validUrl = false;
+      try { const parsed = new URL(button.url); validUrl = ["https:", "http:"].includes(parsed.protocol); }
+      catch { validUrl = false; }
+      if (!validUrl) return res.status(400).json({ error: "Chaque bouton lien doit avoir une URL HTTP ou HTTPS valide." });
+    }
+    const hasEmbedContent = Boolean(data.embedTitle || data.embedDescription || data.embedImageUrl || data.embedFooter);
+    if (!data.content && !(data.embedEnabled && hasEmbedContent) && !data.buttons.length) return res.status(400).json({ error: "Ajoute un texte, un embed ou au moins un bouton." });
+    const message = await publishCustomMessage(req.params.guildId, data);
+    res.json({ ok: true, channelId: message.channelId, messageId: message.id, url: `https://discord.com/channels/${req.params.guildId}/${message.channelId}/${message.id}` });
+  } catch (error) { next(error); }
+});
+
+app.get("/api/status", (req, res) => res.json({ botReady: bot.isReady(), uptime: bot.uptime }));
+app.get(/.*/, (req, res) => res.sendFile(path.join(publicDir, "index.html")));
+
+app.use((error, req, res, _next) => {
+  console.error(error);
+  if (res.headersSent) return;
+  res.status(500).json({ error: error.message?.startsWith("Discord API") ? "Discord ne répond pas pour le moment. Réessaie dans un instant." : "Une erreur est survenue. Vérifie les réglages du bot et réessaie." });
+});
+
+const server = app.listen(port, process.env.HOST || "0.0.0.0", () => console.log(`Panneau web prêt sur ${baseUrl}`));
+bot.login(process.env.DISCORD_TOKEN).catch(error => {
+  console.error("Connexion Discord impossible :", error.message);
+  server.close(() => process.exit(1));
+});
+
+function shutdown() {
+  server.close();
+  bot.destroy();
+  db.close();
+  process.exit(0);
+}
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);

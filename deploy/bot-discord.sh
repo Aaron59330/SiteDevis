@@ -3,13 +3,15 @@
 # utilisateur système à part, Node.js 24 à part (le site garde sa version), service systemd « discordbot »,
 # panneau web non exposé sur Internet (accès par tunnel SSH depuis votre ordinateur).
 #
-# 1) Depuis votre ordinateur :  scp BotDiscord.zip root@IP_DU_VPS:/root/BotDiscord.zip
-# 2) Sur le VPS (root)        :  bash deploy/bot-discord.sh /root/BotDiscord.zip
-# Relancer le script avec un nouveau zip = mise à jour du code (configuration .env et base de données conservées).
+# Le code du bot est rangé dans le dossier bot-discord/ de ce dépôt.
+# Installation ou mise à jour (root) :  cd ~/sitedevis && git pull && bash deploy/bot-discord.sh
+# (ou depuis une archive :  bash deploy/bot-discord.sh /root/BotDiscord.zip)
+# La configuration (/etc/discordbot.env) et la base de données sont toujours conservées.
 set -euo pipefail
 
-[ "$(id -u)" = 0 ] || { echo "Lancez ce script en root :  sudo bash deploy/bot-discord.sh /root/BotDiscord.zip"; exit 1; }
-ZIP="${1:-/root/BotDiscord.zip}"
+[ "$(id -u)" = 0 ] || { echo "Lancez ce script en root :  sudo bash deploy/bot-discord.sh"; exit 1; }
+ZIP="${1:-}"
+REPO_BOT="$(cd "$(dirname "$0")/.." && pwd)/bot-discord"
 BASE=/opt/discordbot
 APP=$BASE/app
 NODE=$BASE/node
@@ -18,7 +20,8 @@ SVC=discordbot
 PORT=3100                       # port interne (le site utilise 3000)
 
 say() { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
-[ -f "$ZIP" ] || { echo "Archive introuvable : $ZIP (envoyez-la d'abord avec scp)"; exit 1; }
+if [ -n "$ZIP" ]; then [ -f "$ZIP" ] || { echo "Archive introuvable : $ZIP"; exit 1; }
+else [ -f "$REPO_BOT/src/server.js" ] || { echo "Dossier bot-discord introuvable : faites d'abord  git pull"; exit 1; }; fi
 
 say "Outils nécessaires"
 apt-get install -y -qq unzip rsync curl xz-utils build-essential python3 >/dev/null
@@ -41,7 +44,7 @@ echo "Node.js du bot : $("$NODE/bin/node" -v)"
 say "Copie du bot"
 id discordbot >/dev/null 2>&1 || useradd --system --home "$BASE" --shell /usr/sbin/nologin discordbot
 SRC="$(mktemp -d)"; trap 'rm -rf "$SRC"' EXIT
-unzip -q "$ZIP" -d "$SRC"
+if [ -n "$ZIP" ]; then unzip -q "$ZIP" -d "$SRC"; else cp -a "$REPO_BOT" "$SRC/bot"; fi
 ROOT="$(dirname "$(find "$SRC" -name package.json -not -path '*/node_modules/*' | head -1)")"
 [ -f "$ROOT/src/server.js" ] || { echo "Archive inattendue : src/server.js introuvable."; exit 1; }
 mkdir -p "$APP/data"

@@ -56,7 +56,7 @@ fi
 say "Copie du site dans $APP"
 id sitedevis >/dev/null 2>&1 || useradd --system --home "$DATA" --shell /usr/sbin/nologin sitedevis
 mkdir -p "$APP" "$DATA" /var/backups/sitedevis
-rsync -a --delete --exclude '.git' --exclude 'data' --exclude '.env' --exclude 'video' --exclude 'node_modules' "$SRC"/ "$APP"/
+rsync -a --delete --exclude '.git' --exclude 'data' --exclude '.env' --exclude 'video' --exclude 'node_modules' --exclude 'bot-discord' "$SRC"/ "$APP"/
 chown -R root:root "$APP"
 (cd "$APP" && npm install --omit=dev --no-audit --no-fund)
 
