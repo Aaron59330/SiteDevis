@@ -94,3 +94,17 @@ body{background:#101010;color:#f4f4f4}.sidebar{background:#0b0b0b;border-right-c
 .mp-act i{display:grid;place-items:center;width:14px;height:14px;border-radius:4px;font-style:normal;font-size:7px}.mp-act i.g{background:#45d5a01f;color:#45d5a0}.mp-act i.b{background:#3566a62b;color:#8db3e8}.mp-act i.a{background:#f5bd6122}
 .mp-act span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mp-act b{color:#dfe3ea;font-weight:600}.mp-act u{color:#8db3e8;text-decoration:none}.mp-act em{color:#5d6574;font-style:normal;font-size:6.5px}
 .mp-app{height:392px}.mp-float.f1{left:auto;right:40px;bottom:-14px}
+/* Icônes : un seul jeu de pictogrammes au trait, même épaisseur partout */
+.ic{width:1em;height:1em;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:-.15em}
+.nav-icon .ic{width:17px;height:17px}.stat-glyph .ic{width:13px;height:13px}.module-icon .ic,.feature-icon .ic{width:17px;height:17px}
+.helper-icon .ic,.tip-spark .ic{width:15px;height:15px}.notice-icon .ic{width:20px;height:20px}.logout-button .ic{width:16px;height:16px}
+.button .ic{width:14px;height:14px}.text-link .ic,.tip-link .ic{width:13px;height:13px}.info-banner>span .ic{width:15px;height:15px}
+.topbar-search>span .ic{width:15px;height:15px}.login-feats i .ic{width:16px;height:16px}
+.mp-ic .ic,.mp-mods .mi .ic,.mp-act i .ic{width:10px;height:10px}.mp-float .tk .ic{width:15px;height:15px}.mp-url .ic{width:9px;height:9px;margin-right:3px}.mp-search .ic{width:8px;height:8px}.mp-select i .ic{width:9px;height:9px}
+.mp-ic,.mp-mods .mi,.mp-act i{display:inline-grid;place-items:center}
+/* marque AERO BOT */
+.brand-sub{font-style:normal;color:#79a2d8;font-weight:700}
+/* état FiveM : pastille au lieu d'émoji */
+#fivemStatusResult p:before{content:"";display:inline-block;width:8px;height:8px;margin-right:8px;border-radius:50%;background:#45d5a0;vertical-align:1px}
+#fivemStatusResult[data-online="0"] p:before{background:#ff747e}
+.discord-live-avatar{background:#1e2533!important;overflow:hidden;display:grid;place-items:center}.discord-live-avatar .brand-logo{width:70%;height:70%}

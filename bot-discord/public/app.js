@@ -620,7 +620,7 @@ async function saveConfig() {
     showToast(result.commandsSynced === false ? "Réglages enregistrés, mais Discord n’a pas synchronisé les commandes. Vérifie la connexion du bot." : "Configuration enregistrée.", result.commandsSynced === false);
     return true;
   } catch (error) { showToast(error.message, true); return false; }
-  finally { buttons.forEach(button => { button.disabled = false; button.innerHTML = button.dataset.original || "✓ Enregistrer"; }); }
+  finally { buttons.forEach(button => { button.disabled = false; button.innerHTML = button.dataset.original || '<svg class="ic" aria-hidden="true"><use href="#i-check"/></svg> Enregistrer'; }); }
 }
 
 async function publishTickets() {
@@ -644,10 +644,11 @@ async function testFiveM() {
   try {
     const result = await api(`/api/guilds/${encodeURIComponent(state.guildId)}/fivem/test`, { method: "POST", body: "{}" });
     const status = result.status;
-    const summary = status.online ? `🟢 ${status.hostname} · ${status.players ?? "?"}${status.maxPlayers ? ` / ${status.maxPlayers}` : ""} joueurs${status.map ? ` · ${status.map}` : ""}` : "🔴 Serveur hors ligne ou inaccessible depuis le bot.";
+    const summary = status.online ? `${status.hostname} · ${status.players ?? "?"}${status.maxPlayers ? ` / ${status.maxPlayers}` : ""} joueurs${status.map ? ` · ${status.map}` : ""}` : "Serveur hors ligne ou inaccessible depuis le bot.";
     const box = $("#fivemStatusResult");
     box.hidden = false;
     $("#fivemStatusResult p").textContent = summary;
+    $("#fivemStatusResult").dataset.online = status.online ? "1" : "0";
     showToast(status.online ? "Connexion FiveM réussie." : "Le endpoint FiveM ne répond pas.", !status.online);
   } catch (error) { showToast(error.message, true); }
   finally { button.disabled = false; }
