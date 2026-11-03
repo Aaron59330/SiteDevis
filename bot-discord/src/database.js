@@ -84,11 +84,29 @@ db.exec(`
     expires INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS web_sessions_expires ON web_sessions(expires);
+  CREATE TABLE IF NOT EXISTS logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id TEXT NOT NULL,
+    at INTEGER NOT NULL,
+    category TEXT NOT NULL,
+    action TEXT NOT NULL,
+    actor_id TEXT NOT NULL DEFAULT '',
+    actor_name TEXT NOT NULL DEFAULT '',
+    details TEXT NOT NULL DEFAULT ''
+  );
+  CREATE INDEX IF NOT EXISTS logs_guild_at ON logs(guild_id, at DESC);
+  CREATE TABLE IF NOT EXISTS ticket_counters (
+    guild_id TEXT NOT NULL,
+    type_id TEXT NOT NULL,
+    last INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY(guild_id, type_id)
+  );
 `);
 
 const ticketColumns = new Set(db.prepare("PRAGMA table_info(tickets)").all().map(column => column.name));
 if (!ticketColumns.has("claimed_by")) db.exec("ALTER TABLE tickets ADD COLUMN claimed_by TEXT");
 if (!ticketColumns.has("ticket_type")) db.exec("ALTER TABLE tickets ADD COLUMN ticket_type TEXT NOT NULL DEFAULT ''");
+if (!ticketColumns.has("number")) db.exec("ALTER TABLE tickets ADD COLUMN number INTEGER");
 for (const table of ["polls", "giveaways"]) {
   const columns = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map(column => column.name));
   if (!columns.has("embed_color")) db.exec(`ALTER TABLE ${table} ADD COLUMN embed_color TEXT NOT NULL DEFAULT '#3566a6'`);
@@ -309,4 +327,42 @@ export class SQLiteSessionStore extends session.Store {
       callback(null);
     } catch (error) { callback(error); }
   }
+}
+
+/* ---------- Numéro de ticket par type (boutique-1, boutique-2…) ---------- */
+export function nextTicketNumber(guildId, typeId) {
+  return db.transaction(() => {
+    db.prepare("INSERT INTO ticket_counters(guild_id, type_id, last) VALUES(?, ?, 0) ON CONFLICT(guild_id, type_id) DO NOTHING").run(guildId, typeId);
+    db.prepare("UPDATE ticket_counters SET last = last + 1 WHERE guild_id = ? AND type_id = ?").run(guildId, typeId);
+    return db.prepare("SELECT last FROM ticket_counters WHERE guild_id = ? AND type_id = ?").get(guildId, typeId).last;
+  })();
+}
+export function setTicketNumber(channelId, number) {
+  db.prepare("UPDATE tickets SET number = ? WHERE channel_id = ?").run(number, channelId);
+}
+
+/* ---------- Journal d'activité (consultable dans le panneau) ---------- */
+export const LOG_CATEGORIES = ["membres", "tickets", "messages", "moderation", "salons", "commandes", "animations", "panneau"];
+const MAX_LOGS_PER_GUILD = 20000;
+let logInserts = 0;
+export function addLog(guildId, category, action, details = "", actor = null) {
+  if (!guildId) return;
+  try {
+    db.prepare("INSERT INTO logs(guild_id, at, category, action, actor_id, actor_name, details) VALUES(?, ?, ?, ?, ?, ?, ?)")
+      .run(String(guildId), Date.now(), category, String(action).slice(0, 120), String(actor?.id || ""), String(actor?.name || "").slice(0, 100), String(details || "").slice(0, 1500));
+    if (++logInserts % 500 === 0) {   // ménage : 90 jours et 20 000 lignes par serveur au maximum
+      db.prepare("DELETE FROM logs WHERE at < ?").run(Date.now() - 90 * 864e5);
+      db.prepare(`DELETE FROM logs WHERE id IN (SELECT id FROM logs WHERE guild_id = ? ORDER BY at DESC LIMIT -1 OFFSET ${MAX_LOGS_PER_GUILD})`).run(String(guildId));
+    }
+  } catch (error) { console.error("Écriture du journal impossible :", error.message); }
+}
+export function listLogs(guildId, { category = "", q = "", before = 0, limit = 50 } = {}) {
+  const where = ["guild_id = ?"], args = [guildId];
+  if (category && LOG_CATEGORIES.includes(category)) { where.push("category = ?"); args.push(category); }
+  if (before) { where.push("at < ?"); args.push(Number(before)); }
+  if (q) { where.push("(action LIKE ? OR details LIKE ? OR actor_name LIKE ?)"); const like = `%${String(q).slice(0, 80).replace(/[%_]/g, "")}%`; args.push(like, like, like); }
+  return db.prepare(`SELECT id, at, category, action, actor_id, actor_name, details FROM logs WHERE ${where.join(" AND ")} ORDER BY at DESC, id DESC LIMIT ?`).all(...args, Math.min(200, Math.max(1, limit)));
+}
+export function logCounts(guildId, since = Date.now() - 864e5) {
+  return db.prepare("SELECT category, COUNT(*) AS n FROM logs WHERE guild_id = ? AND at >= ? GROUP BY category").all(guildId, since);
 }

@@ -119,6 +119,7 @@ async function selectGuild(guildId) {
     state.guild = result.guild;
     state.config = result.config;
     renderConfig();
+    if (state.page === "logs") loadLogs(true);
   } catch (error) {
     showToast(error.message, true);
   }
@@ -179,6 +180,8 @@ function renderConfig() {
   $("#welcomeFooterEnabled").checked = config.welcome.footerEnabled === true;
   $("#welcomeFooterText").value = config.welcome.footerText || "";
   $("#ticketTitle").value = config.tickets.panelTitle;
+  $("#ticketNameFormat").value = config.tickets.channelNameFormat || "{type}-{numero}";
+  updateTicketNamePreview();
   $("#ticketDescription").value = config.tickets.panelDescription;
   $("#ticketImageUrl").value = config.tickets.imageUrl || "";
   $("#ticketEmbedColor").value = config.tickets.embedColor || "#81aadf";
@@ -228,7 +231,7 @@ function currentConfig() {
   return {
     welcome: { enabled: $("#welcomeEnabled").checked, channelId: $("#welcomeChannel").value, message: $("#welcomeMessage").value, imageUrl: $("#welcomeImageUrl").value, embedColor: $("#welcomeEmbedColor").value, embedEnabled: $("#welcomeEmbedEnabled").checked, avatarEnabled: $("#welcomeAvatarEnabled").checked, avatarUrl: $("#welcomeAvatarUrl").value, footerEnabled: $("#welcomeFooterEnabled").checked, footerText: $("#welcomeFooterText").value },
     autorole: { enabled: $("#autoroleEnabled").checked, roleId: $("#autoroleRole").value },
-    tickets: { enabled: $("#ticketsEnabled").checked, panelChannelId: $("#ticketPanelChannel").value, categoryId: $("#ticketCategory").value, supportRoleId: $("#supportRole").value, panelTitle: $("#ticketTitle").value, panelDescription: $("#ticketDescription").value, imageUrl: $("#ticketImageUrl").value, embedColor: $("#ticketEmbedColor").value, formsEnabled: $("#ticketFormsEnabled").checked, claimEnabled: $("#ticketClaimEnabled").checked, transcriptsEnabled: $("#ticketTranscriptsEnabled").checked, reopenEnabled: $("#ticketReopenEnabled").checked, autoCloseEnabled: $("#ticketAutoCloseEnabled").checked, autoCloseDays: $("#ticketAutoCloseDays").value, logsEnabled: $("#ticketLogsEnabled").checked, logChannelId: $("#ticketLogChannel").value, ticketTypes: collectTicketTypes() },
+    tickets: { enabled: $("#ticketsEnabled").checked, panelChannelId: $("#ticketPanelChannel").value, categoryId: $("#ticketCategory").value, supportRoleId: $("#supportRole").value, panelTitle: $("#ticketTitle").value, channelNameFormat: $("#ticketNameFormat").value.trim() || "{type}-{numero}", panelDescription: $("#ticketDescription").value, imageUrl: $("#ticketImageUrl").value, embedColor: $("#ticketEmbedColor").value, formsEnabled: $("#ticketFormsEnabled").checked, claimEnabled: $("#ticketClaimEnabled").checked, transcriptsEnabled: $("#ticketTranscriptsEnabled").checked, reopenEnabled: $("#ticketReopenEnabled").checked, autoCloseEnabled: $("#ticketAutoCloseEnabled").checked, autoCloseDays: $("#ticketAutoCloseDays").value, logsEnabled: $("#ticketLogsEnabled").checked, logChannelId: $("#ticketLogChannel").value, ticketTypes: collectTicketTypes() },
     anonymous: { enabled: $("#anonymousEnabled").checked, channelId: $("#anonymousChannel").value },
     commands: { clearMessages: $("#commandClearMessages").checked, slowmode: $("#commandSlowmode").checked, userInfo: $("#commandUserInfo").checked, serverInfo: $("#commandServerInfo").checked, avatar: $("#commandAvatar").checked },
     fivem: { enabled: $("#fivemEnabled").checked, host: $("#fivemHost").value, port: $("#fivemPort").value, protocol: $("#fivemProtocol").value, connectUrl: $("#fivemConnectUrl").value, panelEnabled: $("#fivemPanelEnabled").checked, panelChannelId: $("#fivemPanelChannel").value, panelMessageId: state.config.fivem?.panelMessageId || "", panelTitle: $("#fivemPanelTitle").value, embedColor: $("#fivemEmbedColor").value, autoRefresh: $("#fivemAutoRefresh").checked, refreshSeconds: $("#fivemRefreshSeconds").value, commandEnabled: $("#fivemCommandEnabled").checked }
@@ -598,6 +601,7 @@ function switchPage(page) {
   const item = $(`.nav-item[data-page="${page}"] span:nth-child(2)`);
   $("#breadcrumbTitle").textContent = item?.textContent || "Vue d’ensemble";
   if (page === "animations") loadActivities();
+  if (page === "logs") loadLogs(true);
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -764,6 +768,7 @@ $("#welcomeFooterText").addEventListener("input", updateFromControls);
 $("#welcomeEmbedColor").addEventListener("input", () => { updateEmbedColorPreview(); updateFromControls(); });
 $("#ticketDescription").addEventListener("input", updateFromControls);
 $("#ticketTitle").addEventListener("input", updateFromControls);
+$("#ticketNameFormat").addEventListener("input", () => { updateTicketNamePreview(); updateFromControls(); });
 $("#ticketImageUrl").addEventListener("input", () => { updateImagePreview("#ticketImageUrl", "#ticketImagePreviewWrap", "#ticketImagePreview"); updateFromControls(); });
 $("#ticketAutoCloseDays").addEventListener("input", updateFromControls);
 $("#ticketEmbedColor").addEventListener("input", () => { updateEmbedColorPreview(); updateFromControls(); });
@@ -804,3 +809,58 @@ $("#fivemEmbedColor").addEventListener("input", () => { $("#fivemEmbedColorValue
 
 renderPollOptions(["Oui", "Non"]);
 boot();
+
+/* ---------- Nom des salons de ticket : aperçu ---------- */
+function slugName(value) { return String(value || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""); }
+function updateTicketNamePreview() {
+  const format = $("#ticketNameFormat").value.trim() || "{type}-{numero}";
+  let first = null;
+  try { first = collectTicketTypes()[0]; } catch { first = null; }
+  const name = slugName(format.replaceAll("{type}", first?.label || "Boutique").replaceAll("{numero}", "1").replaceAll("{pseudo}", state.user?.username || "pseudo")).slice(0, 90);
+  $("#ticketNamePreview").textContent = name || "ticket-1";
+}
+
+/* ---------- Journal ---------- */
+const logState = { category: "", q: "", rows: [], before: 0, searchTimer: null };
+const LOG_LABELS = { membres: ["Membres", "users"], tickets: ["Tickets", "ticket"], messages: ["Messages", "message"], moderation: ["Modération", "shield"], salons: ["Salons", "hash"], commandes: ["Commandes", "slash"], animations: ["Animations", "chart"], panneau: ["Panneau", "dashboard"] };
+function logTime(ms) {
+  const d = new Date(ms), today = new Date();
+  const time = d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  if (d.toDateString() === today.toDateString()) return `Aujourd’hui · ${time}`;
+  const y = new Date(today); y.setDate(today.getDate() - 1);
+  if (d.toDateString() === y.toDateString()) return `Hier · ${time}`;
+  return `${d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })} · ${time}`;
+}
+function renderLogs() {
+  const list = $("#logList");
+  if (!logState.rows.length) { list.innerHTML = `<div class="log-empty">${state.guildId ? "Aucun évènement pour le moment. Les prochaines actions apparaîtront ici." : "Choisis un serveur pour afficher son journal."}</div>`; return; }
+  list.innerHTML = logState.rows.map(row => {
+    const [label, icon] = LOG_LABELS[row.category] || ["Autre", "scroll"];
+    return `<div class="log-row cat-${row.category}"><span class="log-ic"><svg class="ic" aria-hidden="true"><use href="#i-${icon}"/></svg></span>
+      <div class="log-body"><div class="log-line"><b>${escapeHtml(row.action)}</b>${row.actor_name ? `<span class="log-actor">${escapeHtml(row.actor_name)}</span>` : ""}<span class="log-tag">${label}</span></div>${row.details ? `<div class="log-details">${escapeHtml(row.details)}</div>` : ""}</div>
+      <time title="${new Date(row.at).toLocaleString("fr-FR")}">${logTime(row.at)}</time></div>`;
+  }).join("");
+}
+async function loadLogs(reset = false) {
+  if (!state.guildId) { logState.rows = []; renderLogs(); return; }
+  const params = new URLSearchParams({ category: logState.category, q: logState.q });
+  if (!reset && logState.before) params.set("before", logState.before);
+  try {
+    const data = await api(`/api/guilds/${state.guildId}/logs?${params}`);
+    logState.rows = reset ? data.rows : logState.rows.concat(data.rows);
+    logState.before = logState.rows.length ? logState.rows[logState.rows.length - 1].at : 0;
+    $("#logMore").hidden = !data.hasMore;
+    const counts = Object.fromEntries((data.counts || []).map(c => [c.category, c.n]));
+    $$("[data-log-count]").forEach(el => { const n = el.dataset.logCount ? counts[el.dataset.logCount] : Object.values(counts).reduce((a, b) => a + b, 0); el.textContent = n ? String(n) : ""; el.title = "Sur les dernières 24 h"; });
+    renderLogs();
+  } catch (error) { showToast(error.message, true); }
+}
+$$("[data-log-cat]").forEach(chip => chip.addEventListener("click", () => {
+  logState.category = chip.dataset.logCat;
+  $$("[data-log-cat]").forEach(c => c.classList.toggle("on", c === chip));
+  loadLogs(true);
+}));
+$("#logSearch").addEventListener("input", event => { clearTimeout(logState.searchTimer); logState.searchTimer = setTimeout(() => { logState.q = event.target.value.trim(); loadLogs(true); }, 300); });
+$("#logMore").addEventListener("click", () => loadLogs(false));
+$("#logsRefresh").addEventListener("click", () => loadLogs(true));
+setInterval(() => { if (state.page === "logs" && $("#logLive").checked && !document.hidden && !logState.q) loadLogs(true); }, 15000);

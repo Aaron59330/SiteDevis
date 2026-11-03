@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import {
   ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ChannelType, Client, EmbedBuilder,
-  GatewayIntentBits, ModalBuilder, PermissionFlagsBits, SlashCommandBuilder, StringSelectMenuBuilder,
+  GatewayIntentBits, ModalBuilder, Partials, PermissionFlagsBits, SlashCommandBuilder, StringSelectMenuBuilder,
   TextInputBuilder, TextInputStyle
 } from "discord.js";
 import {
@@ -9,7 +9,7 @@ import {
   deleteGiveawayRecord, deletePollRecord, drawGiveaway, enterGiveaway, getGiveaway, getGiveawayEntryCount, getPoll,
   getPollVoteCounts, getOpenTicket, getTicketByChannel, listConfiguredGuildIds, listDueGiveaways, listDuePolls,
   getGuildConfig, listGiveaways, listOpenTickets, listPolls, reopenTicket, saveGuildConfig,
-  setGiveawayMessageId, setPollMessageId
+  setGiveawayMessageId, setPollMessageId, addLog, nextTicketNumber, setTicketNumber
 } from "./database.js";
 
 export async function fetchFiveMStatus(settings) {
@@ -70,8 +70,15 @@ export async function publishFiveMStatusPanel(guildId, settings, existingMessage
 }
 
 export const bot = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildModeration],
+  partials: [Partials.Message, Partials.Channel, Partials.GuildMember]
 });
+/* ---------- Journal ---------- */
+const who = user => (user ? { id: user.id, name: user.globalName || user.username || user.user?.username || "" } : null);
+const tag = user => (user ? `${user.globalName || user.username || user.user?.globalName || user.user?.username || "inconnu"}` : "inconnu");
+const anonymousDeletes = new Set();   // messages supprimés par le relais anonyme : jamais journalisés (anonymat préservé)
+/* nom de salon Discord : minuscules, sans accents ni espaces */
+const slug = value => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 const lastFiveMPanelRefresh = new Map();
 
 function canGrantWithButton(role, guild) {
@@ -138,6 +145,7 @@ export async function publishPoll(guildId, input) {
 export async function finishPoll(pollId) {
   const poll = getPoll(pollId);
   if (!poll || !closePollRecord(pollId)) return false;
+  addLog(poll.guild_id, "animations", "Sondage clôturé", `« ${poll.question} »`);
   await updatePollMessage(getPoll(pollId)).catch(error => console.error("Mise à jour du sondage clôturé impossible :", error.message));
   return true;
 }
@@ -199,12 +207,46 @@ export async function finishGiveaway(giveawayId) {
   });
   if (!result.ended) return result;
   const closed = getGiveaway(giveawayId);
+  addLog(giveaway.guild_id, "animations", "Tirage terminé", `${giveaway.prize} · ${result.winners.length ? `gagnant(s) : ${result.winners.map(id => { const user = bot.users.cache.get(id); return user ? tag(user) : id; }).join(", ")}` : "aucun participant"}`);
   await updateGiveawayMessage(closed, true, result.winners).catch(error => console.error("Mise à jour du tirage clôturé impossible :", error.message));
   return result;
 }
 
 bot.once("clientReady", () => console.log(`Bot connecté : ${bot.user.tag}`));
 bot.on("error", error => console.error("Erreur Discord :", error));
+
+/* ---------- Événements du serveur enregistrés dans le journal du panneau ---------- */
+bot.on("guildMemberRemove", member => {
+  const since = member.joinedTimestamp ? Math.floor((Date.now() - member.joinedTimestamp) / 864e5) : null;
+  addLog(member.guild.id, "membres", "Départ", since == null ? "" : `Membre depuis ${since} jour${since > 1 ? "s" : ""}`, who(member.user));
+});
+bot.on("guildMemberUpdate", (before, after) => {
+  if (before.partial) return;
+  if (before.nickname !== after.nickname) addLog(after.guild.id, "membres", "Surnom modifié", `${before.nickname || "(aucun)"} → ${after.nickname || "(aucun)"}`, who(after.user));
+  const added = after.roles.cache.filter(r => !before.roles.cache.has(r.id)), removed = before.roles.cache.filter(r => !after.roles.cache.has(r.id));
+  if (added.size) addLog(after.guild.id, "membres", "Rôle ajouté", added.map(r => `@${r.name}`).join(", "), who(after.user));
+  if (removed.size) addLog(after.guild.id, "membres", "Rôle retiré", removed.map(r => `@${r.name}`).join(", "), who(after.user));
+  if (!before.communicationDisabledUntilTimestamp && after.communicationDisabledUntilTimestamp > Date.now()) addLog(after.guild.id, "moderation", "Exclusion temporaire", `jusqu’au ${new Date(after.communicationDisabledUntilTimestamp).toLocaleString("fr-FR", { timeZone: "Europe/Paris" })}`, who(after.user));
+});
+bot.on("guildBanAdd", ban => addLog(ban.guild.id, "moderation", "Membre banni", ban.reason ? `Raison : ${ban.reason}` : "", who(ban.user)));
+bot.on("guildBanRemove", ban => addLog(ban.guild.id, "moderation", "Bannissement levé", "", who(ban.user)));
+bot.on("messageDelete", message => {
+  if (!message.guild || anonymousDeletes.has(message.id) || message.author?.bot) return;
+  const text = message.partial ? "(contenu non disponible : message trop ancien)" : (message.content || (message.attachments.size ? `${message.attachments.size} fichier(s)` : "(sans texte)"));
+  addLog(message.guild.id, "messages", "Message supprimé", `#${message.channel?.name || "?"} · ${text}`, who(message.author));
+});
+bot.on("messageDeleteBulk", (messages, channel) => {
+  if (!channel.guild) return;
+  addLog(channel.guild.id, "messages", "Suppression en lot", `${messages.size} message(s) dans #${channel.name}`);
+});
+bot.on("messageUpdate", (before, after) => {
+  if (!after.guild || after.author?.bot || before.partial || before.content === after.content) return;
+  addLog(after.guild.id, "messages", "Message modifié", `#${after.channel?.name || "?"} · « ${String(before.content).slice(0, 600)} » → « ${String(after.content).slice(0, 600)} »`, who(after.author));
+});
+bot.on("channelCreate", channel => { if (channel.guild) addLog(channel.guild.id, "salons", "Salon créé", `#${channel.name}`); });
+bot.on("channelDelete", channel => { if (channel.guild) addLog(channel.guild.id, "salons", "Salon supprimé", `#${channel.name}`); });
+bot.on("roleCreate", role => addLog(role.guild.id, "moderation", "Rôle créé", `@${role.name}`));
+bot.on("roleDelete", role => addLog(role.guild.id, "moderation", "Rôle supprimé", `@${role.name}`));
 
 function commandDefinitions(config) {
   const commands = [];
@@ -261,6 +303,7 @@ async function handleSlashCommand(interaction) {
     fivemstatus: config.fivem?.enabled && config.fivem.commandEnabled
   }[command];
   if (!enabled) return interaction.reply({ content: "Cette commande est désactivée dans le panneau web.", ephemeral: true });
+  addLog(interaction.guildId, "commandes", `/${command}`, [interaction.options.data.map(o => `${o.name}: ${o.user ? tag(o.user) : o.value}`).join(", "), interaction.channel ? `dans #${interaction.channel.name}` : ""].filter(Boolean).join(" · "), who(interaction.user));
 
   try {
     if (command === "clearmessages") {
@@ -340,9 +383,14 @@ async function handleSlashCommand(interaction) {
 
 bot.on("guildMemberAdd", async member => {
   const config = getGuildConfig(member.guild.id);
+  const days = Math.floor((Date.now() - member.user.createdTimestamp) / 864e5);
+  addLog(member.guild.id, "membres", "Arrivée", `Compte créé il y a ${days} jour${days > 1 ? "s" : ""} · ${member.guild.memberCount} membres`, who(member.user));
   if (config.autorole.enabled && config.autorole.roleId) {
-    try { await member.roles.add(config.autorole.roleId, "Rôle automatique configuré dans le panneau"); }
-    catch (error) { console.error(`Impossible d’attribuer le rôle sur ${member.guild.id}:`, error.message); }
+    try {
+      await member.roles.add(config.autorole.roleId, "Rôle automatique configuré dans le panneau");
+      addLog(member.guild.id, "membres", "Auto-rôle attribué", `@${member.guild.roles.cache.get(config.autorole.roleId)?.name || config.autorole.roleId}`, who(member.user));
+    }
+    catch (error) { console.error(`Impossible d’attribuer le rôle sur ${member.guild.id}:`, error.message); addLog(member.guild.id, "membres", "Auto-rôle impossible", error.message, who(member.user)); }
   }
   if (config.welcome.enabled && config.welcome.channelId) {
     const channel = member.guild.channels.cache.get(config.welcome.channelId);
@@ -390,6 +438,8 @@ bot.on("messageCreate", async message => {
     return { attachment: attachment.url, name: `fichier-${index + 1}${extension}` };
   });
 
+  anonymousDeletes.add(message.id); setTimeout(() => anonymousDeletes.delete(message.id), 60_000);
+  addLog(message.guild.id, "messages", "Message anonyme relayé", `#${message.channel.name}${attachments.length ? ` · ${attachments.length} fichier(s)` : ""}`);
   try { await message.delete(); }
   catch (error) {
     console.error(`Suppression du message original impossible dans ${message.guild.id}/${message.channelId}:`, error.message);
@@ -469,6 +519,7 @@ async function closeTicketProcess(guild, channel, ticket, config, reason, { auto
     if (!channel.name.startsWith("ferme-")) await channel.setName(`ferme-${channel.name}`.slice(0, 100));
   } catch (error) { console.error("Verrouillage du ticket impossible :", error.message); }
   closeTicket(channel.id);
+  addLog(guild.id, "tickets", automatic ? "Ticket fermé automatiquement" : "Ticket fermé", `#${channel.name.replace(/^ferme-/, "")} · ${reason}`);
   await sendTicketLog(guild, config, `🔒 Ticket ${channel} fermé : ${reason}.`, transcript ? [transcript] : []);
   if (automatic) {
     const row = ticketActionRow(config, guild, { closed: true });
@@ -496,16 +547,21 @@ async function createTicket(interaction, ticketType, formAnswer = "") {
   ];
   if (config.tickets.supportRoleId) overwrites.push({ id: config.tickets.supportRoleId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] });
   try {
-    const username = interaction.user.username.toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, 45);
-    const typeName = selectedType.id.toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, 30);
+    const number = nextTicketNumber(interaction.guild.id, selectedType.id);
+    const channelName = slug((config.tickets.channelNameFormat || "{type}-{numero}")
+      .replaceAll("{type}", selectedType.label || selectedType.id)
+      .replaceAll("{numero}", String(number))
+      .replaceAll("{pseudo}", interaction.user.username)).slice(0, 90) || `ticket-${number}`;
     const channel = await interaction.guild.channels.create({
-      name: `ticket-${typeName}-${username}`.slice(0, 90),
+      name: channelName,
       type: ChannelType.GuildText,
       parent: config.tickets.categoryId || undefined,
       permissionOverwrites: overwrites,
       reason: `Ticket « ${selectedType.label} » créé par ${interaction.user.tag}`
     });
     addTicket(channel.id, interaction.guild.id, interaction.user.id, selectedType.id);
+    setTicketNumber(channel.id, number);
+    addLog(interaction.guild.id, "tickets", "Ticket ouvert", `#${channel.name} · ${selectedType.label}${formAnswer ? ` · « ${formAnswer.slice(0, 300)} »` : ""}`, who(interaction.user));
     const row = ticketActionRow(config, interaction.guild);
     const supportPing = config.tickets.supportRoleId ? `<@&${config.tickets.supportRoleId}> ` : "";
     const answer = formAnswer ? `\n**${selectedType.formQuestion || "Détails de la demande"}**\n${formAnswer}` : "";
@@ -565,6 +621,7 @@ bot.on("interactionCreate", async interaction => {
       const member = await interaction.guild.members.fetch(interaction.user.id);
       if (member.roles.cache.has(role.id)) return interaction.editReply(`Tu as déjà le rôle ${role.name}.`);
       await member.roles.add(role, `Rôle obtenu via un bouton de message par ${interaction.user.tag}`);
+      addLog(interaction.guild.id, "membres", "Rôle obtenu par bouton", `@${role.name}`, who(interaction.user));
       return interaction.editReply(`✅ Le rôle **${role.name}** t’a été attribué.`);
     } catch (error) {
       console.error("Attribution du rôle par bouton impossible :", error);
@@ -616,6 +673,7 @@ bot.on("interactionCreate", async interaction => {
     const row = ticketActionRow(config, interaction.guild, { claimedBy: interaction.user.id });
     await interaction.message.edit({ components: row ? [row] : [] });
     await sendTicketLog(interaction.guild, config, `🧑‍🔧 ${interaction.user} a pris en charge ${interaction.channel}.`);
+    addLog(interaction.guild.id, "tickets", "Ticket pris en charge", `#${interaction.channel.name}`, who(interaction.user));
     return interaction.editReply({ content: `Tu as pris en charge ${interaction.channel}.` });
   }
 
@@ -646,6 +704,7 @@ bot.on("interactionCreate", async interaction => {
       reopenTicket(interaction.channelId);
       const row = ticketActionRow(config, interaction.guild, { claimedBy: ticket.claimed_by });
       await sendTicketLog(interaction.guild, config, `🔓 ${interaction.user} a rouvert ${interaction.channel}.`);
+      addLog(interaction.guild.id, "tickets", "Ticket rouvert", `#${interaction.channel.name}`, who(interaction.user));
       await interaction.channel.send(`🔓 Ticket rouvert par ${interaction.user}.`).catch(() => {});
       return interaction.message.edit({ components: row ? [row] : [] });
     } catch (error) {

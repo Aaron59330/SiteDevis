@@ -108,3 +108,29 @@ body{background:#101010;color:#f4f4f4}.sidebar{background:#0b0b0b;border-right-c
 #fivemStatusResult p:before{content:"";display:inline-block;width:8px;height:8px;margin-right:8px;border-radius:50%;background:#45d5a0;vertical-align:1px}
 #fivemStatusResult[data-online="0"] p:before{background:#ff747e}
 .discord-live-avatar{background:#1e2533!important;overflow:hidden;display:grid;place-items:center}.discord-live-avatar .brand-logo{width:70%;height:70%}
+/* ===== Journal ===== */
+.logs-card{padding:18px 20px}
+.log-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.log-chip{display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 11px;border:1px solid #2c2f38;border-radius:8px;background:#1a1c22;color:#aab1bd;font-size:11px;font-weight:600;cursor:pointer;transition:.15s}
+.log-chip:hover{border-color:#3566a6;color:#fff}.log-chip.on{background:#3566a6;border-color:#3566a6;color:#fff}
+.log-chip .ic{width:13px;height:13px}.log-chip em{font-style:normal;font-size:9px;padding:1px 5px;border-radius:5px;background:#ffffff14}.log-chip em:empty{display:none}
+.log-tools{display:flex;align-items:center;gap:14px;margin-bottom:10px;flex-wrap:wrap}
+.log-search{flex:1;min-width:220px;width:auto!important}
+.log-live{display:flex;align-items:center;gap:9px;color:#9aa2af;font-size:11px;cursor:pointer}
+.log-list{border-top:1px solid #262a33}
+.log-row{display:flex;align-items:flex-start;gap:12px;padding:12px 4px;border-bottom:1px solid #22262e}
+.log-row:hover{background:#ffffff05}
+.log-ic{flex:none;display:grid;place-items:center;width:30px;height:30px;border-radius:8px;background:#3566a622;color:#8db3e8}
+.log-ic .ic{width:15px;height:15px}
+.cat-membres .log-ic{background:#45d5a01c;color:#45d5a0}.cat-moderation .log-ic{background:#ff747e1c;color:#ff8a92}.cat-messages .log-ic{background:#f5bd611c;color:#f5bd61}
+.log-body{flex:1;min-width:0}
+.log-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.log-line b{color:#eef1f6;font-size:12px;font-weight:600}
+.log-actor{color:#8db3e8;font-size:11.5px;font-weight:600}
+.log-tag{margin-left:auto;padding:2px 7px;border-radius:5px;background:#22262e;color:#8a92a0;font-size:9px;font-weight:700;letter-spacing:.4px;text-transform:uppercase}
+.log-details{margin-top:3px;color:#9aa2af;font-size:11px;line-height:1.5;overflow-wrap:anywhere}
+.log-row time{flex:none;color:#6f7786;font-size:10px;white-space:nowrap;padding-top:2px;min-width:118px;text-align:right}
+.log-empty{padding:40px 10px;text-align:center;color:#7d8594;font-size:12px}
+.log-more{display:flex;justify-content:center;padding-top:14px}
+#logsBadge{background:#3566a633;color:#8db3e8}
+@media(max-width:650px){.log-row{flex-wrap:wrap}.log-row time{min-width:0;text-align:left;margin-left:42px;padding:0}.log-tag{margin-left:0}}

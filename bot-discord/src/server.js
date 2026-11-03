@@ -9,7 +9,7 @@ import rateLimit from "express-rate-limit";
 import { PermissionFlagsBits } from "discord.js";
 import {
   db, getGiveaway, getGuildConfig, getPoll, getPollVoteCounts, getPollVoteHistory, getPollVoteHistoryCount, listGiveaways, listPolls,
-  saveGuildConfig, SQLiteSessionStore
+  saveGuildConfig, SQLiteSessionStore, addLog, listLogs, logCounts, LOG_CATEGORIES
 } from "./database.js";
 import { sanitizeConfig } from "./config.js";
 import {
@@ -67,6 +67,8 @@ const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 30, standardHe
 const apiLimiter = rateLimit({ windowMs: 60 * 1000, limit: 90, standardHeaders: "draft-8", legacyHeaders: false });
 app.use("/auth", loginLimiter);
 app.use("/api", apiLimiter);
+
+const panelActor = req => ({ id: req.session.user?.id || "", name: `${req.session.user?.username || "?"} (panneau)` });
 
 function requireAuth(req, res, next) {
   if (!req.session.user) return res.status(401).json({ error: "Connecte-toi avec Discord pour continuer." });
@@ -210,7 +212,11 @@ app.put("/api/guilds/:guildId/config", requireAuth, requireCsrf, requireGuildAcc
   if (config.fivem.enabled && !config.fivem.host) return res.status(400).json({ error: "Indique l’adresse IP ou le nom d’hôte de ton serveur FiveM." });
   if (config.fivem.panelEnabled && !config.fivem.panelChannelId) return res.status(400).json({ error: "Choisis un salon pour publier le statut FiveM." });
   if (config.fivem.panelChannelId && !channelIds.has(config.fivem.panelChannelId)) return res.status(400).json({ error: "Choisis un salon textuel existant pour le statut FiveM." });
+  const previous = getGuildConfig(req.params.guildId);
   saveGuildConfig(req.params.guildId, config);
+  const MOD = { welcome: "Arrivées", autorole: "Auto-rôle", tickets: "Tickets", anonymous: "Salon anonyme", commands: "Commandes", fivem: "FiveM" };
+  const changed = Object.keys(MOD).filter(k => JSON.stringify(previous[k]) !== JSON.stringify(config[k])).map(k => MOD[k]);
+  if (changed.length) addLog(req.params.guildId, "panneau", "Réglages enregistrés", changed.join(", "), panelActor(req));
   let commandsSynced = true;
   try { await syncGuildCommands(req.params.guildId, config); }
   catch (error) {
@@ -226,6 +232,7 @@ app.post("/api/guilds/:guildId/tickets/publish", requireAuth, requireCsrf, requi
     if (!config.tickets.enabled) return res.status(400).json({ error: "Active les tickets et enregistre la configuration avant de publier." });
     if (!config.tickets.panelChannelId) return res.status(400).json({ error: "Choisis le salon où publier le panneau." });
     const message = await publishTicketPanel(req.params.guildId, config);
+    addLog(req.params.guildId, "panneau", "Panneau de tickets publié", "", panelActor(req));
     res.json({ ok: true, channelId: message.channelId, messageId: message.id });
   } catch (error) { next(error); }
 });
@@ -264,6 +271,7 @@ app.post("/api/guilds/:guildId/polls", requireAuth, requireCsrf, requireGuildAcc
     if (!/^#[0-9a-fA-F]{6}$/.test(embedColor)) return res.status(400).json({ error: "Choisis une couleur d’embed valide." });
     if (imageUrl && (imageUrl.length > 2048 || !isHttpsUrl(imageUrl))) return res.status(400).json({ error: "L’image doit utiliser une URL HTTPS valide (2 048 caractères maximum)." });
     const result = await publishPoll(req.params.guildId, { channelId, question, options, durationHours, embedColor, imageUrl, createdBy: req.session.user.id });
+    addLog(req.params.guildId, "animations", "Sondage publié", `« ${String(req.body?.question || "").slice(0, 200)} »`, panelActor(req));
     res.json({ ok: true, pollId: result.pollId, messageId: result.message.id });
   } catch (error) { next(error); }
 });
@@ -273,6 +281,7 @@ app.post("/api/guilds/:guildId/polls/:pollId/close", requireAuth, requireCsrf, r
     const poll = getPoll(req.params.pollId);
     if (!poll || poll.guild_id !== req.params.guildId) return res.status(404).json({ error: "Sondage introuvable." });
     const closed = await finishPoll(poll.id);
+    if (closed) addLog(req.params.guildId, "animations", "Sondage clôturé depuis le panneau", "", panelActor(req));
     res.json({ ok: true, closed });
   } catch (error) { next(error); }
 });
@@ -294,6 +303,7 @@ app.post("/api/guilds/:guildId/giveaways", requireAuth, requireCsrf, requireGuil
     if (!/^#[0-9a-fA-F]{6}$/.test(embedColor)) return res.status(400).json({ error: "Choisis une couleur d’embed valide." });
     if (imageUrl && (imageUrl.length > 2048 || !isHttpsUrl(imageUrl))) return res.status(400).json({ error: "L’image doit utiliser une URL HTTPS valide (2 048 caractères maximum)." });
     const result = await publishGiveaway(req.params.guildId, { channelId, prize, durationHours, winnersCount, embedColor, imageUrl, createdBy: req.session.user.id });
+    addLog(req.params.guildId, "animations", "Tirage au sort publié", String(req.body?.prize || "").slice(0, 200), panelActor(req));
     res.json({ ok: true, giveawayId: result.giveawayId, messageId: result.message.id });
   } catch (error) { next(error); }
 });
@@ -325,6 +335,7 @@ app.post("/api/guilds/:guildId/fivem/publish", requireAuth, requireCsrf, require
     const message = await publishFiveMStatusPanel(req.params.guildId, config.fivem, config.fivem.panelMessageId);
     config.fivem.panelMessageId = message.id;
     saveGuildConfig(req.params.guildId, config);
+    addLog(req.params.guildId, "panneau", "Statut FiveM publié", "", panelActor(req));
     res.json({ ok: true, channelId: message.channelId, messageId: message.id });
   } catch (error) { next(error); }
 });
@@ -374,8 +385,16 @@ app.post("/api/guilds/:guildId/messages", requireAuth, requireCsrf, requireGuild
     const hasEmbedContent = Boolean(data.embedTitle || data.embedDescription || data.embedImageUrl || data.embedFooter);
     if (!data.content && !(data.embedEnabled && hasEmbedContent) && !data.buttons.length) return res.status(400).json({ error: "Ajoute un texte, un embed ou au moins un bouton." });
     const message = await publishCustomMessage(req.params.guildId, data);
+    addLog(req.params.guildId, "panneau", "Message personnalisé envoyé", `#${bot.guilds.cache.get(req.params.guildId)?.channels.cache.get(message.channelId)?.name || "?"}`, panelActor(req));
     res.json({ ok: true, channelId: message.channelId, messageId: message.id, url: `https://discord.com/channels/${req.params.guildId}/${message.channelId}/${message.id}` });
   } catch (error) { next(error); }
+});
+
+/* Journal : tout ce qui se passe sur le serveur Discord et dans le panneau */
+app.get("/api/guilds/:guildId/logs", requireAuth, requireGuildAccess, (req, res) => {
+  const category = LOG_CATEGORIES.includes(req.query.category) ? req.query.category : "";
+  const rows = listLogs(req.params.guildId, { category, q: String(req.query.q || ""), before: Number(req.query.before) || 0, limit: 60 });
+  res.json({ rows, counts: logCounts(req.params.guildId), hasMore: rows.length === 60 });
 });
 
 app.get("/api/status", (req, res) => res.json({ botReady: bot.isReady(), uptime: bot.uptime }));
