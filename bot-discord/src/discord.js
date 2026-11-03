@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import {
-  ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ChannelType, Client, EmbedBuilder,
+  ActivityType, ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ChannelType, Client, EmbedBuilder,
   GatewayIntentBits, ModalBuilder, Partials, PermissionFlagsBits, SlashCommandBuilder, StringSelectMenuBuilder,
   TextInputBuilder, TextInputStyle
 } from "discord.js";
@@ -9,7 +9,7 @@ import {
   deleteGiveawayRecord, deletePollRecord, drawGiveaway, enterGiveaway, getGiveaway, getGiveawayEntryCount, getPoll,
   getPollVoteCounts, getOpenTicket, getTicketByChannel, listConfiguredGuildIds, listDueGiveaways, listDuePolls,
   getGuildConfig, listGiveaways, listOpenTickets, listPolls, reopenTicket, saveGuildConfig,
-  setGiveawayMessageId, setPollMessageId, addLog, nextTicketNumber, setTicketNumber, setTicketDeleteAt, listPendingTicketDeletes
+  setGiveawayMessageId, setPollMessageId, getPresenceSettings, publicCounts, addLog, nextTicketNumber, setTicketNumber, setTicketDeleteAt, listPendingTicketDeletes
 } from "./database.js";
 
 export async function fetchFiveMStatus(settings) {
@@ -947,3 +947,52 @@ export async function updateBotProfile(guildId, changes) {
     throw new Error("Discord a refusé la modification : " + message.slice(0, 160));
   }
 }
+
+/* ---------- Statut animé (commun à tous les serveurs) ---------- */
+const ACTIVITY = { playing: ActivityType.Playing, watching: ActivityType.Watching, listening: ActivityType.Listening, competing: ActivityType.Competing, custom: ActivityType.Custom };
+const nf = n => new Intl.NumberFormat("fr-FR").format(n);
+export function presenceValues() {
+  const guilds = [...bot.guilds.cache.values()];
+  const counts = publicCounts();
+  return {
+    serveurs: guilds.length,
+    membres: guilds.reduce((sum, guild) => sum + (guild.memberCount || 0), 0),
+    tickets_ouverts: listOpenTickets().length,
+    tickets: counts.tickets,
+    commandes: counts.commands,
+    sondages: counts.polls
+  };
+}
+export function renderPresenceText(text, values = presenceValues()) {
+  return String(text).replace(/\{(serveurs|membres|tickets_ouverts|tickets|commandes|sondages)\}/g, (m, key) => nf(values[key] ?? 0)).slice(0, 128);
+}
+let presenceTimer = null, presenceIndex = 0;
+function applyPresence() {
+  if (!bot.isReady()) return;
+  const settings = getPresenceSettings();
+  if (!settings.enabled) { bot.user.setPresence({ activities: [], status: settings.status }); return; }
+  const item = settings.items[presenceIndex % settings.items.length];
+  presenceIndex = (presenceIndex + 1) % settings.items.length;
+  const text = renderPresenceText(item.text);
+  const activity = item.type === "custom" ? { name: "Statut", state: text, type: ActivityType.Custom } : { name: text, type: ACTIVITY[item.type] };
+  try { bot.user.setPresence({ activities: [activity], status: settings.status }); }
+  catch (error) { console.error("Statut du bot impossible :", error.message); }
+}
+export function restartPresence() {
+  clearInterval(presenceTimer);
+  presenceIndex = 0;
+  applyPresence();
+  presenceTimer = setInterval(applyPresence, getPresenceSettings().interval * 1000);
+  presenceTimer.unref?.();
+}
+/* propriétaires du bot (seuls autorisés à changer le statut, commun à tous les serveurs) */
+let ownerIds = new Set(String(process.env.BOT_OWNER_IDS || "").split(/[,\s]+/).filter(Boolean));
+export const isBotOwner = userId => ownerIds.has(String(userId));
+bot.once("clientReady", async () => {
+  restartPresence();
+  try {
+    const app = await bot.application.fetch();
+    if (app.owner?.members) app.owner.members.forEach(member => ownerIds.add(member.id));
+    else if (app.owner?.id) ownerIds.add(app.owner.id);
+  } catch (error) { console.error("Propriétaire de l’application introuvable :", error.message); }
+});

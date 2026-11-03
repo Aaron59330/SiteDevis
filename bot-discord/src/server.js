@@ -9,12 +9,12 @@ import rateLimit from "express-rate-limit";
 import { PermissionFlagsBits } from "discord.js";
 import {
   db, getGiveaway, getGuildConfig, getPoll, getPollVoteCounts, getPollVoteHistory, getPollVoteHistoryCount, listGiveaways, listPolls,
-  saveGuildConfig, SQLiteSessionStore, addLog, listLogs, logCounts, LOG_CATEGORIES, publicCounts
+  saveGuildConfig, SQLiteSessionStore, getPresenceSettings, savePresenceSettings, addLog, listLogs, logCounts, LOG_CATEGORIES, publicCounts
 } from "./database.js";
 import { sanitizeConfig } from "./config.js";
 import {
   bot, botGuildSummary, fetchFiveMStatus, finishGiveaway, finishPoll, publishCustomMessage,
-  publishFiveMStatusPanel, publishGiveaway, publishPoll, publishTicketPanel, syncGuildCommands, botProfile, updateBotProfile
+  publishFiveMStatusPanel, publishGiveaway, publishPoll, publishTicketPanel, syncGuildCommands, botProfile, updateBotProfile, isBotOwner, presenceValues, renderPresenceText, restartPresence
 } from "./discord.js";
 
 const required = ["DISCORD_TOKEN", "DISCORD_CLIENT_ID", "DISCORD_CLIENT_SECRET", "SESSION_SECRET"];
@@ -173,7 +173,7 @@ app.get("/api/me", (req, res) => {
       memberCount: available?.memberCount || null
     };
   });
-  res.json({ authenticated: true, user: req.session.user, csrfToken: req.session.csrfToken, botReady: bot.isReady(), clientId: process.env.DISCORD_CLIENT_ID, guilds });
+  res.json({ authenticated: true, isOwner: isBotOwner(req.session.user.id), user: req.session.user, csrfToken: req.session.csrfToken, botReady: bot.isReady(), clientId: process.env.DISCORD_CLIENT_ID, guilds });
 });
 
 app.get("/api/guilds/:guildId", requireAuth, requireGuildAccess, (req, res) => {
@@ -425,6 +425,20 @@ app.put("/api/guilds/:guildId/profile", requireAuth, requireCsrf, requireGuildAc
     if (done.length) addLog(req.params.guildId, "panneau", "Profil du bot modifié", done.join(", "), panelActor(req));
     res.json({ ok: true, ...botProfile(req.params.guildId), bio: getGuildConfig(req.params.guildId).profile?.bio || "" });
   } catch (error) { next(error); }
+});
+
+/* Statut animé du bot (commun à tous les serveurs : réservé au propriétaire du bot) */
+function requireOwner(req, res, next) {
+  if (!isBotOwner(req.session.user?.id)) return res.status(403).json({ error: "Réservé au propriétaire du bot." });
+  next();
+}
+app.get("/api/presence", requireAuth, requireOwner, (req, res) => {
+  res.json({ settings: getPresenceSettings(), values: presenceValues() });
+});
+app.put("/api/presence", requireAuth, requireCsrf, requireOwner, (req, res) => {
+  const settings = savePresenceSettings(req.body || {});
+  restartPresence();
+  res.json({ ok: true, settings, preview: settings.items.map(item => renderPresenceText(item.text)) });
 });
 
 /* Journal : tout ce qui se passe sur le serveur Discord et dans le panneau */

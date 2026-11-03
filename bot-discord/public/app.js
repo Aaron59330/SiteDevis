@@ -62,6 +62,8 @@ async function boot() {
     state.csrf = data.csrfToken;
     state.clientId = data.clientId;
     state.guilds = data.guilds;
+    state.isOwner = data.isOwner === true;
+    $("#presenceNav").hidden = !state.isOwner;
     $("#appShell").hidden = false;
     renderUser();
     renderGuilds();
@@ -608,6 +610,7 @@ function switchPage(page) {
   if (page === "animations") loadActivities();
   if (page === "logs") loadLogs(true);
   if (page === "profile") loadProfile();
+  if (page === "presence") loadPresence();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -981,3 +984,49 @@ async function loadPublicStats() {
     }
   } catch { $("#lpStatus").textContent = "Chiffres indisponibles pour le moment"; }
 }
+
+/* ---------- Statut animé (propriétaire du bot) ---------- */
+const PRESENCE_LABELS = { custom: "Texte libre", watching: "Regarde", playing: "Joue à", listening: "Écoute", competing: "Participe à" };
+const presenceState = { values: {}, timer: null, index: 0 };
+function presenceRow(item = { type: "custom", text: "" }) {
+  return `<div class="presence-row"><select class="select presence-type">${Object.entries(PRESENCE_LABELS).map(([k, l]) => `<option value="${k}" ${item.type === k ? "selected" : ""}>${l}</option>`).join("")}</select><input class="input presence-text" maxlength="120" value="${escapeHtml(item.text)}" placeholder="Surveille {membres} membres"><button class="presence-del" type="button" title="Retirer"><svg class="ic" aria-hidden="true"><use href="#i-trash"/></svg></button></div>`;
+}
+function presenceItems() { return $$(".presence-row").map(row => ({ type: $(".presence-type", row).value, text: $(".presence-text", row).value.trim() })).filter(item => item.text); }
+function fillPresenceText(text) {
+  const nf = n => new Intl.NumberFormat("fr-FR").format(n || 0);
+  return text.replace(/\{(serveurs|membres|tickets_ouverts|tickets|commandes|sondages)\}/g, (m, key) => nf(presenceState.values[key]));
+}
+function tickPresencePreview() {
+  const items = presenceItems(), el = $("#presencePreview");
+  if (!$("#presenceEnabled").checked || !items.length) { el.textContent = "Aucun statut"; return; }
+  const item = items[presenceState.index % items.length]; presenceState.index++;
+  el.classList.remove("swap"); void el.offsetWidth; el.classList.add("swap");
+  el.innerHTML = item.type === "custom" ? escapeHtml(fillPresenceText(item.text)) : `${PRESENCE_LABELS[item.type]} <b>${escapeHtml(fillPresenceText(item.text))}</b>`;
+}
+function updatePresenceUi() {
+  const s = Math.max(15, Number($("#presenceInterval").value) || 20);
+  $("#presenceHint").textContent = `Sur Discord : changement toutes les ${s} s (ici toutes les 3 s pour l’aperçu)`;
+  $("#presenceDot").className = $("#presenceStatus").value;
+}
+async function loadPresence() {
+  try {
+    const { settings, values } = await api("/api/presence");
+    presenceState.values = values;
+    $("#presenceEnabled").checked = settings.enabled; $("#presenceInterval").value = settings.interval; $("#presenceStatus").value = settings.status;
+    $("#presenceItems").innerHTML = settings.items.map(presenceRow).join("");
+    updatePresenceUi(); presenceState.index = 0; tickPresencePreview();
+    clearInterval(presenceState.timer); presenceState.timer = setInterval(() => { if (state.page === "presence") tickPresencePreview(); }, 3000);
+  } catch (error) { showToast(error.message, true); }
+}
+$("#presenceAdd").addEventListener("click", () => { if ($$(".presence-row").length >= 15) return showToast("15 phrases au maximum.", true); $("#presenceItems").insertAdjacentHTML("beforeend", presenceRow()); $$(".presence-text").pop().focus(); });
+$("#presenceItems").addEventListener("click", event => { const del = event.target.closest(".presence-del"); if (del) { del.closest(".presence-row").remove(); tickPresencePreview(); } });
+$("#presenceItems").addEventListener("input", () => { presenceState.index = Math.max(0, presenceState.index - 1); tickPresencePreview(); });
+["#presenceInterval", "#presenceStatus", "#presenceEnabled"].forEach(sel => $(sel).addEventListener("change", () => { updatePresenceUi(); tickPresencePreview(); }));
+$("#presenceSave").addEventListener("click", async event => {
+  const button = event.currentTarget, original = button.innerHTML; button.disabled = true; button.textContent = "Enregistrement…";
+  try {
+    await api("/api/presence", { method: "PUT", body: JSON.stringify({ enabled: $("#presenceEnabled").checked, status: $("#presenceStatus").value, interval: $("#presenceInterval").value, items: presenceItems() }) });
+    showToast("Statut animé enregistré : il défile maintenant sur Discord.");
+  } catch (error) { showToast(error.message, true); }
+  finally { button.disabled = false; button.innerHTML = original; }
+});

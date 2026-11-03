@@ -95,6 +95,10 @@ db.exec(`
     details TEXT NOT NULL DEFAULT ''
   );
   CREATE INDEX IF NOT EXISTS logs_guild_at ON logs(guild_id, at DESC);
+  CREATE TABLE IF NOT EXISTS app_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS ticket_counters (
     guild_id TEXT NOT NULL,
     type_id TEXT NOT NULL,
@@ -385,4 +389,37 @@ export function publicCounts() {
     polls: one("SELECT COUNT(*) AS n FROM polls"),
     giveaways: one("SELECT COUNT(*) AS n FROM giveaways")
   };
+}
+
+/* ---------- Réglages globaux du bot (statut animé…) ---------- */
+export const PRESENCE_TYPES = ["playing", "watching", "listening", "competing", "custom"];
+export const defaultPresence = {
+  enabled: true, status: "online", interval: 20,
+  items: [
+    { type: "custom", text: "Surveille {membres} membres" },
+    { type: "custom", text: "{tickets_ouverts} tickets ouverts en ce moment" },
+    { type: "custom", text: "Présent sur {serveurs} serveurs" },
+    { type: "watching", text: "bot.optidevis.pro" }
+  ]
+};
+export function sanitizePresence(input = {}) {
+  const items = (Array.isArray(input.items) ? input.items : []).slice(0, 15)
+    .map(item => ({ type: PRESENCE_TYPES.includes(item?.type) ? item.type : "watching", text: String(item?.text ?? "").trim().slice(0, 120) }))
+    .filter(item => item.text);
+  return {
+    enabled: input.enabled !== false,
+    status: ["online", "idle", "dnd"].includes(input.status) ? input.status : "online",
+    interval: Math.min(600, Math.max(15, Number.parseInt(input.interval, 10) || 20)),
+    items: items.length ? items : structuredClone(defaultPresence.items)
+  };
+}
+export function getPresenceSettings() {
+  const row = db.prepare("SELECT value FROM app_settings WHERE key = 'presence'").get();
+  if (!row) return structuredClone(defaultPresence);
+  try { return sanitizePresence(JSON.parse(row.value)); } catch { return structuredClone(defaultPresence); }
+}
+export function savePresenceSettings(value) {
+  const clean = sanitizePresence(value);
+  db.prepare("INSERT INTO app_settings(key, value) VALUES('presence', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(JSON.stringify(clean));
+  return clean;
 }
