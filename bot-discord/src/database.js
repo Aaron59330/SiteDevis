@@ -374,3 +374,15 @@ export function setTicketDeleteAt(channelId, at) {
 export function listPendingTicketDeletes() {
   return db.prepare("SELECT channel_id, guild_id, delete_at FROM tickets WHERE delete_at IS NOT NULL").all();
 }
+
+/* Chiffres publics de la page d'accueil (aucune donnée personnelle) */
+export function publicCounts() {
+  const one = sql => db.prepare(sql).get().n || 0;
+  return {
+    tickets: one("SELECT COALESCE(SUM(last), 0) AS n FROM ticket_counters") || one("SELECT COUNT(*) AS n FROM tickets"),
+    events: one("SELECT COUNT(*) AS n FROM logs"),
+    commands: one("SELECT COUNT(*) AS n FROM logs WHERE category = 'commandes'"),
+    polls: one("SELECT COUNT(*) AS n FROM polls"),
+    giveaways: one("SELECT COUNT(*) AS n FROM giveaways")
+  };
+}

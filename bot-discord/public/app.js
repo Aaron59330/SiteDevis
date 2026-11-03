@@ -52,6 +52,7 @@ async function boot() {
     setBotStatus(data.botReady);
     if (!data.authenticated) {
       $("#loginScreen").hidden = false;
+      loadPublicStats(); setInterval(loadPublicStats, 30_000);
       const params = new URLSearchParams(location.search);
       if (params.get("login") === "cancelled") showToast("Connexion Discord annulée.", true);
       if (params.get("login") === "failed") showToast("Connexion impossible. Réessaie.", true);
@@ -953,3 +954,30 @@ $("#profileReset").addEventListener("click", event => {
   if (!confirm("Rétablir le nom, la bio, l’avatar et la bannière par défaut sur ce serveur ?")) return;
   saveProfile({ nick: "", bio: "", avatar: null, banner: null }, event.currentTarget);
 });
+
+/* ---------- Page d'accueil : chiffres publics ---------- */
+const fmtInt = n => new Intl.NumberFormat("fr-FR").format(n);
+function countUp(el, target) {
+  const from = Number(el.dataset.count) || 0, start = performance.now(), dur = 1100;
+  el.dataset.count = target;
+  const step = now => { const k = Math.min(1, (now - start) / dur), eased = 1 - Math.pow(1 - k, 3); el.textContent = fmtInt(Math.round(from + (target - from) * eased)); if (k < 1) requestAnimationFrame(step); };
+  requestAnimationFrame(step);
+}
+function fmtUptime(ms) {
+  const m = Math.floor(ms / 60000), d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60);
+  return d ? `${d} j ${h} h` : h ? `${h} h ${m % 60} min` : `${m} min`;
+}
+async function loadPublicStats() {
+  try {
+    const r = await fetch("/api/public/stats"); if (!r.ok) throw new Error();
+    const d = await r.json();
+    countUp($("#lpGuilds"), d.guilds); countUp($("#lpMembers"), d.members); countUp($("#lpTickets"), d.tickets); countUp($("#lpEvents"), d.events);
+    $("#lpDot").classList.toggle("on", d.botReady);
+    $("#lpStatus").textContent = d.botReady ? `Bot en ligne depuis ${fmtUptime(d.uptime)} · latence ${d.ping} ms` : "Bot momentanément hors ligne";
+    $("#lpFoot").textContent = `${fmtInt(d.commands)} commandes utilisées · ${fmtInt(d.polls)} sondages · ${fmtInt(d.giveaways)} tirages au sort. Chiffres en direct.`;
+    if (d.clientId) {
+      const url = `https://discord.com/oauth2/authorize?${new URLSearchParams({ client_id: d.clientId, scope: "bot applications.commands", permissions: "268528656" })}`;
+      $$(".lp-invite").forEach(a => { a.href = url; });
+    }
+  } catch { $("#lpStatus").textContent = "Chiffres indisponibles pour le moment"; }
+}

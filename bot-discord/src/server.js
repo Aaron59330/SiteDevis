@@ -9,7 +9,7 @@ import rateLimit from "express-rate-limit";
 import { PermissionFlagsBits } from "discord.js";
 import {
   db, getGiveaway, getGuildConfig, getPoll, getPollVoteCounts, getPollVoteHistory, getPollVoteHistoryCount, listGiveaways, listPolls,
-  saveGuildConfig, SQLiteSessionStore, addLog, listLogs, logCounts, LOG_CATEGORIES
+  saveGuildConfig, SQLiteSessionStore, addLog, listLogs, logCounts, LOG_CATEGORIES, publicCounts
 } from "./database.js";
 import { sanitizeConfig } from "./config.js";
 import {
@@ -432,6 +432,24 @@ app.get("/api/guilds/:guildId/logs", requireAuth, requireGuildAccess, (req, res)
   const category = LOG_CATEGORIES.includes(req.query.category) ? req.query.category : "";
   const rows = listLogs(req.params.guildId, { category, q: String(req.query.q || ""), before: Number(req.query.before) || 0, limit: 60 });
   res.json({ rows, counts: logCounts(req.params.guildId), hasMore: rows.length === 60 });
+});
+
+/* Page d'accueil publique : chiffres globaux du bot */
+let publicStatsCache = { at: 0, data: null };
+app.get("/api/public/stats", (req, res) => {
+  if (!publicStatsCache.data || Date.now() - publicStatsCache.at > 30_000) {
+    const guilds = [...bot.guilds.cache.values()];
+    publicStatsCache = { at: Date.now(), data: {
+      botReady: bot.isReady(),
+      guilds: guilds.length,
+      members: guilds.reduce((sum, guild) => sum + (guild.memberCount || 0), 0),
+      uptime: bot.uptime || 0,
+      ping: Math.max(0, Math.round(bot.ws?.ping ?? 0)),
+      clientId: process.env.DISCORD_CLIENT_ID || "",
+      ...publicCounts()
+    } };
+  }
+  res.set("Cache-Control", "public, max-age=30").json(publicStatsCache.data);
 });
 
 app.get("/api/status", (req, res) => res.json({ botReady: bot.isReady(), uptime: bot.uptime }));
