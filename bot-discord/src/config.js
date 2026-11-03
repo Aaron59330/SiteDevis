@@ -48,6 +48,21 @@ export const defaultConfig = {
   profile: {
     bio: ""
   },
+  protect: {
+    enabled: false,
+    spam: { enabled: true, count: 6, seconds: 5 },
+    duplicates: { enabled: true, count: 3 },
+    invites: { enabled: true },
+    links: { enabled: false, allowed: "youtube.com, youtu.be, tenor.com, giphy.com" },
+    mentions: { enabled: true, max: 5 },
+    caps: { enabled: false, percent: 70 },
+    words: { enabled: false, list: "" },
+    action: "warn",
+    timeoutMinutes: 10,
+    ignoredRoleIds: [],
+    ignoredChannelIds: [],
+    logChannelId: ""
+  },
   commands: {
     clearMessages: false,
     slowmode: false,
@@ -137,6 +152,27 @@ export function sanitizeConfig(input = {}) {
     profile: {
       bio: text(input.profile?.bio, 190)
     },
+    protect: (() => {
+      const p = input.protect || {}, d = defaultConfig.protect;
+      const num = (value, min, max, fallback) => Math.min(max, Math.max(min, Number.parseInt(value, 10) || fallback));
+      const on = (value, fallback) => (value === undefined ? fallback : value === true);
+      const ids = value => (Array.isArray(value) ? value : []).map(id).filter(Boolean).slice(0, 50);
+      return {
+        enabled: p.enabled === true,
+        spam: { enabled: on(p.spam?.enabled, d.spam.enabled), count: num(p.spam?.count, 3, 30, 6), seconds: num(p.spam?.seconds, 2, 60, 5) },
+        duplicates: { enabled: on(p.duplicates?.enabled, d.duplicates.enabled), count: num(p.duplicates?.count, 2, 10, 3) },
+        invites: { enabled: on(p.invites?.enabled, d.invites.enabled) },
+        links: { enabled: on(p.links?.enabled, d.links.enabled), allowed: text(p.links?.allowed ?? d.links.allowed, 600) },
+        mentions: { enabled: on(p.mentions?.enabled, d.mentions.enabled), max: num(p.mentions?.max, 2, 50, 5) },
+        caps: { enabled: on(p.caps?.enabled, d.caps.enabled), percent: num(p.caps?.percent, 50, 100, 70) },
+        words: { enabled: on(p.words?.enabled, d.words.enabled), list: text(p.words?.list, 2000) },
+        action: ["delete", "warn", "timeout"].includes(p.action) ? p.action : "warn",
+        timeoutMinutes: num(p.timeoutMinutes, 1, 10080, 10),
+        ignoredRoleIds: ids(p.ignoredRoleIds),
+        ignoredChannelIds: ids(p.ignoredChannelIds),
+        logChannelId: id(p.logChannelId)
+      };
+    })(),
     anonymous: {
       enabled: input.anonymous?.enabled === true,
       channelId: id(input.anonymous?.channelId)

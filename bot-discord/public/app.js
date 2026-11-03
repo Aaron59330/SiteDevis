@@ -164,6 +164,8 @@ function renderConfig() {
   fillSelect("#ticketPanelChannel", channels, "Sélectionner un salon…", config.tickets.panelChannelId);
   fillSelect("#ticketLogChannel", channels, "Sélectionner un salon…", config.tickets.logChannelId || "");
   fillSelect("#anonymousChannel", channels, "Sélectionner un salon…", config.anonymous?.channelId || "");
+  fillSelect("#protectLogChannel", channels, "Aucun (Journal uniquement)", config.protect?.logChannelId || "");
+  renderProtect(config.protect || {}, channels, roles);
   fillSelect("#messageChannel", channels, "Sélectionner un salon…");
   fillSelect("#pollChannel", channels, "Sélectionner un salon…");
   fillSelect("#giveawayChannel", channels, "Sélectionner un salon…");
@@ -239,6 +241,7 @@ function currentConfig() {
     autorole: { enabled: $("#autoroleEnabled").checked, roleId: $("#autoroleRole").value },
     tickets: { enabled: $("#ticketsEnabled").checked, panelChannelId: $("#ticketPanelChannel").value, categoryId: $("#ticketCategory").value, supportRoleId: $("#supportRole").value, panelTitle: $("#ticketTitle").value, channelNameFormat: $("#ticketNameFormat").value.trim() || "{type}-{numero}", panelDescription: $("#ticketDescription").value, imageUrl: $("#ticketImageUrl").value, embedColor: $("#ticketEmbedColor").value, formsEnabled: $("#ticketFormsEnabled").checked, claimEnabled: $("#ticketClaimEnabled").checked, transcriptsEnabled: $("#ticketTranscriptsEnabled").checked, reopenEnabled: $("#ticketReopenEnabled").checked, deleteOnClose: $("#ticketDeleteOnClose").checked, deleteDelay: $("#ticketDeleteDelay").value, autoCloseEnabled: $("#ticketAutoCloseEnabled").checked, autoCloseDays: $("#ticketAutoCloseDays").value, logsEnabled: $("#ticketLogsEnabled").checked, logChannelId: $("#ticketLogChannel").value, ticketTypes: collectTicketTypes() },
     anonymous: { enabled: $("#anonymousEnabled").checked, channelId: $("#anonymousChannel").value },
+    protect: collectProtect(),
     commands: { clearMessages: $("#commandClearMessages").checked, slowmode: $("#commandSlowmode").checked, userInfo: $("#commandUserInfo").checked, serverInfo: $("#commandServerInfo").checked, avatar: $("#commandAvatar").checked },
     fivem: { enabled: $("#fivemEnabled").checked, host: $("#fivemHost").value, port: $("#fivemPort").value, protocol: $("#fivemProtocol").value, connectUrl: $("#fivemConnectUrl").value, panelEnabled: $("#fivemPanelEnabled").checked, panelChannelId: $("#fivemPanelChannel").value, panelMessageId: state.config.fivem?.panelMessageId || "", panelTitle: $("#fivemPanelTitle").value, embedColor: $("#fivemEmbedColor").value, autoRefresh: $("#fivemAutoRefresh").checked, refreshSeconds: $("#fivemRefreshSeconds").value, commandEnabled: $("#fivemCommandEnabled").checked }
   };
@@ -262,7 +265,7 @@ function updateFromControls() {
 }
 
 function updateBadges() {
-  const entries = [["welcomeBadge", state.config.welcome.enabled], ["roleBadge", state.config.autorole.enabled], ["ticketBadge", state.config.tickets.enabled], ["anonymousBadge", state.config.anonymous?.enabled === true]];
+  const entries = [["welcomeBadge", state.config.welcome.enabled], ["roleBadge", state.config.autorole.enabled], ["ticketBadge", state.config.tickets.enabled], ["anonymousBadge", state.config.anonymous?.enabled === true], ["protectBadge", state.config.protect?.enabled === true]];
   for (const [id, enabled] of entries) $("#" + id).textContent = enabled ? "ON" : "OFF";
   const commandCount = Object.values(state.config.commands || {}).filter(Boolean).length + Number(state.config.fivem?.enabled && state.config.fivem?.commandEnabled);
   $("#commandBadge").textContent = `${commandCount} / 6`;
@@ -1030,3 +1033,31 @@ $("#presenceSave").addEventListener("click", async event => {
   } catch (error) { showToast(error.message, true); }
   finally { button.disabled = false; button.innerHTML = original; }
 });
+
+/* ---------- Protection automatique ---------- */
+function protectGet(obj, path) { return path.split(".").reduce((o, k) => (o == null ? undefined : o[k]), obj); }
+function protectSet(obj, path, value) { const keys = path.split("."); let o = obj; keys.slice(0, -1).forEach(k => { o[k] = o[k] || {}; o = o[k]; }); o[keys[keys.length - 1]] = value; }
+function renderProtect(p, channels, roles) {
+  $$("[data-protect]").forEach(el => {
+    const value = protectGet(p, el.dataset.protect);
+    if (el.type === "checkbox") el.checked = value === true; else if (value !== undefined) el.value = value;
+  });
+  const pick = (list, selected, attr) => list.map(item => `<label class="pick"><input type="checkbox" ${attr}="${escapeHtml(item.id)}" ${selected.includes(item.id) ? "checked" : ""}><span>${attr === "data-protect-role" ? "@" : "#"}${escapeHtml(item.name)}</span></label>`).join("") || '<span class="field-hint">Aucun élément.</span>';
+  $("#protectRoles").innerHTML = pick(roles, p.ignoredRoleIds || [], "data-protect-role");
+  $("#protectChannels").innerHTML = pick(channels, p.ignoredChannelIds || [], "data-protect-channel");
+  updateProtectVisibility();
+}
+function collectProtect() {
+  const p = {};
+  $$("[data-protect]").forEach(el => protectSet(p, el.dataset.protect, el.type === "checkbox" ? el.checked : el.value));
+  p.ignoredRoleIds = $$("[data-protect-role]:checked").map(el => el.dataset.protectRole);
+  p.ignoredChannelIds = $$("[data-protect-channel]:checked").map(el => el.dataset.protectChannel);
+  return p;
+}
+function updateProtectVisibility() {
+  $$("[data-protect-extra]").forEach(box => { const toggle = $(`[data-protect="${box.dataset.protectExtra}.enabled"]`); box.hidden = !toggle?.checked; });
+  const action = $('[data-protect="action"]'); $("[data-protect-timeout]").hidden = action?.value !== "timeout";
+  $(".protect-rules").classList.toggle("is-off", !$("#protectEnabled").checked);
+}
+document.addEventListener("change", event => { if (event.target.closest('[data-section="protect"]')) { updateProtectVisibility(); updateFromControls(); } });
+document.addEventListener("input", event => { if (event.target.matches('[data-section="protect"] input:not([type=checkbox]), [data-section="protect"] textarea')) updateFromControls(); });

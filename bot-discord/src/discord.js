@@ -996,3 +996,87 @@ bot.once("clientReady", async () => {
     else if (app.owner?.id) ownerIds.add(app.owner.id);
   } catch (error) { console.error("Propriétaire de l’application introuvable :", error.message); }
 });
+
+/* ---------- Protection automatique (anti-spam, anti-liens, anti-invitations…) ---------- */
+const spamTracker = new Map(), dupTracker = new Map(), warnCooldown = new Map();
+const INVITE_RE = /(discord\.gg|discord(?:app)?\.com\/invite|dsc\.gg)\/[\w-]+/i;
+const LINK_RE = /\b(?:https?:\/\/|www\.)([^\s/<>]+)/gi;
+const plain = value => String(value || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+function protectionReason(message, p) {
+  const text = message.content || "";
+  if (p.words.enabled && p.words.list) {
+    const words = p.words.list.split(/[,\n]/).map(w => plain(w).trim()).filter(Boolean);
+    const content = ` ${plain(text).replace(/[^a-z0-9]+/g, " ")} `;
+    const hit = words.find(w => content.includes(` ${w.replace(/[^a-z0-9]+/g, " ").trim()} `));
+    if (hit) return ["Mot interdit", "langage non autorisé"];
+  }
+  if ((p.invites.enabled || p.links.enabled) && INVITE_RE.test(text)) return ["Invitation Discord", "les invitations vers d’autres serveurs ne sont pas autorisées"];
+  if (p.links.enabled) {
+    const allowed = p.links.allowed.split(/[,\s]+/).map(d => d.toLowerCase().replace(/^www\./, "")).filter(Boolean);
+    for (const match of text.matchAll(LINK_RE)) {
+      const host = match[1].toLowerCase().replace(/^www\./, "").replace(/:\d+$/, "");
+      if (!allowed.some(d => host === d || host.endsWith("." + d))) return ["Lien", "les liens ne sont pas autorisés ici"];
+    }
+  }
+  if (p.mentions.enabled) {
+    const count = message.mentions.users.size + message.mentions.roles.size + (message.mentions.everyone ? 5 : 0);
+    if (count > p.mentions.max) return ["Mentions de masse", "trop de mentions dans un seul message"];
+  }
+  if (p.caps.enabled) {
+    const letters = text.replace(/[^A-Za-zÀ-ÖØ-öø-ÿ]/g, "");
+    if (letters.length >= 10 && letters.replace(/[^A-ZÀ-ÖØ-Þ]/g, "").length * 100 / letters.length >= p.caps.percent) return ["Majuscules", "évite d’écrire tout en majuscules"];
+  }
+  const key = `${message.guild.id}:${message.author.id}`, now = Date.now();
+  if (p.duplicates.enabled && text.trim()) {
+    const norm = plain(text).replace(/\s+/g, " ").trim(), last = dupTracker.get(key);
+    const n = last && last.text === norm && now - last.at < 60_000 ? last.n + 1 : 1;
+    dupTracker.set(key, { text: norm, n, at: now });
+    if (n >= p.duplicates.count) return ["Messages répétés", "merci de ne pas répéter le même message"];
+  }
+  if (p.spam.enabled) {
+    const list = (spamTracker.get(key) || []).filter(t => now - t < p.spam.seconds * 1000);
+    list.push(now); spamTracker.set(key, list);
+    if (list.length > p.spam.count) return ["Spam", "tu envoies des messages trop vite"];
+  }
+  return null;
+}
+setInterval(() => { const now = Date.now(); for (const [k, v] of dupTracker) if (now - v.at > 120_000) dupTracker.delete(k); for (const [k, v] of spamTracker) if (!v.some(t => now - t < 60_000)) spamTracker.delete(k); }, 300_000).unref();
+
+bot.on("messageCreate", async message => {
+  if (!message.guild || message.author.bot || message.webhookId) return;
+  const p = getGuildConfig(message.guild.id).protect;
+  if (!p?.enabled) return;
+  const member = message.member || await message.guild.members.fetch(message.author.id).catch(() => null);
+  if (!member) return;
+  // l'équipe (gérer les messages / administrateur), les rôles et salons ignorés ne sont jamais sanctionnés
+  if (member.permissions.has(PermissionFlagsBits.ManageMessages) || member.permissions.has(PermissionFlagsBits.Administrator)) return;
+  if (p.ignoredChannelIds.includes(message.channelId) || member.roles.cache.some(role => p.ignoredRoleIds.includes(role.id))) return;
+  const found = protectionReason(message, p);
+  if (!found) return;
+  const [rule, reason] = found;
+  await message.delete().catch(() => {});
+  let sanction = "message supprimé";
+  if (p.action === "timeout" && member.moderatable) {
+    try { await member.timeout(p.timeoutMinutes * 60_000, `Protection AERO BOT : ${rule}`); sanction = `exclu ${p.timeoutMinutes} min`; }
+    catch (error) { console.error("Exclusion temporaire impossible :", error.message); }
+  }
+  const key = `${message.guild.id}:${message.author.id}`;
+  if (p.action !== "delete" && Date.now() - (warnCooldown.get(key) || 0) > 10_000) {
+    warnCooldown.set(key, Date.now());
+    const warn = new EmbedBuilder().setColor(0xed4245).setDescription(`${message.author}, ton message a été supprimé : ${reason}.${sanction.startsWith("exclu") ? `\nTu es exclu temporairement pendant ${p.timeoutMinutes} minute${p.timeoutMinutes > 1 ? "s" : ""}.` : ""}`);
+    const sent = await message.channel.send({ content: `${message.author}`, embeds: [warn], allowedMentions: { users: [message.author.id] } }).catch(() => null);
+    if (sent) setTimeout(() => sent.delete().catch(() => {}), 8000);
+  }
+  const excerpt = (message.content || "").replace(/\s+/g, " ").slice(0, 300);
+  addLog(message.guild.id, "moderation", `Protection : ${rule}`, `#${message.channel.name} · ${sanction}${excerpt ? ` · « ${excerpt} »` : ""}`, who(message.author));
+  if (p.logChannelId) {
+    const channel = message.guild.channels.cache.get(p.logChannelId);
+    if (channel?.isTextBased()) {
+      const embed = new EmbedBuilder().setColor(0xed4245).setTitle(`Protection · ${rule}`)
+        .addFields({ name: "Membre", value: `${message.author} (${message.author.username})`, inline: true }, { name: "Salon", value: `${message.channel}`, inline: true }, { name: "Sanction", value: sanction, inline: true })
+        .setTimestamp();
+      if (excerpt) embed.setDescription(`> ${excerpt}`);
+      channel.send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(() => {});
+    }
+  }
+});

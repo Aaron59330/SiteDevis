@@ -210,3 +210,16 @@ body{background:#101010;color:#f4f4f4}.sidebar{background:#0b0b0b;border-right-c
 @media(max-width:650px){.presence-row{grid-template-columns:1fr 38px}.presence-row .presence-type{grid-column:1/-1}}
 .login-screen.landing[hidden]{display:none!important}
 .presence-meta>span{white-space:normal;overflow:visible}
+
+/* ===== Protection ===== */
+.protect-extra{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.protect-extra label{margin:0;color:#9aa2af;font-size:10.5px;font-weight:500}
+.protect-extra .number-input{width:74px}
+.protect-extra .input:not(.number-input),.protect-extra .textarea{flex:1 1 100%}
+.protect-rules.is-off{opacity:.55}
+.pick-list{display:flex;flex-wrap:wrap;gap:6px;max-height:190px;overflow:auto;padding:2px}
+.pick{display:inline-flex;align-items:center;margin:0;cursor:pointer}
+.pick input{position:absolute;opacity:0;width:1px;height:1px}
+.pick span{padding:5px 10px;border:1px solid #303030;border-radius:7px;background:#1d1d1d;color:#aab1bd;font-size:11px;transition:.15s}
+.pick input:checked+span{border-color:#3566a6;background:#3566a633;color:#cfe0f7}
+.pick input:focus-visible+span{outline:2px solid #79a2d8}
