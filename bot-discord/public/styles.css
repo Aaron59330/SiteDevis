@@ -223,3 +223,24 @@ body{background:#101010;color:#f4f4f4}.sidebar{background:#0b0b0b;border-right-c
 .pick span{padding:5px 10px;border:1px solid #303030;border-radius:7px;background:#1d1d1d;color:#aab1bd;font-size:11px;transition:.15s}
 .pick input:checked+span{border-color:#3566a6;background:#3566a633;color:#cfe0f7}
 .pick input:focus-visible+span{outline:2px solid #79a2d8}
+
+/* ===== Modèles et messages envoyés ===== */
+.msg-library{margin-bottom:15px;padding:16px 18px}
+.msg-lib-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.msg-tabs{display:flex;gap:6px}
+.msg-tabs button{display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 12px;border:1px solid #2c2f38;border-radius:8px;background:#1a1c22;color:#aab1bd;font-size:11px;font-weight:600;cursor:pointer}
+.msg-tabs button.on{background:#3566a6;border-color:#3566a6;color:#fff}.msg-tabs .ic{width:13px;height:13px}
+.msg-tabs em{font-style:normal;font-size:9px;padding:1px 5px;border-radius:5px;background:#ffffff1a}.msg-tabs em:empty{display:none}
+.msg-lib-list{display:grid;gap:8px;max-height:330px;overflow:auto}
+.msg-item{display:flex;align-items:center;gap:12px;padding:11px 12px;border:1px solid #262a33;border-radius:10px;background:#15171c}
+.msg-item:hover{border-color:#34507a}
+.msg-item-main{flex:1;min-width:0}.msg-item-main b{display:block;color:#eef1f6;font-size:12px}
+.msg-item-main>span{display:block;margin-top:2px;color:#9aa2af;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.msg-item-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px}.msg-item-meta small{color:#6f7786;font-size:10px}
+.msg-tag{padding:1px 6px;border-radius:5px;background:#3566a62b;color:#8db3e8;font-size:9px;font-weight:700}
+.msg-item-actions{display:flex;align-items:center;gap:6px;flex:none}
+.icon-btn{display:grid;place-items:center;width:32px;height:32px;border:1px solid #303030;border-radius:8px;background:#1d1d1d;color:#aab1bd;cursor:pointer}.icon-btn:hover{color:#fff;border-color:#3566a6}.icon-btn.danger:hover{color:#ff8a92;border-color:#ff747e66}.icon-btn .ic{width:14px;height:14px}
+.msg-empty{padding:18px 8px;text-align:center;color:#7d8594;font-size:11.5px;line-height:1.6}
+.msg-editing{display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:11px 14px;border:1px solid #3566a688;border-radius:10px;background:#3566a622;color:#cfe0f7;font-size:11.5px}
+.msg-editing>.ic{width:15px;height:15px;flex:none}.msg-editing span{flex:1}.msg-editing .text-link{margin:0}
+@media(max-width:650px){.msg-item{flex-wrap:wrap}.msg-item-actions{width:100%;justify-content:flex-end}}

@@ -858,15 +858,10 @@ export async function publishTicketPanel(guildId, config) {
   return channel.send({ embeds: [embed], components: [row] });
 }
 
-export async function publishCustomMessage(guildId, data) {
-  const guild = bot.guilds.cache.get(guildId);
-  if (!guild) throw new Error("Le bot n’est pas présent sur ce serveur.");
-  const channel = guild.channels.cache.get(data.channelId);
-  if (!channel?.isTextBased()) throw new Error("Choisis un salon de texte valide.");
+function customMessagePayload(guild, channel, data, { editing = false } = {}) {
   const permissions = channel.permissionsFor(bot.user);
   if (!permissions?.has(PermissionFlagsBits.SendMessages)) throw new Error("Le bot ne peut pas envoyer de messages dans ce salon.");
-
-  const payload = {};
+  const payload = editing ? { content: data.content || null, embeds: [], components: [] } : {};
   if (data.content) payload.content = data.content;
   const hasEmbedContent = Boolean(data.embedTitle || data.embedDescription || data.embedImageUrl || data.embedFooter);
   if (data.embedEnabled && hasEmbedContent) {
@@ -894,7 +889,25 @@ export async function publishCustomMessage(guildId, data) {
     }));
     payload.components = [row];
   }
-  return channel.send(payload);
+  return payload;
+}
+export async function publishCustomMessage(guildId, data) {
+  const guild = bot.guilds.cache.get(guildId);
+  if (!guild) throw new Error("Le bot n’est pas présent sur ce serveur.");
+  const channel = guild.channels.cache.get(data.channelId);
+  if (!channel?.isTextBased()) throw new Error("Choisis un salon de texte valide.");
+  return channel.send(customMessagePayload(guild, channel, data));
+}
+/* modifie un message déjà envoyé par le bot (même salon) */
+export async function editCustomMessage(guildId, channelId, messageId, data) {
+  const guild = bot.guilds.cache.get(guildId);
+  if (!guild) throw new Error("Le bot n’est pas présent sur ce serveur.");
+  const channel = guild.channels.cache.get(channelId);
+  if (!channel?.isTextBased()) throw new Error("Le salon de ce message n’existe plus.");
+  const message = await channel.messages.fetch(messageId).catch(() => null);
+  if (!message) throw Object.assign(new Error("Ce message a été supprimé sur Discord : envoie-le à nouveau."), { gone: true });
+  if (message.author.id !== bot.user.id) throw new Error("Seuls les messages envoyés par le bot peuvent être modifiés.");
+  return message.edit(customMessagePayload(guild, channel, data, { editing: true }));
 }
 
 export function botGuildSummary(guildId) {

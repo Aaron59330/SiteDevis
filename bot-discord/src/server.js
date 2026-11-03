@@ -9,12 +9,12 @@ import rateLimit from "express-rate-limit";
 import { PermissionFlagsBits } from "discord.js";
 import {
   db, getGiveaway, getGuildConfig, getPoll, getPollVoteCounts, getPollVoteHistory, getPollVoteHistoryCount, listGiveaways, listPolls,
-  saveGuildConfig, SQLiteSessionStore, getPresenceSettings, savePresenceSettings, addLog, listLogs, logCounts, LOG_CATEGORIES, publicCounts
+  saveGuildConfig, SQLiteSessionStore, listTemplates, saveTemplate, deleteTemplate, recordSentMessage, listSentMessages, getSentMessage, updateSentMessage, deleteSentMessage, getPresenceSettings, savePresenceSettings, addLog, listLogs, logCounts, LOG_CATEGORIES, publicCounts
 } from "./database.js";
 import { sanitizeConfig } from "./config.js";
 import {
   bot, botGuildSummary, fetchFiveMStatus, finishGiveaway, finishPoll, publishCustomMessage,
-  publishFiveMStatusPanel, publishGiveaway, publishPoll, publishTicketPanel, syncGuildCommands, botProfile, updateBotProfile, isBotOwner, presenceValues, renderPresenceText, restartPresence
+  publishFiveMStatusPanel, publishGiveaway, publishPoll, publishTicketPanel, syncGuildCommands, botProfile, updateBotProfile, isBotOwner, presenceValues, renderPresenceText, restartPresence, editCustomMessage
 } from "./discord.js";
 
 const required = ["DISCORD_TOKEN", "DISCORD_CLIENT_ID", "DISCORD_CLIENT_SECRET", "SESSION_SECRET"];
@@ -341,18 +341,15 @@ app.post("/api/guilds/:guildId/fivem/publish", requireAuth, requireCsrf, require
   } catch (error) { next(error); }
 });
 
-app.post("/api/guilds/:guildId/messages", requireAuth, requireCsrf, requireGuildAccess, async (req, res, next) => {
-  try {
-    const guild = botGuildSummary(req.params.guildId);
-    if (!guild) return res.status(409).json({ error: "Le bot n’est pas présent sur ce serveur." });
-    const input = req.body || {};
+/* lecture et vérification d'un message composé dans le panneau ; renvoie { data } ou { error } */
+function parseMessageInput(guild, input = {}, { requireChannel = true } = {}) {
     const text = (value, max) => String(value ?? "").trim().slice(0, max);
     const isHttps = value => {
       try { return new URL(value).protocol === "https:"; }
       catch { return false; }
     };
     const channelId = /^\d{17,20}$/.test(String(input.channelId ?? "")) ? String(input.channelId) : "";
-    if (!guild.channels.some(channel => channel.id === channelId)) return res.status(400).json({ error: "Choisis un salon de texte valide." });
+    if (requireChannel && !guild.channels.some(channel => channel.id === channelId)) return ({ error: "Choisis un salon de texte valide." });
     const data = {
       channelId,
       content: text(input.content, 2000),
@@ -370,24 +367,35 @@ app.post("/api/guilds/:guildId/messages", requireAuth, requireCsrf, requireGuild
         roleId: /^\d{17,20}$/.test(String(button?.roleId ?? "")) ? String(button.roleId) : ""
       })) : []
     };
-    if (data.embedImageUrl && !isHttps(data.embedImageUrl)) return res.status(400).json({ error: "L’image doit utiliser un lien HTTPS." });
+    if (data.embedImageUrl && !isHttps(data.embedImageUrl)) return ({ error: "L’image doit utiliser un lien HTTPS." });
     for (const button of data.buttons) {
-      if (!button.label) return res.status(400).json({ error: "Chaque bouton doit avoir un libellé." });
+      if (!button.label) return ({ error: "Chaque bouton doit avoir un libellé." });
       if (button.type === "role") {
-        if (!button.roleId) return res.status(400).json({ error: "Choisis un rôle pour chaque bouton de rôle." });
-        if (!guild.roles.some(role => role.id === button.roleId && role.assignable)) return res.status(400).json({ error: "Le rôle choisi n’est pas attribuable par le bot. Vérifie la permission Gérer les rôles et la hiérarchie des rôles." });
+        if (!button.roleId) return ({ error: "Choisis un rôle pour chaque bouton de rôle." });
+        if (!guild.roles.some(role => role.id === button.roleId && role.assignable)) return ({ error: "Le rôle choisi n’est pas attribuable par le bot. Vérifie la permission Gérer les rôles et la hiérarchie des rôles." });
         continue;
       }
       let validUrl = false;
       try { const parsed = new URL(button.url); validUrl = ["https:", "http:"].includes(parsed.protocol); }
       catch { validUrl = false; }
-      if (!validUrl) return res.status(400).json({ error: "Chaque bouton lien doit avoir une URL HTTP ou HTTPS valide." });
+      if (!validUrl) return ({ error: "Chaque bouton lien doit avoir une URL HTTP ou HTTPS valide." });
     }
     const hasEmbedContent = Boolean(data.embedTitle || data.embedDescription || data.embedImageUrl || data.embedFooter);
-    if (!data.content && !(data.embedEnabled && hasEmbedContent) && !data.buttons.length) return res.status(400).json({ error: "Ajoute un texte, un embed ou au moins un bouton." });
+    if (!data.content && !(data.embedEnabled && hasEmbedContent) && !data.buttons.length) return ({ error: "Ajoute un texte, un embed ou au moins un bouton." });
+    return { data };
+}
+
+app.post("/api/guilds/:guildId/messages", requireAuth, requireCsrf, requireGuildAccess, async (req, res, next) => {
+  try {
+    const guild = botGuildSummary(req.params.guildId);
+    if (!guild) return res.status(409).json({ error: "Le bot n’est pas présent sur ce serveur." });
+    const parsed = parseMessageInput(guild, req.body || {});
+    if (parsed.error) return res.status(400).json({ error: parsed.error });
+    const data = parsed.data;
     const message = await publishCustomMessage(req.params.guildId, data);
+    const sentId = recordSentMessage(req.params.guildId, { channelId: message.channelId, messageId: message.id, data, by: req.session.user?.username || "" });
     addLog(req.params.guildId, "panneau", "Message personnalisé envoyé", `#${bot.guilds.cache.get(req.params.guildId)?.channels.cache.get(message.channelId)?.name || "?"}`, panelActor(req));
-    res.json({ ok: true, channelId: message.channelId, messageId: message.id, url: `https://discord.com/channels/${req.params.guildId}/${message.channelId}/${message.id}` });
+    res.json({ ok: true, sentId, channelId: message.channelId, messageId: message.id, url: `https://discord.com/channels/${req.params.guildId}/${message.channelId}/${message.id}` });
   } catch (error) { next(error); }
 });
 
@@ -425,6 +433,52 @@ app.put("/api/guilds/:guildId/profile", requireAuth, requireCsrf, requireGuildAc
     if (done.length) addLog(req.params.guildId, "panneau", "Profil du bot modifié", done.join(", "), panelActor(req));
     res.json({ ok: true, ...botProfile(req.params.guildId), bio: getGuildConfig(req.params.guildId).profile?.bio || "" });
   } catch (error) { next(error); }
+});
+
+/* Modèles de messages et historique des messages envoyés */
+app.get("/api/guilds/:guildId/message-library", requireAuth, requireGuildAccess, (req, res) => {
+  const guild = botGuildSummary(req.params.guildId);
+  const channelName = id => guild?.channels.find(channel => channel.id === id)?.name || "salon supprimé";
+  res.json({
+    templates: listTemplates(req.params.guildId),
+    sent: listSentMessages(req.params.guildId).map(item => ({ ...item, channelName: channelName(item.channel_id), url: `https://discord.com/channels/${req.params.guildId}/${item.channel_id}/${item.message_id}` }))
+  });
+});
+app.post("/api/guilds/:guildId/templates", requireAuth, requireCsrf, requireGuildAccess, (req, res) => {
+  const guild = botGuildSummary(req.params.guildId);
+  if (!guild) return res.status(409).json({ error: "Le bot n’est pas présent sur ce serveur." });
+  const name = String(req.body?.name || "").trim().slice(0, 60);
+  if (!name) return res.status(400).json({ error: "Donne un nom au modèle." });
+  const parsed = parseMessageInput(guild, req.body?.data || {}, { requireChannel: false });
+  if (parsed.error) return res.status(400).json({ error: parsed.error });
+  try {
+    const template = saveTemplate(req.params.guildId, { id: req.body?.id, name, data: parsed.data, by: req.session.user?.username });
+    addLog(req.params.guildId, "panneau", req.body?.id ? "Modèle de message mis à jour" : "Modèle de message créé", `« ${name} »`, panelActor(req));
+    res.json({ ok: true, template });
+  } catch (error) { res.status(error.status || 500).json({ error: error.message }); }
+});
+app.delete("/api/guilds/:guildId/templates/:templateId", requireAuth, requireCsrf, requireGuildAccess, (req, res) => {
+  if (!deleteTemplate(req.params.guildId, req.params.templateId)) return res.status(404).json({ error: "Modèle introuvable." });
+  res.json({ ok: true });
+});
+app.put("/api/guilds/:guildId/sent/:sentId", requireAuth, requireCsrf, requireGuildAccess, async (req, res, next) => {
+  try {
+    const guild = botGuildSummary(req.params.guildId);
+    if (!guild) return res.status(409).json({ error: "Le bot n’est pas présent sur ce serveur." });
+    const sent = getSentMessage(req.params.guildId, req.params.sentId);
+    if (!sent) return res.status(404).json({ error: "Message introuvable dans l’historique." });
+    const parsed = parseMessageInput(guild, { ...(req.body || {}), channelId: sent.channel_id }, { requireChannel: false });
+    if (parsed.error) return res.status(400).json({ error: parsed.error });
+    try { await editCustomMessage(req.params.guildId, sent.channel_id, sent.message_id, parsed.data); }
+    catch (error) { if (error.gone) deleteSentMessage(req.params.guildId, sent.id); return res.status(400).json({ error: error.message }); }
+    updateSentMessage(req.params.guildId, sent.id, parsed.data);
+    addLog(req.params.guildId, "panneau", "Message modifié sur Discord", `#${guild.channels.find(channel => channel.id === sent.channel_id)?.name || "?"}`, panelActor(req));
+    res.json({ ok: true, url: `https://discord.com/channels/${req.params.guildId}/${sent.channel_id}/${sent.message_id}` });
+  } catch (error) { next(error); }
+});
+app.delete("/api/guilds/:guildId/sent/:sentId", requireAuth, requireCsrf, requireGuildAccess, (req, res) => {
+  deleteSentMessage(req.params.guildId, req.params.sentId);
+  res.json({ ok: true });
 });
 
 /* Statut animé du bot (commun à tous les serveurs : réservé au propriétaire du bot) */

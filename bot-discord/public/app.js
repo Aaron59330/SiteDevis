@@ -477,6 +477,7 @@ function resetMessageComposer() {
 
 async function sendCustomMessage() {
   const button = $("#sendCustomMessage");
+  if (libState.editing) return updateSentMessage(button);
   if (!state.guildId) return showToast("Choisis un serveur d’abord.", true);
   if (!$("#messageChannel").value) return showToast("Choisis le salon de destination.", true);
   const payload = {
@@ -500,6 +501,7 @@ async function sendCustomMessage() {
     link.href = result.url;
     link.hidden = false;
     showToast("Message envoyé dans le salon choisi.");
+    loadMessageLibrary();
   } catch (error) { showToast(error.message, true); }
   finally { button.disabled = false; button.innerHTML = original; }
 }
@@ -614,6 +616,7 @@ function switchPage(page) {
   if (page === "logs") loadLogs(true);
   if (page === "profile") loadProfile();
   if (page === "presence") loadPresence();
+  if (page === "messages") loadMessageLibrary();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -1061,3 +1064,78 @@ function updateProtectVisibility() {
 }
 document.addEventListener("change", event => { if (event.target.closest('[data-section="protect"]')) { updateProtectVisibility(); updateFromControls(); } });
 document.addEventListener("input", event => { if (event.target.matches('[data-section="protect"] input:not([type=checkbox]), [data-section="protect"] textarea')) updateFromControls(); });
+
+/* ---------- Modèles de messages et messages envoyés ---------- */
+const libState = { templates: [], sent: [], tab: "templates", editing: null };
+function composerData() {
+  return { channelId: $("#messageChannel").value, content: $("#messageContent").value, embedEnabled: $("#messageEmbedEnabled").checked, embedTitle: $("#messageEmbedTitle").value, embedDescription: $("#messageEmbedDescription").value, embedImageUrl: $("#messageEmbedImage").value, embedImagePosition: $("#messageEmbedImagePosition").value, embedFooter: $("#messageEmbedFooter").value, embedColor: $("#messageEmbedColor").value, buttons: collectMessageButtons() };
+}
+function loadComposer(d, { keepChannel = false } = {}) {
+  if (!keepChannel && d.channelId && [...$("#messageChannel").options].some(o => o.value === d.channelId)) $("#messageChannel").value = d.channelId;
+  $("#messageContent").value = d.content || "";
+  $("#messageEmbedEnabled").checked = d.embedEnabled === true;
+  $("#messageEmbedTitle").value = d.embedTitle || ""; $("#messageEmbedDescription").value = d.embedDescription || "";
+  $("#messageEmbedImage").value = d.embedImageUrl || ""; $("#messageEmbedImagePosition").value = d.embedImagePosition || "image";
+  $("#messageEmbedFooter").value = d.embedFooter || ""; $("#messageEmbedColor").value = d.embedColor || "#3566a6";
+  renderMessageButtons(d.buttons || []);
+  $("#messageEmbedEnabled").dispatchEvent(new Event("change", { bubbles: true }));
+  updateComposerPreview();
+  window.scrollTo({ top: $(".message-builder-layout").offsetTop - 90, behavior: "smooth" });
+}
+const libExcerpt = d => escapeHtml((d.embedTitle || d.content || d.embedDescription || (d.buttons?.length ? `${d.buttons.length} bouton(s)` : "Message vide")).replace(/\s+/g, " ").slice(0, 110));
+const libDate = ms => new Date(ms).toLocaleString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+function libTags(d) { return [d.embedEnabled ? "Embed" : "", d.buttons?.length ? `${d.buttons.length} bouton${d.buttons.length > 1 ? "s" : ""}` : "", d.embedImageUrl ? "Image" : ""].filter(Boolean).map(t => `<span class="msg-tag">${t}</span>`).join(""); }
+function renderLibrary() {
+  $("#templateCount").textContent = libState.templates.length || ""; $("#sentCount").textContent = libState.sent.length || "";
+  $("#libTemplates").innerHTML = libState.templates.map(t => `<div class="msg-item"><div class="msg-item-main"><b>${escapeHtml(t.name)}</b><span>${libExcerpt(t.data)}</span><div class="msg-item-meta">${libTags(t.data)}<small>Modifié ${libDate(t.updated_at)}</small></div></div>
+      <div class="msg-item-actions"><button class="button button-small" type="button" data-tpl-use="${t.id}">Utiliser</button><button class="icon-btn" type="button" title="Remplacer par le message en cours" data-tpl-update="${t.id}"><svg class="ic" aria-hidden="true"><use href="#i-check"/></svg></button><button class="icon-btn" type="button" title="Renommer" data-tpl-rename="${t.id}"><svg class="ic" aria-hidden="true"><use href="#i-pencil"/></svg></button><button class="icon-btn danger" type="button" title="Supprimer" data-tpl-del="${t.id}"><svg class="ic" aria-hidden="true"><use href="#i-trash"/></svg></button></div></div>`).join("")
+    || `<div class="msg-empty">Aucun modèle pour l’instant. Compose un message puis clique sur <b>Enregistrer comme modèle</b> pour le réutiliser plus tard.</div>`;
+  $("#libSent").innerHTML = libState.sent.map(m => `<div class="msg-item"><div class="msg-item-main"><b>#${escapeHtml(m.channelName)}</b><span>${libExcerpt(m.data)}</span><div class="msg-item-meta">${libTags(m.data)}<small>Envoyé ${libDate(m.sent_at)}${m.sent_by ? ` par ${escapeHtml(m.sent_by)}` : ""}${m.edited_at ? ` · modifié ${libDate(m.edited_at)}` : ""}</small></div></div>
+      <div class="msg-item-actions"><button class="button button-small" type="button" data-sent-edit="${m.id}">Modifier</button><button class="button button-small button-secondary" type="button" data-sent-reuse="${m.id}">Réutiliser</button><a class="icon-btn" href="${escapeHtml(m.url)}" target="_blank" rel="noopener" title="Voir sur Discord"><svg class="ic" aria-hidden="true"><use href="#i-external"/></svg></a></div></div>`).join("")
+    || `<div class="msg-empty">Les messages envoyés depuis le panneau apparaîtront ici : tu pourras les modifier sur Discord ou les réutiliser.</div>`;
+}
+async function loadMessageLibrary() {
+  if (!state.guildId) return;
+  try { const d = await api(`/api/guilds/${state.guildId}/message-library`); libState.templates = d.templates; libState.sent = d.sent; renderLibrary(); }
+  catch (error) { showToast(error.message, true); }
+}
+function setEditing(item) {
+  libState.editing = item;
+  $("#messageEditing").hidden = !item;
+  if (item) $("#messageEditingChannel").textContent = `#${item.channelName}`;
+  $("#messageChannel").disabled = Boolean(item);
+  $("#sendCustomMessage").innerHTML = item ? '<span><svg class="ic" aria-hidden="true"><use href="#i-check"/></svg></span> Mettre à jour le message' : '<span><svg class="ic" aria-hidden="true"><use href="#i-send"/></svg></span> Envoyer le message';
+}
+async function updateSentMessage(button) {
+  const original = button.innerHTML; button.disabled = true; button.textContent = "Mise à jour…";
+  try {
+    const r = await api(`/api/guilds/${state.guildId}/sent/${libState.editing.id}`, { method: "PUT", body: JSON.stringify(composerData()) });
+    const link = $("#messageSentLink"); link.href = r.url; link.hidden = false;
+    showToast("Message modifié sur Discord."); setEditing(null); loadMessageLibrary(); return;
+  } catch (error) { showToast(error.message, true); loadMessageLibrary(); }
+  finally { button.disabled = false; if (libState.editing) button.innerHTML = original; }
+}
+$$("[data-lib-tab]").forEach(tab => tab.addEventListener("click", () => {
+  libState.tab = tab.dataset.libTab; $$("[data-lib-tab]").forEach(t => t.classList.toggle("on", t === tab));
+  $("#libTemplates").hidden = libState.tab !== "templates"; $("#libSent").hidden = libState.tab !== "sent";
+}));
+$("#messageNew").addEventListener("click", () => { setEditing(null); resetMessageComposer(); });
+$("#messageEditCancel").addEventListener("click", () => { setEditing(null); resetMessageComposer(); });
+$("#saveTemplate").addEventListener("click", async () => {
+  if (!state.guildId) return showToast("Choisis un serveur d’abord.", true);
+  const name = prompt("Nom du modèle (ex. : Règlement, Annonce event, Recrutement) :"); if (!name || !name.trim()) return;
+  try { await api(`/api/guilds/${state.guildId}/templates`, { method: "POST", body: JSON.stringify({ name: name.trim(), data: composerData() }) }); showToast(`Modèle « ${name.trim()} » enregistré.`); await loadMessageLibrary(); $('[data-lib-tab="templates"]').click(); }
+  catch (error) { showToast(error.message, true); }
+});
+document.addEventListener("click", async event => {
+  const t = event.target.closest("[data-tpl-use],[data-tpl-update],[data-tpl-rename],[data-tpl-del],[data-sent-edit],[data-sent-reuse]"); if (!t) return;
+  const tpl = id => libState.templates.find(x => x.id === id), sent = id => libState.sent.find(x => x.id === id);
+  try {
+    if (t.dataset.tplUse) { setEditing(null); loadComposer(tpl(t.dataset.tplUse).data); showToast("Modèle chargé : modifie ce que tu veux puis envoie."); }
+    if (t.dataset.tplUpdate) { const x = tpl(t.dataset.tplUpdate); if (!confirm(`Remplacer le modèle « ${x.name} » par le message en cours ?`)) return; await api(`/api/guilds/${state.guildId}/templates`, { method: "POST", body: JSON.stringify({ id: x.id, name: x.name, data: composerData() }) }); showToast("Modèle mis à jour."); loadMessageLibrary(); }
+    if (t.dataset.tplRename) { const x = tpl(t.dataset.tplRename); const name = prompt("Nouveau nom du modèle :", x.name); if (!name || !name.trim()) return; await api(`/api/guilds/${state.guildId}/templates`, { method: "POST", body: JSON.stringify({ id: x.id, name: name.trim(), data: x.data }) }); loadMessageLibrary(); }
+    if (t.dataset.tplDel) { const x = tpl(t.dataset.tplDel); if (!confirm(`Supprimer le modèle « ${x.name} » ?`)) return; await api(`/api/guilds/${state.guildId}/templates/${x.id}`, { method: "DELETE" }); loadMessageLibrary(); }
+    if (t.dataset.sentEdit) { const x = sent(t.dataset.sentEdit); loadComposer({ ...x.data, channelId: x.channel_id }); setEditing(x); }
+    if (t.dataset.sentReuse) { setEditing(null); loadComposer(sent(t.dataset.sentReuse).data); showToast("Message copié : choisis le salon et envoie-le à nouveau."); }
+  } catch (error) { showToast(error.message, true); }
+});

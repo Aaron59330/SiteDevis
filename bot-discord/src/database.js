@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import Database from "better-sqlite3";
 import session from "express-session";
 import fs from "node:fs";
@@ -95,6 +96,26 @@ db.exec(`
     details TEXT NOT NULL DEFAULT ''
   );
   CREATE INDEX IF NOT EXISTS logs_guild_at ON logs(guild_id, at DESC);
+  CREATE TABLE IF NOT EXISTS message_templates (
+    id TEXT PRIMARY KEY,
+    guild_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    data_json TEXT NOT NULL,
+    created_by TEXT NOT NULL DEFAULT '',
+    updated_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS message_templates_guild ON message_templates(guild_id, updated_at DESC);
+  CREATE TABLE IF NOT EXISTS sent_messages (
+    id TEXT PRIMARY KEY,
+    guild_id TEXT NOT NULL,
+    channel_id TEXT NOT NULL,
+    message_id TEXT NOT NULL,
+    data_json TEXT NOT NULL,
+    sent_by TEXT NOT NULL DEFAULT '',
+    sent_at INTEGER NOT NULL,
+    edited_at INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS sent_messages_guild ON sent_messages(guild_id, sent_at DESC);
   CREATE TABLE IF NOT EXISTS app_settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -422,4 +443,45 @@ export function savePresenceSettings(value) {
   const clean = sanitizePresence(value);
   db.prepare("INSERT INTO app_settings(key, value) VALUES('presence', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(JSON.stringify(clean));
   return clean;
+}
+
+/* ---------- Modèles de messages et messages envoyés ---------- */
+const parseRow = row => (row ? { ...row, data: JSON.parse(row.data_json), data_json: undefined } : null);
+export function listTemplates(guildId) {
+  return db.prepare("SELECT * FROM message_templates WHERE guild_id = ? ORDER BY updated_at DESC LIMIT 100").all(guildId).map(parseRow);
+}
+export function getTemplate(guildId, id) {
+  return parseRow(db.prepare("SELECT * FROM message_templates WHERE guild_id = ? AND id = ?").get(guildId, id));
+}
+export function saveTemplate(guildId, { id, name, data, by }) {
+  const now = Date.now();
+  if (id && getTemplate(guildId, id)) {
+    db.prepare("UPDATE message_templates SET name = ?, data_json = ?, updated_at = ? WHERE guild_id = ? AND id = ?").run(name, JSON.stringify(data), now, guildId, id);
+    return getTemplate(guildId, id);
+  }
+  if (db.prepare("SELECT COUNT(*) AS n FROM message_templates WHERE guild_id = ?").get(guildId).n >= 100) throw Object.assign(new Error("100 modèles au maximum : supprime-en un."), { status: 400 });
+  const newId = crypto.randomUUID();
+  db.prepare("INSERT INTO message_templates(id, guild_id, name, data_json, created_by, updated_at) VALUES(?, ?, ?, ?, ?, ?)").run(newId, guildId, name, JSON.stringify(data), by || "", now);
+  return getTemplate(guildId, newId);
+}
+export function deleteTemplate(guildId, id) {
+  return db.prepare("DELETE FROM message_templates WHERE guild_id = ? AND id = ?").run(guildId, id).changes > 0;
+}
+export function recordSentMessage(guildId, { channelId, messageId, data, by }) {
+  const id = crypto.randomUUID();
+  db.prepare("INSERT INTO sent_messages(id, guild_id, channel_id, message_id, data_json, sent_by, sent_at) VALUES(?, ?, ?, ?, ?, ?, ?)").run(id, guildId, channelId, messageId, JSON.stringify(data), by || "", Date.now());
+  db.prepare("DELETE FROM sent_messages WHERE guild_id = ? AND id NOT IN (SELECT id FROM sent_messages WHERE guild_id = ? ORDER BY sent_at DESC LIMIT 200)").run(guildId, guildId);
+  return id;
+}
+export function listSentMessages(guildId, limit = 40) {
+  return db.prepare("SELECT * FROM sent_messages WHERE guild_id = ? ORDER BY sent_at DESC LIMIT ?").all(guildId, limit).map(parseRow);
+}
+export function getSentMessage(guildId, id) {
+  return parseRow(db.prepare("SELECT * FROM sent_messages WHERE guild_id = ? AND id = ?").get(guildId, id));
+}
+export function updateSentMessage(guildId, id, data) {
+  db.prepare("UPDATE sent_messages SET data_json = ?, edited_at = ? WHERE guild_id = ? AND id = ?").run(JSON.stringify(data), Date.now(), guildId, id);
+}
+export function deleteSentMessage(guildId, id) {
+  db.prepare("DELETE FROM sent_messages WHERE guild_id = ? AND id = ?").run(guildId, id);
 }
