@@ -4,7 +4,7 @@ export const defaultConfig = {
     channelId: "",
     message: "👋 Bienvenue {user} sur **{server}** ! Nous sommes maintenant {memberCount}.",
     imageUrl: "",
-    embedColor: "#7c6cff",
+    embedColor: "#3566a6",
     embedEnabled: true,
     avatarEnabled: false,
     avatarUrl: "",
@@ -24,11 +24,13 @@ export const defaultConfig = {
     channelNameFormat: "{type}-{numero}",
     panelDescription: "Choisis le type de ta demande. Notre équipe te répondra dès que possible.",
     imageUrl: "",
-    embedColor: "#7c6cff",
+    embedColor: "#3566a6",
     formsEnabled: false,
     claimEnabled: false,
     transcriptsEnabled: false,
     reopenEnabled: false,
+    deleteOnClose: true,
+    deleteDelay: 10,
     autoCloseEnabled: false,
     autoCloseDays: 7,
     logsEnabled: false,
@@ -63,7 +65,7 @@ export const defaultConfig = {
     panelChannelId: "",
     panelMessageId: "",
     panelTitle: "État du serveur FiveM",
-    embedColor: "#7c6cff",
+    embedColor: "#3566a6",
     autoRefresh: false,
     refreshSeconds: 60,
     commandEnabled: false
@@ -78,7 +80,7 @@ export function sanitizeConfig(input = {}) {
     try { return new URL(candidate).protocol === "https:" ? candidate : ""; }
     catch { return ""; }
   };
-  const color = (value) => /^#[0-9a-fA-F]{6}$/.test(String(value ?? "")) ? String(value).toLowerCase() : "#7c6cff";
+  const color = (value) => /^#[0-9a-fA-F]{6}$/.test(String(value ?? "")) ? String(value).toLowerCase() : "#3566a6";
   const rawTypes = Array.isArray(input.tickets?.ticketTypes) ? input.tickets.ticketTypes.slice(0, 25) : defaultConfig.tickets.ticketTypes;
   const seenTypeIds = new Set();
   const ticketTypes = rawTypes.map((item, index) => {
@@ -124,6 +126,8 @@ export function sanitizeConfig(input = {}) {
       claimEnabled: input.tickets?.claimEnabled === true,
       transcriptsEnabled: input.tickets?.transcriptsEnabled === true,
       reopenEnabled: input.tickets?.reopenEnabled === true,
+      deleteOnClose: input.tickets?.deleteOnClose !== false,
+      deleteDelay: Math.min(300, Math.max(3, Number.parseInt(input.tickets?.deleteDelay, 10) || 10)),
       autoCloseEnabled: input.tickets?.autoCloseEnabled === true,
       autoCloseDays: Math.min(365, Math.max(1, Number.parseInt(input.tickets?.autoCloseDays, 10) || 7)),
       logsEnabled: input.tickets?.logsEnabled === true,

@@ -107,6 +107,7 @@ const ticketColumns = new Set(db.prepare("PRAGMA table_info(tickets)").all().map
 if (!ticketColumns.has("claimed_by")) db.exec("ALTER TABLE tickets ADD COLUMN claimed_by TEXT");
 if (!ticketColumns.has("ticket_type")) db.exec("ALTER TABLE tickets ADD COLUMN ticket_type TEXT NOT NULL DEFAULT ''");
 if (!ticketColumns.has("number")) db.exec("ALTER TABLE tickets ADD COLUMN number INTEGER");
+if (!ticketColumns.has("delete_at")) db.exec("ALTER TABLE tickets ADD COLUMN delete_at INTEGER");
 for (const table of ["polls", "giveaways"]) {
   const columns = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map(column => column.name));
   if (!columns.has("embed_color")) db.exec(`ALTER TABLE ${table} ADD COLUMN embed_color TEXT NOT NULL DEFAULT '#3566a6'`);
@@ -365,4 +366,11 @@ export function listLogs(guildId, { category = "", q = "", before = 0, limit = 5
 }
 export function logCounts(guildId, since = Date.now() - 864e5) {
   return db.prepare("SELECT category, COUNT(*) AS n FROM logs WHERE guild_id = ? AND at >= ? GROUP BY category").all(guildId, since);
+}
+
+export function setTicketDeleteAt(channelId, at) {
+  db.prepare("UPDATE tickets SET delete_at = ? WHERE channel_id = ?").run(at, channelId);
+}
+export function listPendingTicketDeletes() {
+  return db.prepare("SELECT channel_id, guild_id, delete_at FROM tickets WHERE delete_at IS NOT NULL").all();
 }

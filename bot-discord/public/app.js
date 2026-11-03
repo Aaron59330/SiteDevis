@@ -190,6 +190,8 @@ function renderConfig() {
   $("#ticketClaimEnabled").checked = config.tickets.claimEnabled === true;
   $("#ticketTranscriptsEnabled").checked = config.tickets.transcriptsEnabled === true;
   $("#ticketReopenEnabled").checked = config.tickets.reopenEnabled === true;
+  $("#ticketDeleteOnClose").checked = config.tickets.deleteOnClose !== false;
+  $("#ticketDeleteDelay").value = config.tickets.deleteDelay || 10;
   $("#ticketAutoCloseEnabled").checked = config.tickets.autoCloseEnabled === true;
   $("#ticketAutoCloseDays").value = config.tickets.autoCloseDays || 7;
   $("#ticketLogsEnabled").checked = config.tickets.logsEnabled === true;
@@ -232,7 +234,7 @@ function currentConfig() {
   return {
     welcome: { enabled: $("#welcomeEnabled").checked, channelId: $("#welcomeChannel").value, message: $("#welcomeMessage").value, imageUrl: $("#welcomeImageUrl").value, embedColor: $("#welcomeEmbedColor").value, embedEnabled: $("#welcomeEmbedEnabled").checked, avatarEnabled: $("#welcomeAvatarEnabled").checked, avatarUrl: $("#welcomeAvatarUrl").value, footerEnabled: $("#welcomeFooterEnabled").checked, footerText: $("#welcomeFooterText").value },
     autorole: { enabled: $("#autoroleEnabled").checked, roleId: $("#autoroleRole").value },
-    tickets: { enabled: $("#ticketsEnabled").checked, panelChannelId: $("#ticketPanelChannel").value, categoryId: $("#ticketCategory").value, supportRoleId: $("#supportRole").value, panelTitle: $("#ticketTitle").value, channelNameFormat: $("#ticketNameFormat").value.trim() || "{type}-{numero}", panelDescription: $("#ticketDescription").value, imageUrl: $("#ticketImageUrl").value, embedColor: $("#ticketEmbedColor").value, formsEnabled: $("#ticketFormsEnabled").checked, claimEnabled: $("#ticketClaimEnabled").checked, transcriptsEnabled: $("#ticketTranscriptsEnabled").checked, reopenEnabled: $("#ticketReopenEnabled").checked, autoCloseEnabled: $("#ticketAutoCloseEnabled").checked, autoCloseDays: $("#ticketAutoCloseDays").value, logsEnabled: $("#ticketLogsEnabled").checked, logChannelId: $("#ticketLogChannel").value, ticketTypes: collectTicketTypes() },
+    tickets: { enabled: $("#ticketsEnabled").checked, panelChannelId: $("#ticketPanelChannel").value, categoryId: $("#ticketCategory").value, supportRoleId: $("#supportRole").value, panelTitle: $("#ticketTitle").value, channelNameFormat: $("#ticketNameFormat").value.trim() || "{type}-{numero}", panelDescription: $("#ticketDescription").value, imageUrl: $("#ticketImageUrl").value, embedColor: $("#ticketEmbedColor").value, formsEnabled: $("#ticketFormsEnabled").checked, claimEnabled: $("#ticketClaimEnabled").checked, transcriptsEnabled: $("#ticketTranscriptsEnabled").checked, reopenEnabled: $("#ticketReopenEnabled").checked, deleteOnClose: $("#ticketDeleteOnClose").checked, deleteDelay: $("#ticketDeleteDelay").value, autoCloseEnabled: $("#ticketAutoCloseEnabled").checked, autoCloseDays: $("#ticketAutoCloseDays").value, logsEnabled: $("#ticketLogsEnabled").checked, logChannelId: $("#ticketLogChannel").value, ticketTypes: collectTicketTypes() },
     anonymous: { enabled: $("#anonymousEnabled").checked, channelId: $("#anonymousChannel").value },
     commands: { clearMessages: $("#commandClearMessages").checked, slowmode: $("#commandSlowmode").checked, userInfo: $("#commandUserInfo").checked, serverInfo: $("#commandServerInfo").checked, avatar: $("#commandAvatar").checked },
     fivem: { enabled: $("#fivemEnabled").checked, host: $("#fivemHost").value, port: $("#fivemPort").value, protocol: $("#fivemProtocol").value, connectUrl: $("#fivemConnectUrl").value, panelEnabled: $("#fivemPanelEnabled").checked, panelChannelId: $("#fivemPanelChannel").value, panelMessageId: state.config.fivem?.panelMessageId || "", panelTitle: $("#fivemPanelTitle").value, embedColor: $("#fivemEmbedColor").value, autoRefresh: $("#fivemAutoRefresh").checked, refreshSeconds: $("#fivemRefreshSeconds").value, commandEnabled: $("#fivemCommandEnabled").checked }
@@ -329,6 +331,7 @@ function updateOptionVisibility() {
   $("#welcomeAvatarFields").hidden = !$("#welcomeAvatarEnabled").checked;
   $("#welcomeFooterFields").hidden = !$("#welcomeFooterEnabled").checked;
   $("#ticketAutoCloseFields").hidden = !$("#ticketAutoCloseEnabled").checked;
+  $("#ticketDeleteFields").hidden = !$("#ticketDeleteOnClose").checked;
   $("#ticketLogChannelFields").hidden = !($("#ticketLogsEnabled").checked || $("#ticketTranscriptsEnabled").checked);
 }
 
@@ -773,6 +776,7 @@ $("#ticketTitle").addEventListener("input", updateFromControls);
 $("#ticketNameFormat").addEventListener("input", () => { updateTicketNamePreview(); updateFromControls(); });
 $("#ticketImageUrl").addEventListener("input", () => { updateImagePreview("#ticketImageUrl", "#ticketImagePreviewWrap", "#ticketImagePreview"); updateFromControls(); });
 $("#ticketAutoCloseDays").addEventListener("input", updateFromControls);
+$("#ticketDeleteDelay").addEventListener("input", updateFromControls);
 $("#ticketEmbedColor").addEventListener("input", () => { updateEmbedColorPreview(); updateFromControls(); });
 $("#ticketTypesList").addEventListener("input", updateFromControls);
 $("#ticketTypesList").addEventListener("click", event => {
@@ -795,7 +799,7 @@ $$("#commandClearMessages, #commandSlowmode, #commandUserInfo, #commandServerInf
 $$("#welcomeChannel, #autoroleRole, #ticketPanelChannel, #ticketLogChannel, #ticketCategory, #supportRole, #welcomeEnabled, #autoroleEnabled, #ticketsEnabled").forEach(element => element.addEventListener("change", updateFromControls));
 $("#anonymousChannel").addEventListener("change", updateFromControls);
 $("#anonymousEnabled").addEventListener("change", updateFromControls);
-$$("#welcomeEmbedEnabled, #welcomeAvatarEnabled, #welcomeFooterEnabled, #ticketFormsEnabled, #ticketClaimEnabled, #ticketTranscriptsEnabled, #ticketReopenEnabled, #ticketAutoCloseEnabled, #ticketLogsEnabled, #fivemEnabled, #fivemPanelEnabled, #fivemAutoRefresh, #fivemCommandEnabled").forEach(element => element.addEventListener("change", () => { updateOptionVisibility(); updateFromControls(); }));
+$$("#welcomeEmbedEnabled, #welcomeAvatarEnabled, #welcomeFooterEnabled, #ticketFormsEnabled, #ticketClaimEnabled, #ticketTranscriptsEnabled, #ticketReopenEnabled, #ticketDeleteOnClose, #ticketAutoCloseEnabled, #ticketLogsEnabled, #fivemEnabled, #fivemPanelEnabled, #fivemAutoRefresh, #fivemCommandEnabled").forEach(element => element.addEventListener("change", () => { updateOptionVisibility(); updateFromControls(); }));
 $$('[data-toggle]').forEach(input => input.addEventListener("change", () => {
   const [group, key] = input.dataset.toggle.split(".");
   if (state.config) state.config[group][key] = input.checked;

@@ -9,7 +9,7 @@ import {
   deleteGiveawayRecord, deletePollRecord, drawGiveaway, enterGiveaway, getGiveaway, getGiveawayEntryCount, getPoll,
   getPollVoteCounts, getOpenTicket, getTicketByChannel, listConfiguredGuildIds, listDueGiveaways, listDuePolls,
   getGuildConfig, listGiveaways, listOpenTickets, listPolls, reopenTicket, saveGuildConfig,
-  setGiveawayMessageId, setPollMessageId, addLog, nextTicketNumber, setTicketNumber
+  setGiveawayMessageId, setPollMessageId, addLog, nextTicketNumber, setTicketNumber, setTicketDeleteAt, listPendingTicketDeletes
 } from "./database.js";
 
 export async function fetchFiveMStatus(settings) {
@@ -334,7 +334,7 @@ async function handleSlashCommand(interaction) {
     if (command === "userinfo") {
       const user = interaction.options.getUser("membre") || interaction.user;
       const member = await interaction.guild.members.fetch(user.id).catch(() => null);
-      const embed = new EmbedBuilder().setColor(0x7c6cff).setTitle(`Membre · ${user.username}`).setThumbnail(user.displayAvatarURL({ size: 256 })).addFields(
+      const embed = new EmbedBuilder().setColor(0x3566a6).setTitle(`Membre · ${user.username}`).setThumbnail(user.displayAvatarURL({ size: 256 })).addFields(
         { name: "Identifiant", value: user.id, inline: true },
         { name: "Compte créé", value: `<t:${Math.floor(user.createdTimestamp / 1000)}:D>`, inline: true },
         { name: "Arrivée sur le serveur", value: member?.joinedTimestamp ? `<t:${Math.floor(member.joinedTimestamp / 1000)}:D>` : "Information indisponible", inline: true }
@@ -348,7 +348,7 @@ async function handleSlashCommand(interaction) {
 
     if (command === "serverinfo") {
       const owner = await interaction.guild.fetchOwner().catch(() => null);
-      const embed = new EmbedBuilder().setColor(0x7c6cff).setTitle(interaction.guild.name)
+      const embed = new EmbedBuilder().setColor(0x3566a6).setTitle(interaction.guild.name)
         .addFields(
           { name: "Membres", value: String(interaction.guild.memberCount), inline: true },
           { name: "Propriétaire", value: owner ? owner.user.tag : "Indisponible", inline: true },
@@ -362,7 +362,7 @@ async function handleSlashCommand(interaction) {
 
     if (command === "avatar") {
       const user = interaction.options.getUser("membre") || interaction.user;
-      const embed = new EmbedBuilder().setColor(0x7c6cff).setTitle(`Avatar · ${user.username}`).setImage(user.displayAvatarURL({ size: 1024 }));
+      const embed = new EmbedBuilder().setColor(0x3566a6).setTitle(`Avatar · ${user.username}`).setImage(user.displayAvatarURL({ size: 1024 }));
       return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
@@ -460,7 +460,7 @@ bot.on("messageCreate", async message => {
 function ticketActionRow(config, guild, { closed = false, claimedBy = null } = {}) {
   const row = new ActionRowBuilder();
   if (closed) {
-    if (config.tickets.reopenEnabled) {
+    if (config.tickets.reopenEnabled && !config.tickets.deleteOnClose) {
       row.addComponents(new ButtonBuilder().setCustomId("atelier:ticket:reopen").setLabel("Réouvrir le ticket").setStyle(ButtonStyle.Success));
     }
     return row.components.length ? row : null;
@@ -508,7 +508,30 @@ async function makeTranscript(channel, ticket) {
   return new AttachmentBuilder(Buffer.from(lines.join("\n"), "utf8"), { name: filename });
 }
 
-async function closeTicketProcess(guild, channel, ticket, config, reason, { automatic = false } = {}) {
+const ticketColor = config => parseInt(String(config.tickets.embedColor || "#3566a6").slice(1), 16) || 0x3566a6;
+const deletionTimers = new Map();
+async function deleteTicketChannel(channelId, guildId) {
+  deletionTimers.delete(channelId);
+  const ticket = getTicketByChannel(channelId);
+  setTicketDeleteAt(channelId, null);
+  if (ticket && ticket.status !== "closed") return;            // rouvert entre-temps : on garde le salon
+  const guild = bot.guilds.cache.get(guildId);
+  const channel = guild?.channels.cache.get(channelId) || await guild?.channels.fetch(channelId).catch(() => null);
+  if (!channel) return;
+  try {
+    const name = channel.name;
+    await channel.delete("Ticket fermé : suppression automatique");
+    addLog(guildId, "tickets", "Salon de ticket supprimé", `#${name}`);
+  } catch (error) { console.error("Suppression du salon de ticket impossible :", error.message); addLog(guildId, "tickets", "Suppression du ticket impossible", error.message); }
+}
+function scheduleTicketDeletion(channelId, guildId, at) {
+  setTicketDeleteAt(channelId, at);
+  clearTimeout(deletionTimers.get(channelId));
+  deletionTimers.set(channelId, setTimeout(() => deleteTicketChannel(channelId, guildId), Math.max(0, at - Date.now())));
+}
+
+async function closeTicketProcess(guild, channel, ticket, config, reason, { automatic = false, by = null } = {}) {
+  const willDelete = config.tickets.deleteOnClose;
   let transcript = null;
   if (config.tickets.transcriptsEnabled) {
     try { transcript = await makeTranscript(channel, ticket); }
@@ -516,15 +539,25 @@ async function closeTicketProcess(guild, channel, ticket, config, reason, { auto
   }
   try {
     await channel.permissionOverwrites.edit(ticket.user_id, { SendMessages: false });
-    if (!channel.name.startsWith("ferme-")) await channel.setName(`ferme-${channel.name}`.slice(0, 100));
+    if (!willDelete && !channel.name.startsWith("ferme-")) await channel.setName(`ferme-${channel.name}`.slice(0, 100));
   } catch (error) { console.error("Verrouillage du ticket impossible :", error.message); }
   closeTicket(channel.id);
-  addLog(guild.id, "tickets", automatic ? "Ticket fermé automatiquement" : "Ticket fermé", `#${channel.name.replace(/^ferme-/, "")} · ${reason}`);
+  addLog(guild.id, "tickets", automatic ? "Ticket fermé automatiquement" : "Ticket fermé", `#${channel.name.replace(/^ferme-/, "")} · ${reason}`, by ? who(by) : null);
   await sendTicketLog(guild, config, `🔒 Ticket ${channel} fermé : ${reason}.`, transcript ? [transcript] : []);
-  if (automatic) {
-    const row = ticketActionRow(config, guild, { closed: true });
-    await channel.send({ content: `🔒 Ticket fermé automatiquement : ${reason}.`, components: row ? [row] : [] }).catch(error => console.error("Annonce de fermeture automatique impossible :", error.message));
-  }
+  const deleteAt = Date.now() + config.tickets.deleteDelay * 1000;
+  const embed = new EmbedBuilder()
+    .setColor(0xed4245)
+    .setTitle("Ticket fermé")
+    .setDescription([
+      automatic ? `Ce ticket a été fermé automatiquement : ${reason}.` : `Ce ticket a été fermé par ${by || "l’équipe"}.`,
+      willDelete ? `Le salon sera supprimé <t:${Math.floor(deleteAt / 1000)}:R>.` : (config.tickets.reopenEnabled ? "Tu peux le rouvrir avec le bouton ci-dessous." : ""),
+      transcript ? "La transcription a été enregistrée par l’équipe." : ""
+    ].filter(Boolean).join("\n"))
+    .setFooter({ text: `${guild.name} · Support` })
+    .setTimestamp();
+  const row = ticketActionRow(config, guild, { closed: true });
+  await channel.send({ embeds: [embed], components: row ? [row] : [] }).catch(error => console.error("Annonce de fermeture impossible :", error.message));
+  if (willDelete) scheduleTicketDeletion(channel.id, guild.id, deleteAt);
 }
 
 async function createTicket(interaction, ticketType, formAnswer = "") {
@@ -564,9 +597,30 @@ async function createTicket(interaction, ticketType, formAnswer = "") {
     addLog(interaction.guild.id, "tickets", "Ticket ouvert", `#${channel.name} · ${selectedType.label}${formAnswer ? ` · « ${formAnswer.slice(0, 300)} »` : ""}`, who(interaction.user));
     const row = ticketActionRow(config, interaction.guild);
     const supportPing = config.tickets.supportRoleId ? `<@&${config.tickets.supportRoleId}> ` : "";
-    const answer = formAnswer ? `\n**${selectedType.formQuestion || "Détails de la demande"}**\n${formAnswer}` : "";
+    const opened = Math.floor(Date.now() / 1000);
+    const embed = new EmbedBuilder()
+      .setColor(ticketColor(config))
+      .setAuthor({ name: `${interaction.guild.name} · Support`, iconURL: interaction.guild.iconURL({ size: 64 }) || undefined })
+      .setTitle(`${selectedType.emoji ? `${selectedType.emoji} ` : ""}${selectedType.label}`.slice(0, 256))
+      .setDescription([
+        `Bonjour ${interaction.user}, merci d’avoir ouvert un ticket !`,
+        selectedType.description ? `> ${selectedType.description}` : "",
+        "",
+        formAnswer ? "L’équipe a bien reçu ta demande et te répond au plus vite." : "**Explique ta demande en détail** : un membre de l’équipe va te répondre au plus vite.",
+        "Merci de ne pas mentionner l’équipe en boucle, nous sommes notifiés automatiquement."
+      ].filter((line, index) => line || index === 2).join("\n"))
+      .setThumbnail(interaction.user.displayAvatarURL({ size: 128 }))
+      .addFields(
+        { name: "Ouvert par", value: `${interaction.user}`, inline: true },
+        { name: "Numéro", value: `#${number}`, inline: true },
+        { name: "Ouvert", value: `<t:${opened}:R>`, inline: true }
+      )
+      .setFooter({ text: config.tickets.claimEnabled ? "L’équipe peut prendre le ticket en charge · fermeture avec le bouton ci-dessous" : "Fermeture avec le bouton ci-dessous" })
+      .setTimestamp();
+    if (formAnswer) embed.addFields({ name: (selectedType.formQuestion || "Détails de la demande").slice(0, 256), value: formAnswer.slice(0, 1024) });
     await channel.send({
-      content: `${supportPing}**${selectedType.emoji} ${selectedType.label}**\n${selectedType.description}\nBonjour <@${interaction.user.id}> ! Explique ta demande ici.${answer}`,
+      content: `${supportPing}${interaction.user}`,
+      embeds: [embed],
       components: row ? [row] : [],
       allowedMentions: { users: [interaction.user.id], roles: config.tickets.supportRoleId ? [config.tickets.supportRoleId] : [] }
     });
@@ -684,10 +738,8 @@ bot.on("interactionCreate", async interaction => {
       return interaction.reply({ content: "Seul l’auteur du ticket ou l’équipe support peut le fermer.", ephemeral: true });
     }
     await interaction.deferUpdate();
-    await closeTicketProcess(interaction.guild, interaction.channel, ticket, config, `fermé par ${interaction.user.tag}`);
-    await interaction.channel.send(`🔒 Ticket fermé par ${interaction.user}.`).catch(() => {});
-    const row = ticketActionRow(config, interaction.guild, { closed: true });
-    return interaction.message.edit({ components: row ? [row] : [] });
+    await closeTicketProcess(interaction.guild, interaction.channel, ticket, config, `fermé par ${interaction.user.tag}`, { by: interaction.user });
+    return interaction.message.edit({ components: [] }).catch(() => {});
   }
 
   if (interaction.customId === "atelier:ticket:reopen") {
@@ -702,6 +754,7 @@ bot.on("interactionCreate", async interaction => {
       await interaction.channel.permissionOverwrites.edit(ticket.user_id, { SendMessages: true });
       if (interaction.channel.name.startsWith("ferme-")) await interaction.channel.setName(interaction.channel.name.slice(6));
       reopenTicket(interaction.channelId);
+      setTicketDeleteAt(interaction.channelId, null); clearTimeout(deletionTimers.get(interaction.channelId));
       const row = ticketActionRow(config, interaction.guild, { claimedBy: ticket.claimed_by });
       await sendTicketLog(interaction.guild, config, `🔓 ${interaction.user} a rouvert ${interaction.channel}.`);
       addLog(interaction.guild.id, "tickets", "Ticket rouvert", `#${interaction.channel.name}`, who(interaction.user));
@@ -764,6 +817,10 @@ bot.once("clientReady", () => {
       finally { refreshing.delete(guildId); }
     }
   }, 15_000).unref();
+});
+
+bot.once("clientReady", () => {
+  for (const item of listPendingTicketDeletes()) scheduleTicketDeletion(item.channel_id, item.guild_id, item.delete_at);
 });
 
 bot.once("clientReady", async () => {
