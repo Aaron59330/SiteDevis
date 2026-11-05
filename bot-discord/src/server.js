@@ -9,9 +9,10 @@ import rateLimit from "express-rate-limit";
 import { PermissionFlagsBits } from "discord.js";
 import {
   db, getGiveaway, getGuildConfig, getPoll, getPollVoteCounts, getPollVoteHistory, getPollVoteHistoryCount, listGiveaways, listPolls,
-  saveGuildConfig, SQLiteSessionStore, listTemplates, saveTemplate, deleteTemplate, recordSentMessage, listSentMessages, getSentMessage, updateSentMessage, deleteSentMessage, getPresenceSettings, savePresenceSettings, addLog, listLogs, logCounts, LOG_CATEGORIES, publicCounts
+  saveGuildConfig, SQLiteSessionStore, listCases, caseStats, revokeCase, leaderboard, resetLevels, levelFromXp, listSuggestions, listTemplates, saveTemplate, deleteTemplate, recordSentMessage, listSentMessages, getSentMessage, updateSentMessage, deleteSentMessage, getPresenceSettings, savePresenceSettings, addLog, listLogs, logCounts, LOG_CATEGORIES, publicCounts
 } from "./database.js";
 import { sanitizeConfig } from "./config.js";
+import { decideSuggestion, counterValues } from "./modules.js";
 import {
   bot, botGuildSummary, fetchFiveMStatus, finishGiveaway, finishPoll, publishCustomMessage,
   publishFiveMStatusPanel, publishGiveaway, publishPoll, publishTicketPanel, syncGuildCommands, botProfile, updateBotProfile, isBotOwner, presenceValues, renderPresenceText, restartPresence, editCustomMessage
@@ -433,6 +434,45 @@ app.put("/api/guilds/:guildId/profile", requireAuth, requireCsrf, requireGuildAc
     if (done.length) addLog(req.params.guildId, "panneau", "Profil du bot modifié", done.join(", "), panelActor(req));
     res.json({ ok: true, ...botProfile(req.params.guildId), bio: getGuildConfig(req.params.guildId).profile?.bio || "" });
   } catch (error) { next(error); }
+});
+
+/* Modération : historique des sanctions */
+app.get("/api/guilds/:guildId/cases", requireAuth, requireGuildAccess, (req, res) => {
+  res.json({ cases: listCases(req.params.guildId, { limit: 100 }), stats: caseStats(req.params.guildId) });
+});
+app.post("/api/guilds/:guildId/cases/:caseId/revoke", requireAuth, requireCsrf, requireGuildAccess, (req, res) => {
+  if (!revokeCase(req.params.guildId, Number(req.params.caseId))) return res.status(404).json({ error: "Sanction introuvable ou déjà annulée." });
+  addLog(req.params.guildId, "moderation", `Sanction #${req.params.caseId} annulée`, "", panelActor(req));
+  res.json({ ok: true });
+});
+/* Niveaux : classement et remise à zéro */
+app.get("/api/guilds/:guildId/leaderboard", requireAuth, requireGuildAccess, (req, res) => {
+  const guild = bot.guilds.cache.get(req.params.guildId);
+  res.json({ rows: leaderboard(req.params.guildId, 50).map(r => {
+    const user = bot.users.cache.get(r.user_id), info = levelFromXp(r.xp);
+    return { userId: r.user_id, name: user?.globalName || user?.username || r.user_name || r.user_id, avatar: user ? user.displayAvatarURL({ size: 64 }) : "", xp: r.xp, level: info.level, current: info.current, needed: info.needed, messages: r.messages };
+  }), members: guild?.memberCount || 0 });
+});
+app.post("/api/guilds/:guildId/leaderboard/reset", requireAuth, requireCsrf, requireGuildAccess, (req, res) => {
+  const n = resetLevels(req.params.guildId);
+  addLog(req.params.guildId, "panneau", "Niveaux remis à zéro", `${n} membre(s)`, panelActor(req));
+  res.json({ ok: true, n });
+});
+/* Suggestions */
+app.get("/api/guilds/:guildId/suggestions", requireAuth, requireGuildAccess, (req, res) => res.json({ rows: listSuggestions(req.params.guildId) }));
+app.post("/api/guilds/:guildId/suggestions/:id/decide", requireAuth, requireCsrf, requireGuildAccess, async (req, res) => {
+  const status = req.body?.status === "accepted" ? "accepted" : req.body?.status === "refused" ? "refused" : "";
+  if (!status) return res.status(400).json({ error: "Décision invalide." });
+  const rows = listSuggestions(req.params.guildId, 500);
+  if (!rows.some(s => s.id === Number(req.params.id))) return res.status(404).json({ error: "Suggestion introuvable." });
+  try { await decideSuggestion(bot, Number(req.params.id), status, String(req.body?.note || "").slice(0, 500), panelActor(req)); res.json({ ok: true }); }
+  catch (error) { res.status(400).json({ error: error.message }); }
+});
+/* Compteurs : valeurs actuelles pour l'aperçu */
+app.get("/api/guilds/:guildId/counters", requireAuth, requireGuildAccess, (req, res) => {
+  const guild = bot.guilds.cache.get(req.params.guildId);
+  if (!guild) return res.status(409).json({ error: "Le bot n’est pas présent sur ce serveur." });
+  res.json({ values: counterValues(guild) });
 });
 
 /* Modèles de messages et historique des messages envoyés */

@@ -124,6 +124,7 @@ async function selectGuild(guildId) {
     renderConfig();
     if (state.page === "logs") loadLogs(true);
     if (state.page === "profile") loadProfile();
+    loadModulePage(state.page);
   } catch (error) {
     showToast(error.message, true);
   }
@@ -225,6 +226,7 @@ function renderConfig() {
   updateImagePreview("#welcomeImageUrl", "#welcomeImagePreviewWrap", "#welcomeImagePreview");
   updateImagePreview("#ticketImageUrl", "#ticketImagePreviewWrap", "#ticketImagePreview");
   updateEmbedColorPreview();
+  renderModules(config);
   updateOptionVisibility();
   updateComposerPreview();
   updateBadges();
@@ -237,6 +239,7 @@ function renderConfig() {
 function currentConfig() {
   if (!state.config) return null;
   return {
+    ...collectModules(),
     welcome: { enabled: $("#welcomeEnabled").checked, channelId: $("#welcomeChannel").value, message: $("#welcomeMessage").value, imageUrl: $("#welcomeImageUrl").value, embedColor: $("#welcomeEmbedColor").value, embedEnabled: $("#welcomeEmbedEnabled").checked, avatarEnabled: $("#welcomeAvatarEnabled").checked, avatarUrl: $("#welcomeAvatarUrl").value, footerEnabled: $("#welcomeFooterEnabled").checked, footerText: $("#welcomeFooterText").value },
     autorole: { enabled: $("#autoroleEnabled").checked, roleId: $("#autoroleRole").value },
     tickets: { enabled: $("#ticketsEnabled").checked, panelChannelId: $("#ticketPanelChannel").value, categoryId: $("#ticketCategory").value, supportRoleId: $("#supportRole").value, panelTitle: $("#ticketTitle").value, channelNameFormat: $("#ticketNameFormat").value.trim() || "{type}-{numero}", panelDescription: $("#ticketDescription").value, imageUrl: $("#ticketImageUrl").value, embedColor: $("#ticketEmbedColor").value, formsEnabled: $("#ticketFormsEnabled").checked, claimEnabled: $("#ticketClaimEnabled").checked, transcriptsEnabled: $("#ticketTranscriptsEnabled").checked, reopenEnabled: $("#ticketReopenEnabled").checked, deleteOnClose: $("#ticketDeleteOnClose").checked, deleteDelay: $("#ticketDeleteDelay").value, autoCloseEnabled: $("#ticketAutoCloseEnabled").checked, autoCloseDays: $("#ticketAutoCloseDays").value, logsEnabled: $("#ticketLogsEnabled").checked, logChannelId: $("#ticketLogChannel").value, ticketTypes: collectTicketTypes() },
@@ -267,6 +270,7 @@ function updateFromControls() {
 function updateBadges() {
   const entries = [["welcomeBadge", state.config.welcome.enabled], ["roleBadge", state.config.autorole.enabled], ["ticketBadge", state.config.tickets.enabled], ["anonymousBadge", state.config.anonymous?.enabled === true], ["protectBadge", state.config.protect?.enabled === true]];
   for (const [id, enabled] of entries) $("#" + id).textContent = enabled ? "ON" : "OFF";
+  $$("[data-badge-for]").forEach(el => { const on = state.config?.[el.dataset.badgeFor]?.enabled === true; el.textContent = on ? "ON" : "OFF"; el.classList.toggle("on", on); });
   const commandCount = Object.values(state.config.commands || {}).filter(Boolean).length + Number(state.config.fivem?.enabled && state.config.fivem?.commandEnabled);
   $("#commandBadge").textContent = `${commandCount} / 6`;
 }
@@ -616,6 +620,7 @@ function switchPage(page) {
   if (page === "logs") loadLogs(true);
   if (page === "profile") loadProfile();
   if (page === "presence") loadPresence();
+  loadModulePage(page);
   if (page === "messages") loadMessageLibrary();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -1138,4 +1143,129 @@ document.addEventListener("click", async event => {
     if (t.dataset.sentEdit) { const x = sent(t.dataset.sentEdit); loadComposer({ ...x.data, channelId: x.channel_id }); setEditing(x); }
     if (t.dataset.sentReuse) { setEditing(null); loadComposer(sent(t.dataset.sentReuse).data); showToast("Message copié : choisis le salon et envoie-le à nouveau."); }
   } catch (error) { showToast(error.message, true); }
+});
+
+/* ================= Modules (liaison automatique des champs data-cfg) ================= */
+const MODULE_KEYS = ["leave", "moderation", "levels", "autoresponder", "suggestions", "counters", "tempvoice"];
+const REPEAT = {
+  "levels.rewards": { max: 25, blank: { level: 5, roleId: "" }, fields: [
+    { key: "level", type: "number", label: "Niveau", min: 1, max: 1000, cls: "rep-narrow" },
+    { key: "roleId", type: "select", fill: "roles-assignable", label: "Rôle donné", ph: "Choisir un rôle…" }] },
+  "autoresponder.items": { max: 50, blank: { trigger: "", match: "contains", response: "", reply: true }, fields: [
+    { key: "match", type: "select", label: "Si le message", options: [["contains", "contient"], ["exact", "est exactement"], ["starts", "commence par"]], cls: "rep-mid" },
+    { key: "trigger", type: "text", label: "Mot ou phrase", ph: "ip" },
+    { key: "response", type: "textarea", label: "Le bot répond", ph: "L’IP du serveur est play.monserveur.fr", cls: "rep-full" },
+    { key: "reply", type: "checkbox", label: "Répondre au message (sinon simple envoi)", cls: "rep-full" }] },
+  "counters.items": { max: 6, blank: { channelId: "", template: "Membres : {membres}" }, fields: [
+    { key: "channelId", type: "select", fill: "voice", label: "Salon vocal", ph: "Choisir un salon vocal…" },
+    { key: "template", type: "text", label: "Nom affiché", ph: "Membres : {membres}" }] }
+};
+const getPath = (obj, path) => path.split(".").reduce((o, k) => (o == null ? undefined : o[k]), obj);
+const setPath = (obj, path, value) => { const k = path.split("."); let o = obj; k.slice(0, -1).forEach(x => { o[x] = o[x] || {}; o = o[x]; }); o[k[k.length - 1]] = value; };
+function fillItems(kind) {
+  const g = state.guild || {};
+  return { text: g.channels || [], voice: g.voiceChannels || [], category: g.categories || [], roles: g.roles || [], "roles-assignable": (g.roles || []).filter(r => r.assignable) }[kind] || [];
+}
+function optionsHtml(kind, ph, current) {
+  return `<option value="">${escapeHtml(ph || "Choisir…")}</option>` + fillItems(kind).map(i => `<option value="${escapeHtml(i.id)}"${i.id === current ? " selected" : ""}>${kind === "text" ? "#" : kind.startsWith("roles") ? "@" : ""}${escapeHtml(i.name)}</option>`).join("");
+}
+function repeatRow(path, item) {
+  const def = REPEAT[path];
+  return `<div class="repeat-row">${def.fields.map(f => {
+    const v = item[f.key];
+    let input;
+    if (f.type === "select" && f.fill) input = `<select class="select" data-rk="${f.key}">${optionsHtml(f.fill, f.ph, v)}</select>`;
+    else if (f.type === "select") input = `<select class="select" data-rk="${f.key}">${f.options.map(([k, l]) => `<option value="${k}"${k === v ? " selected" : ""}>${l}</option>`).join("")}</select>`;
+    else if (f.type === "textarea") input = `<textarea class="textarea" rows="2" data-rk="${f.key}" placeholder="${escapeHtml(f.ph || "")}">${escapeHtml(v || "")}</textarea>`;
+    else if (f.type === "checkbox") return `<label class="check-line ${f.cls || ""}"><input type="checkbox" data-rk="${f.key}"${v !== false ? " checked" : ""}> ${f.label}</label>`;
+    else input = `<input class="input" type="${f.type}" data-rk="${f.key}" value="${escapeHtml(v ?? "")}" placeholder="${escapeHtml(f.ph || "")}"${f.min ? ` min="${f.min}" max="${f.max}"` : ""}>`;
+    return `<label class="rep-field ${f.cls || ""}"><span>${f.label}</span>${input}</label>`;
+  }).join("")}<button class="icon-btn danger rep-del" type="button" title="Retirer"><svg class="ic" aria-hidden="true"><use href="#i-trash"/></svg></button></div>`;
+}
+function renderModules(config) {
+  $$("[data-cfg]").forEach(el => {
+    const path = el.dataset.cfg; if (!MODULE_KEYS.includes(path.split(".")[0])) return;
+    const value = getPath(config, path);
+    if (el.dataset.fill) el.innerHTML = optionsHtml(el.dataset.fill, el.dataset.placeholder, value || "");
+    if (el.type === "checkbox") el.checked = value === true; else if (value !== undefined && !el.dataset.fill) el.value = value;
+  });
+  $$("[data-pick]").forEach(box => {
+    const selected = getPath(config, box.dataset.pick) || [], kind = box.dataset.kind;
+    box.innerHTML = fillItems(kind).map(i => `<label class="pick"><input type="checkbox" value="${escapeHtml(i.id)}"${selected.includes(i.id) ? " checked" : ""}><span>${kind === "roles" ? "@" : "#"}${escapeHtml(i.name)}</span></label>`).join("") || '<span class="field-hint">Aucun élément.</span>';
+  });
+  $$("[data-repeat]").forEach(box => { box.innerHTML = (getPath(config, box.dataset.repeat) || []).map(item => repeatRow(box.dataset.repeat, item)).join("") || '<div class="repeat-empty">Aucun élément pour l’instant.</div>'; });
+}
+function collectModules() {
+  const out = {};
+  MODULE_KEYS.forEach(k => { out[k] = structuredClone(state.config?.[k] || {}); });
+  $$("[data-cfg]").forEach(el => { const path = el.dataset.cfg; if (!MODULE_KEYS.includes(path.split(".")[0])) return; setPath(out, path, el.type === "checkbox" ? el.checked : el.value); });
+  $$("[data-pick]").forEach(box => setPath(out, box.dataset.pick, $$("input:checked", box).map(i => i.value)));
+  $$("[data-repeat]").forEach(box => setPath(out, box.dataset.repeat, $$(".repeat-row", box).map(row => Object.fromEntries($$("[data-rk]", row).map(el => [el.dataset.rk, el.type === "checkbox" ? el.checked : el.value])))));
+  return out;
+}
+document.addEventListener("click", event => {
+  const add = event.target.closest("[data-repeat-add]");
+  if (add) {
+    const path = add.dataset.repeatAdd, box = $(`[data-repeat="${path}"]`), def = REPEAT[path];
+    if ($$(".repeat-row", box).length >= def.max) return showToast(`${def.max} éléments au maximum.`, true);
+    $(".repeat-empty", box)?.remove(); box.insertAdjacentHTML("beforeend", repeatRow(path, def.blank)); updateFromControls(); return;
+  }
+  const del = event.target.closest(".rep-del");
+  if (del) { del.closest(".repeat-row").remove(); updateFromControls(); }
+});
+const MODULE_SECTIONS = MODULE_KEYS.map(k => `[data-section="${k}"]`).join(",");
+document.addEventListener("change", event => { if (event.target.closest(MODULE_SECTIONS)) updateFromControls(); });
+document.addEventListener("input", event => { if (event.target.closest(MODULE_SECTIONS) && event.target.type !== "checkbox") updateFromControls(); });
+
+/* ---------- Données affichées dans les pages des modules ---------- */
+const fmtN = n => new Intl.NumberFormat("fr-FR").format(n || 0);
+const fmtD = ms => new Date(ms).toLocaleString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+const CASE_LABEL = { warn: ["Avertissement", "amber"], mute: ["Exclusion", "amber"], unmute: ["Fin d’exclusion", "green"], kick: ["Expulsion", "red"], ban: ["Bannissement", "red"], unban: ["Débannissement", "green"] };
+async function loadCases() {
+  try {
+    const d = await api(`/api/guilds/${state.guildId}/cases`), counts = Object.fromEntries(d.stats.map(s => [s.type, s.n]));
+    $("#modStats").innerHTML = ["warn", "mute", "kick", "ban"].map(t => `<div><b>${fmtN(counts[t])}</b><span>${CASE_LABEL[t][0]}s</span></div>`).join("");
+    $("#caseList").innerHTML = d.cases.map(c => { const [l, col] = CASE_LABEL[c.type] || [c.type, "blue"];
+      return `<div class="data-row${c.active ? "" : " revoked"}"><span class="case-num">#${c.id}</span><span class="case-type ${col}">${l}</span><div class="data-main"><b>${escapeHtml(c.user_name || c.user_id)}</b><small>${escapeHtml(c.reason || "sans raison")} · par ${escapeHtml(c.mod_name || "?")}${c.duration ? ` · ${fmtN(c.duration)} min` : ""}</small></div><time>${fmtD(c.at)}</time>${c.active && c.type === "warn" ? `<button class="button button-small button-secondary" type="button" data-case-revoke="${c.id}">Annuler</button>` : c.active ? "" : '<span class="case-off">annulée</span>'}</div>`; }).join("") || '<div class="log-empty">Aucune sanction pour le moment.</div>';
+  } catch (error) { showToast(error.message, true); }
+}
+async function loadBoard() {
+  try {
+    const d = await api(`/api/guilds/${state.guildId}/leaderboard`);
+    $("#levelBoard").innerHTML = d.rows.map((r, i) => `<div class="data-row"><span class="rank-num r${i + 1}">${i + 1}</span>${r.avatar ? `<img class="data-avatar" src="${escapeHtml(r.avatar)}" alt="">` : '<span class="data-avatar"></span>'}<div class="data-main"><b>${escapeHtml(r.name)}</b><div class="xp-bar"><i style="width:${Math.round(r.current / r.needed * 100)}%"></i></div></div><div class="data-side"><b>Niveau ${r.level}</b><small>${fmtN(r.xp)} XP · ${fmtN(r.messages)} messages</small></div></div>`).join("") || '<div class="log-empty">Personne n’a encore gagné d’XP. Active le module : l’XP arrive dès les prochains messages.</div>';
+  } catch (error) { showToast(error.message, true); }
+}
+const SUGG_LABEL = { pending: ["En attente", "blue"], accepted: ["Acceptée", "green"], refused: ["Refusée", "red"] };
+async function loadSuggestions() {
+  try {
+    const d = await api(`/api/guilds/${state.guildId}/suggestions`);
+    $("#suggList").innerHTML = d.rows.map(s => { const [l, col] = SUGG_LABEL[s.status];
+      return `<div class="data-row"><span class="case-num">#${s.id}</span><div class="data-main"><b>${escapeHtml(s.content)}</b><small>par ${escapeHtml(s.user_name)} · ${fmtD(s.at)} · 👍 ${s.up} · 👎 ${s.down}</small></div><span class="case-type ${col}">${l}</span>${s.status === "pending" ? `<button class="button button-small" type="button" data-sugg="${s.id}" data-st="accepted">Accepter</button><button class="button button-small button-secondary" type="button" data-sugg="${s.id}" data-st="refused">Refuser</button>` : ""}</div>`; }).join("") || '<div class="log-empty">Aucune suggestion pour le moment.</div>';
+  } catch (error) { showToast(error.message, true); }
+}
+async function loadCounterValues() {
+  try { const d = await api(`/api/guilds/${state.guildId}/counters`); $("#counterValues").textContent = Object.entries(d.values).map(([k, v]) => `${k} = ${v}`).join(" · "); } catch { /* le bot n'est pas sur ce serveur */ }
+}
+function loadModulePage(page) {
+  if (!state.guildId) return;
+  if (page === "moderation") loadCases();
+  if (page === "levels") loadBoard();
+  if (page === "suggestions") loadSuggestions();
+  if (page === "counters") loadCounterValues();
+}
+$("#casesRefresh").addEventListener("click", loadCases);
+$("#suggRefresh").addEventListener("click", loadSuggestions);
+$("#levelsReset").addEventListener("click", async () => {
+  if (!confirm("Remettre à zéro l’XP et les niveaux de tous les membres ? Cette action est définitive.")) return;
+  try { const r = await api(`/api/guilds/${state.guildId}/leaderboard/reset`, { method: "POST" }); showToast(`${r.n} membre(s) remis à zéro.`); loadBoard(); } catch (error) { showToast(error.message, true); }
+});
+document.addEventListener("click", async event => {
+  const revoke = event.target.closest("[data-case-revoke]");
+  if (revoke) { try { await api(`/api/guilds/${state.guildId}/cases/${revoke.dataset.caseRevoke}/revoke`, { method: "POST" }); showToast("Sanction annulée."); loadCases(); } catch (error) { showToast(error.message, true); } return; }
+  const sugg = event.target.closest("[data-sugg]");
+  if (sugg) {
+    const note = sugg.dataset.st === "refused" ? prompt("Raison du refus (facultatif) :", "") : prompt("Message pour l’auteur (facultatif) :", "");
+    if (note === null) return;
+    try { await api(`/api/guilds/${state.guildId}/suggestions/${sugg.dataset.sugg}/decide`, { method: "POST", body: JSON.stringify({ status: sugg.dataset.st, note }) }); showToast(sugg.dataset.st === "accepted" ? "Suggestion acceptée." : "Suggestion refusée."); loadSuggestions(); } catch (error) { showToast(error.message, true); }
+  }
 });

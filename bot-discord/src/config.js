@@ -48,6 +48,13 @@ export const defaultConfig = {
   profile: {
     bio: ""
   },
+  leave: { enabled: false, channelId: "", message: "{user} a quitté **{server}**. Nous sommes maintenant {memberCount}.", embedColor: "#ed4245" },
+  moderation: { enabled: false, logChannelId: "", dmUsers: true, autoMuteAt: 3, autoMuteMinutes: 60, autoKickAt: 0, autoBanAt: 0 },
+  levels: { enabled: false, xpMin: 15, xpMax: 25, cooldown: 60, announce: "same", channelId: "", message: "Bravo {user}, tu passes niveau **{level}** !", rewards: [], stackRewards: true, ignoredChannelIds: [], ignoredRoleIds: [] },
+  autoresponder: { enabled: false, items: [] },
+  suggestions: { enabled: false, channelId: "", staffRoleId: "" },
+  counters: { enabled: false, items: [] },
+  tempvoice: { enabled: false, hubChannelId: "", categoryId: "", nameTemplate: "Salon de {pseudo}", userLimit: 0 },
   protect: {
     enabled: false,
     spam: { enabled: true, count: 6, seconds: 5 },
@@ -152,6 +159,44 @@ export function sanitizeConfig(input = {}) {
     profile: {
       bio: text(input.profile?.bio, 190)
     },
+    leave: {
+      enabled: input.leave?.enabled === true,
+      channelId: id(input.leave?.channelId),
+      message: text(input.leave?.message, 1800) || defaultConfig.leave.message,
+      embedColor: /^#[0-9a-fA-F]{6}$/.test(String(input.leave?.embedColor ?? "")) ? String(input.leave.embedColor).toLowerCase() : "#ed4245"
+    },
+    moderation: (() => {
+      const m = input.moderation || {};
+      const int = (v, a, b, f) => { const x = Number.parseInt(v, 10); return Number.isFinite(x) ? Math.min(b, Math.max(a, x)) : f; };
+      return { enabled: m.enabled === true, logChannelId: id(m.logChannelId), dmUsers: m.dmUsers !== false,
+        autoMuteAt: int(m.autoMuteAt, 0, 50, 3), autoMuteMinutes: int(m.autoMuteMinutes, 1, 40320, 60), autoKickAt: int(m.autoKickAt, 0, 50, 0), autoBanAt: int(m.autoBanAt, 0, 50, 0) };
+    })(),
+    levels: (() => {
+      const l = input.levels || {}, int = (v, a, b, f) => { const x = Number.parseInt(v, 10); return Number.isFinite(x) ? Math.min(b, Math.max(a, x)) : f; };
+      const xpMin = int(l.xpMin, 1, 500, 15), xpMax = Math.max(xpMin, int(l.xpMax, 1, 500, 25));
+      const ids = value => (Array.isArray(value) ? value : []).map(id).filter(Boolean).slice(0, 50);
+      return { enabled: l.enabled === true, xpMin, xpMax, cooldown: int(l.cooldown, 0, 3600, 60),
+        announce: ["same", "channel", "dm", "off"].includes(l.announce) ? l.announce : "same", channelId: id(l.channelId),
+        message: text(l.message, 500) || defaultConfig.levels.message,
+        rewards: (Array.isArray(l.rewards) ? l.rewards : []).map(r => ({ level: int(r?.level, 1, 1000, 0), roleId: id(r?.roleId) })).filter(r => r.level && r.roleId).sort((a, b) => a.level - b.level).slice(0, 25),
+        stackRewards: l.stackRewards !== false, ignoredChannelIds: ids(l.ignoredChannelIds), ignoredRoleIds: ids(l.ignoredRoleIds) };
+    })(),
+    autoresponder: {
+      enabled: input.autoresponder?.enabled === true,
+      items: (Array.isArray(input.autoresponder?.items) ? input.autoresponder.items : []).map(item => ({
+        trigger: text(item?.trigger, 100), match: ["contains", "exact", "starts"].includes(item?.match) ? item.match : "contains",
+        response: text(item?.response, 1800), reply: item?.reply !== false
+      })).filter(item => item.trigger && item.response).slice(0, 50)
+    },
+    suggestions: { enabled: input.suggestions?.enabled === true, channelId: id(input.suggestions?.channelId), staffRoleId: id(input.suggestions?.staffRoleId) },
+    counters: {
+      enabled: input.counters?.enabled === true,
+      items: (Array.isArray(input.counters?.items) ? input.counters.items : []).map(item => ({ channelId: id(item?.channelId), template: text(item?.template, 90) })).filter(item => item.channelId && item.template).slice(0, 6)
+    },
+    tempvoice: (() => {
+      const t = input.tempvoice || {}, x = Number.parseInt(t.userLimit, 10);
+      return { enabled: t.enabled === true, hubChannelId: id(t.hubChannelId), categoryId: id(t.categoryId), nameTemplate: text(t.nameTemplate, 80) || "Salon de {pseudo}", userLimit: Number.isFinite(x) ? Math.min(99, Math.max(0, x)) : 0 };
+    })(),
     protect: (() => {
       const p = input.protect || {}, d = defaultConfig.protect;
       const num = (value, min, max, fallback) => Math.min(max, Math.max(min, Number.parseInt(value, 10) || fallback));

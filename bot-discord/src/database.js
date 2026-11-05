@@ -116,6 +116,57 @@ db.exec(`
     edited_at INTEGER
   );
   CREATE INDEX IF NOT EXISTS sent_messages_guild ON sent_messages(guild_id, sent_at DESC);
+  CREATE TABLE IF NOT EXISTS mod_cases (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    user_name TEXT NOT NULL DEFAULT '',
+    mod_id TEXT NOT NULL DEFAULT '',
+    mod_name TEXT NOT NULL DEFAULT '',
+    type TEXT NOT NULL,
+    reason TEXT NOT NULL DEFAULT '',
+    duration INTEGER,
+    at INTEGER NOT NULL,
+    active INTEGER NOT NULL DEFAULT 1
+  );
+  CREATE INDEX IF NOT EXISTS mod_cases_guild ON mod_cases(guild_id, at DESC);
+  CREATE INDEX IF NOT EXISTS mod_cases_user ON mod_cases(guild_id, user_id);
+  CREATE TABLE IF NOT EXISTS levels (
+    guild_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    user_name TEXT NOT NULL DEFAULT '',
+    xp INTEGER NOT NULL DEFAULT 0,
+    level INTEGER NOT NULL DEFAULT 0,
+    messages INTEGER NOT NULL DEFAULT 0,
+    last_xp_at INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY(guild_id, user_id)
+  );
+  CREATE INDEX IF NOT EXISTS levels_rank ON levels(guild_id, xp DESC);
+  CREATE TABLE IF NOT EXISTS suggestions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id TEXT NOT NULL,
+    channel_id TEXT NOT NULL,
+    message_id TEXT NOT NULL DEFAULT '',
+    user_id TEXT NOT NULL,
+    user_name TEXT NOT NULL DEFAULT '',
+    content TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    staff_note TEXT NOT NULL DEFAULT '',
+    at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS suggestions_guild ON suggestions(guild_id, at DESC);
+  CREATE TABLE IF NOT EXISTS suggestion_votes (
+    suggestion_id INTEGER NOT NULL,
+    user_id TEXT NOT NULL,
+    value INTEGER NOT NULL,
+    PRIMARY KEY(suggestion_id, user_id)
+  );
+  CREATE TABLE IF NOT EXISTS temp_voice (
+    channel_id TEXT PRIMARY KEY,
+    guild_id TEXT NOT NULL,
+    owner_id TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS app_settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -485,3 +536,87 @@ export function updateSentMessage(guildId, id, data) {
 export function deleteSentMessage(guildId, id) {
   db.prepare("DELETE FROM sent_messages WHERE guild_id = ? AND id = ?").run(guildId, id);
 }
+
+/* ---------- Modération : sanctions (cases) ---------- */
+export function addCase(guildId, c) {
+  const r = db.prepare("INSERT INTO mod_cases(guild_id, user_id, user_name, mod_id, mod_name, type, reason, duration, at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)")
+    .run(guildId, c.userId, c.userName || "", c.modId || "", c.modName || "", c.type, String(c.reason || "").slice(0, 500), c.duration || null, Date.now());
+  return Number(r.lastInsertRowid);
+}
+export function listCases(guildId, { userId = "", limit = 50 } = {}) {
+  return userId
+    ? db.prepare("SELECT * FROM mod_cases WHERE guild_id = ? AND user_id = ? ORDER BY at DESC LIMIT ?").all(guildId, userId, limit)
+    : db.prepare("SELECT * FROM mod_cases WHERE guild_id = ? ORDER BY at DESC LIMIT ?").all(guildId, limit);
+}
+export function activeWarnCount(guildId, userId) {
+  return db.prepare("SELECT COUNT(*) AS n FROM mod_cases WHERE guild_id = ? AND user_id = ? AND type = 'warn' AND active = 1").get(guildId, userId).n;
+}
+export function revokeCase(guildId, caseId) {
+  return db.prepare("UPDATE mod_cases SET active = 0 WHERE guild_id = ? AND id = ? AND active = 1").run(guildId, caseId).changes > 0;
+}
+export function clearWarns(guildId, userId) {
+  return db.prepare("UPDATE mod_cases SET active = 0 WHERE guild_id = ? AND user_id = ? AND type = 'warn' AND active = 1").run(guildId, userId).changes;
+}
+export function caseStats(guildId) {
+  return db.prepare("SELECT type, COUNT(*) AS n FROM mod_cases WHERE guild_id = ? GROUP BY type").all(guildId);
+}
+
+/* ---------- Niveaux ---------- */
+export const xpForLevel = level => 5 * level * level + 50 * level + 100;          // XP pour passer du niveau level à level+1
+export function levelFromXp(xp) { let level = 0, rest = xp; while (rest >= xpForLevel(level)) { rest -= xpForLevel(level); level++; } return { level, current: rest, needed: xpForLevel(level) }; }
+export function getLevelRow(guildId, userId) {
+  return db.prepare("SELECT * FROM levels WHERE guild_id = ? AND user_id = ?").get(guildId, userId) || { guild_id: guildId, user_id: userId, xp: 0, level: 0, messages: 0, last_xp_at: 0 };
+}
+export function addXp(guildId, userId, userName, amount) {
+  db.prepare(`INSERT INTO levels(guild_id, user_id, user_name, xp, level, messages, last_xp_at) VALUES(?, ?, ?, ?, 0, 1, ?)
+    ON CONFLICT(guild_id, user_id) DO UPDATE SET xp = xp + excluded.xp, messages = messages + 1, last_xp_at = excluded.last_xp_at, user_name = excluded.user_name`)
+    .run(guildId, userId, userName, amount, Date.now());
+  const row = getLevelRow(guildId, userId), info = levelFromXp(row.xp), up = info.level > row.level;
+  if (up) db.prepare("UPDATE levels SET level = ? WHERE guild_id = ? AND user_id = ?").run(info.level, guildId, userId);
+  return { ...row, level: info.level, levelUp: up, previous: row.level };
+}
+export function countMessage(guildId, userId, userName) {
+  db.prepare(`INSERT INTO levels(guild_id, user_id, user_name, messages) VALUES(?, ?, ?, 1) ON CONFLICT(guild_id, user_id) DO UPDATE SET messages = messages + 1, user_name = excluded.user_name`).run(guildId, userId, userName);
+}
+export function leaderboard(guildId, limit = 10, offset = 0) {
+  return db.prepare("SELECT * FROM levels WHERE guild_id = ? AND xp > 0 ORDER BY xp DESC LIMIT ? OFFSET ?").all(guildId, limit, offset);
+}
+export function rankOf(guildId, userId) {
+  const row = getLevelRow(guildId, userId);
+  return db.prepare("SELECT COUNT(*) + 1 AS r FROM levels WHERE guild_id = ? AND xp > ?").get(guildId, row.xp).r;
+}
+export function resetLevels(guildId, userId = "") {
+  return userId ? db.prepare("DELETE FROM levels WHERE guild_id = ? AND user_id = ?").run(guildId, userId).changes : db.prepare("DELETE FROM levels WHERE guild_id = ?").run(guildId).changes;
+}
+export function setUserXp(guildId, userId, xp) {
+  const info = levelFromXp(Math.max(0, xp));
+  db.prepare(`INSERT INTO levels(guild_id, user_id, xp, level) VALUES(?, ?, ?, ?) ON CONFLICT(guild_id, user_id) DO UPDATE SET xp = excluded.xp, level = excluded.level`).run(guildId, userId, Math.max(0, xp), info.level);
+  return info.level;
+}
+
+/* ---------- Suggestions ---------- */
+export function createSuggestion(guildId, s) {
+  return Number(db.prepare("INSERT INTO suggestions(guild_id, channel_id, user_id, user_name, content, at) VALUES(?, ?, ?, ?, ?, ?)").run(guildId, s.channelId, s.userId, s.userName || "", s.content, Date.now()).lastInsertRowid);
+}
+export function setSuggestionMessage(id, messageId) { db.prepare("UPDATE suggestions SET message_id = ? WHERE id = ?").run(messageId, id); }
+export function getSuggestion(id) { return db.prepare("SELECT * FROM suggestions WHERE id = ?").get(id); }
+export function voteSuggestion(id, userId, value) {
+  const current = db.prepare("SELECT value FROM suggestion_votes WHERE suggestion_id = ? AND user_id = ?").get(id, userId);
+  if (current && current.value === value) { db.prepare("DELETE FROM suggestion_votes WHERE suggestion_id = ? AND user_id = ?").run(id, userId); return 0; }
+  db.prepare("INSERT INTO suggestion_votes(suggestion_id, user_id, value) VALUES(?, ?, ?) ON CONFLICT(suggestion_id, user_id) DO UPDATE SET value = excluded.value").run(id, userId, value);
+  return value;
+}
+export function suggestionVotes(id) {
+  const r = db.prepare("SELECT SUM(value = 1) AS up, SUM(value = -1) AS down FROM suggestion_votes WHERE suggestion_id = ?").get(id);
+  return { up: r.up || 0, down: r.down || 0 };
+}
+export function setSuggestionStatus(id, status, note = "") { db.prepare("UPDATE suggestions SET status = ?, staff_note = ? WHERE id = ?").run(status, String(note).slice(0, 500), id); }
+export function listSuggestions(guildId, limit = 50) {
+  return db.prepare("SELECT * FROM suggestions WHERE guild_id = ? ORDER BY at DESC LIMIT ?").all(guildId, limit).map(s => ({ ...s, ...suggestionVotes(s.id) }));
+}
+
+/* ---------- Salons vocaux temporaires ---------- */
+export function addTempVoice(channelId, guildId, ownerId) { db.prepare("INSERT OR REPLACE INTO temp_voice(channel_id, guild_id, owner_id, created_at) VALUES(?, ?, ?, ?)").run(channelId, guildId, ownerId, Date.now()); }
+export function getTempVoice(channelId) { return db.prepare("SELECT * FROM temp_voice WHERE channel_id = ?").get(channelId); }
+export function removeTempVoice(channelId) { db.prepare("DELETE FROM temp_voice WHERE channel_id = ?").run(channelId); }
+export function listTempVoice() { return db.prepare("SELECT * FROM temp_voice").all(); }

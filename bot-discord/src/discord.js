@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { moduleCommandDefinitions, handleModuleCommand, registerModules } from "./modules.js";
 import {
   ActivityType, ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ChannelType, Client, EmbedBuilder,
   GatewayIntentBits, ModalBuilder, Partials, PermissionFlagsBits, SlashCommandBuilder, StringSelectMenuBuilder,
@@ -70,7 +71,7 @@ export async function publishFiveMStatusPanel(guildId, settings, existingMessage
 }
 
 export const bot = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildModeration],
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildModeration, GatewayIntentBits.GuildVoiceStates],
   partials: [Partials.Message, Partials.Channel, Partials.GuildMember]
 });
 /* ---------- Journal ---------- */
@@ -282,7 +283,7 @@ function commandDefinitions(config) {
   if (config.fivem?.enabled && config.fivem.commandEnabled) {
     commands.push(new SlashCommandBuilder().setName("fivemstatus").setDescription("Affiche l’état actuel du serveur FiveM."));
   }
-  return commands.map(command => command.toJSON());
+  return [...commands.map(command => command.toJSON()), ...moduleCommandDefinitions(config)];
 }
 
 export async function syncGuildCommands(guildId, config = getGuildConfig(guildId)) {
@@ -293,6 +294,10 @@ export async function syncGuildCommands(guildId, config = getGuildConfig(guildId
 
 async function handleSlashCommand(interaction) {
   const config = getGuildConfig(interaction.guildId);
+  if (await handleModuleCommand(interaction, config)) {
+    addLog(interaction.guildId, "commandes", `/${interaction.commandName}`, [interaction.options.data.map(o => `${o.name}: ${o.user ? tag(o.user) : o.value}`).join(", "), interaction.channel ? `dans #${interaction.channel.name}` : ""].filter(Boolean).join(" · "), who(interaction.user));
+    return;
+  }
   const command = interaction.commandName;
   const enabled = {
     clearmessages: config.commands.clearMessages,
@@ -922,6 +927,8 @@ export function botGuildSummary(guildId) {
     memberCount: guild.memberCount,
     channels: guild.channels.cache.filter(channel => channel.type === ChannelType.GuildText || channel.type === ChannelType.GuildAnnouncement)
       .map(channel => ({ id: channel.id, name: channel.name, type: channel.type })),
+    voiceChannels: guild.channels.cache.filter(channel => channel.type === ChannelType.GuildVoice || channel.type === ChannelType.GuildStageVoice)
+      .map(channel => ({ id: channel.id, name: channel.name })),
     categories: guild.channels.cache.filter(channel => channel.type === ChannelType.GuildCategory)
       .map(channel => ({ id: channel.id, name: channel.name })),
     roles: guild.roles.cache.filter(role => role.id !== guild.id && !role.managed)
@@ -1093,3 +1100,5 @@ bot.on("messageCreate", async message => {
     }
   }
 });
+
+registerModules(bot);
