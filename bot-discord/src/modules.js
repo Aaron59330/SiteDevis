@@ -300,8 +300,10 @@ export function counterValues(guild) {
   const bots = members.filter(m => m.user.bot).size, full = members.size >= guild.memberCount * 0.9;
   return { membres: nf(guild.memberCount), humains: full ? nf(guild.memberCount - bots) : nf(guild.memberCount), bots: nf(bots), boosts: nf(guild.premiumSubscriptionCount || 0), salons: nf(guild.channels.cache.size), roles: nf(guild.roles.cache.size - 1) };
 }
+let handles = null;
 async function refreshCounters(client) {
   for (const guild of client.guilds.cache.values()) {
+    if (handles && !handles(guild.id)) continue;
     const c = getGuildConfig(guild.id).counters; if (!c?.enabled || !c.items.length) continue;
     const values = counterValues(guild);
     for (const item of c.items) {
@@ -363,7 +365,8 @@ export async function handleModuleCommand(interaction, config) {
   }
   return true;
 }
-export function registerModules(bot) {
+export function registerModules(bot, handlesGuild) {
+  handles = handlesGuild;
   bot.on("messageCreate", async message => {
     if (!message.guild || message.author.bot || message.webhookId) return;
     const config = getGuildConfig(message.guild.id);
@@ -378,6 +381,7 @@ export function registerModules(bot) {
   bot.once("clientReady", async () => {
     // salons temporaires restés vides pendant un redémarrage
     for (const item of listTempVoice()) {
+      if (!bot.guilds.cache.has(item.guild_id) || (handles && !handles(item.guild_id))) continue;
       const channel = bot.guilds.cache.get(item.guild_id)?.channels.cache.get(item.channel_id);
       if (!channel) removeTempVoice(item.channel_id);
       else if (channel.members.size === 0) { await channel.delete("Salon vocal temporaire vide").catch(() => {}); removeTempVoice(item.channel_id); }

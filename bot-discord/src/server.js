@@ -6,17 +6,17 @@ import express from "express";
 import session from "express-session";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
-import { PermissionFlagsBits } from "discord.js";
 import {
   db, getGiveaway, getGuildConfig, getPoll, getPollVoteCounts, getPollVoteHistory, getPollVoteHistoryCount, listGiveaways, listPolls,
   saveGuildConfig, SQLiteSessionStore, listCases, caseStats, revokeCase, leaderboard, resetLevels, levelFromXp, listSuggestions, listTemplates, saveTemplate, deleteTemplate, recordSentMessage, listSentMessages, getSentMessage, updateSentMessage, deleteSentMessage, getPresenceSettings, savePresenceSettings, addLog, listLogs, logCounts, LOG_CATEGORIES, publicCounts
 } from "./database.js";
 import { sanitizeConfig } from "./config.js";
-import { decideSuggestion, counterValues } from "./modules.js";
+import { bot, fetchFiveMStatus, isBotOwner, renderPresenceText } from "./discord.js";
 import {
-  bot, botGuildSummary, fetchFiveMStatus, finishGiveaway, finishPoll, publishCustomMessage,
-  publishFiveMStatusPanel, publishGiveaway, publishPoll, publishTicketPanel, syncGuildCommands, botProfile, updateBotProfile, isBotOwner, presenceValues, renderPresenceText, restartPresence, editCustomMessage
-} from "./discord.js";
+  opsFor, opsForBot, customGuild, startAllBots, stopAllBots, describeBot, createBot, replaceToken, setBotEnabled, removeBot,
+  salesSettings, saveSalesSettings, runningCount, customTotals
+} from "./bots.js";
+import { listCustomBots, getCustomBot } from "./database.js";
 
 const required = ["DISCORD_TOKEN", "DISCORD_CLIENT_ID", "DISCORD_CLIENT_SECRET", "SESSION_SECRET"];
 function isHttpsUrl(value) {
@@ -165,26 +165,30 @@ app.get("/api/me", (req, res) => {
   if (!req.session.user) return res.json({ authenticated: false, botReady: bot.isReady() });
   const manageable = (req.session.guilds || []).filter(guild => userCanManage(req, guild.id));
   const guilds = manageable.map(guild => {
-    const available = botGuildSummary(guild.id);
+    const custom = customGuild(guild.id);
+    const available = custom || bot.guilds.cache.get(guild.id);
     return {
       id: guild.id,
       name: guild.name,
       icon: guild.icon ? `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png?size=64` : null,
       botInstalled: Boolean(available),
-      memberCount: available?.memberCount || null
+      memberCount: available?.memberCount || null,
+      customBot: custom ? custom.botId : null
     };
   });
-  res.json({ authenticated: true, isOwner: isBotOwner(req.session.user.id), user: req.session.user, csrfToken: req.session.csrfToken, botReady: bot.isReady(), clientId: process.env.DISCORD_CLIENT_ID, guilds });
+  const sales = salesSettings(), uid = req.session.user.id;
+  const canCustom = isBotOwner(uid) || sales.open || sales.allowedUserIds.includes(uid) || listCustomBots(uid).length > 0;
+  res.json({ authenticated: true, isOwner: isBotOwner(uid), canCustomBot: canCustom, user: req.session.user, csrfToken: req.session.csrfToken, botReady: bot.isReady(), clientId: process.env.DISCORD_CLIENT_ID, guilds });
 });
 
-app.get("/api/guilds/:guildId", requireAuth, requireGuildAccess, (req, res) => {
-  const summary = botGuildSummary(req.params.guildId);
+app.get("/api/guilds/:guildId", requireAuth, requireGuildAccess, async (req, res) => {
+  const summary = await opsFor(req.params.guildId).summary(req.params.guildId);
   if (!summary) return res.status(409).json({ error: "Le bot n’est pas encore présent sur ce serveur." });
   res.json({ config: getGuildConfig(req.params.guildId), guild: summary });
 });
 
 app.put("/api/guilds/:guildId/config", requireAuth, requireCsrf, requireGuildAccess, async (req, res) => {
-  const summary = botGuildSummary(req.params.guildId);
+  const summary = await opsFor(req.params.guildId).summary(req.params.guildId);
   if (!summary) return res.status(409).json({ error: "Le bot n’est pas présent sur ce serveur." });
   const config = sanitizeConfig(req.body);
   const channelIds = new Set(summary.channels.map(channel => channel.id));
@@ -202,9 +206,7 @@ app.put("/api/guilds/:guildId/config", requireAuth, requireCsrf, requireGuildAcc
   if (config.tickets.panelChannelId && !channelIds.has(config.tickets.panelChannelId)) return res.status(400).json({ error: "Choisis un salon de texte existant pour le panneau de tickets." });
   if (config.anonymous.channelId) {
     if (!channelIds.has(config.anonymous.channelId)) return res.status(400).json({ error: "Choisis un salon textuel existant pour les messages anonymes." });
-    const channel = bot.guilds.cache.get(req.params.guildId)?.channels.cache.get(config.anonymous.channelId);
-    const permissions = channel?.permissionsFor(bot.user);
-    if (config.anonymous.enabled && (!permissions?.has(PermissionFlagsBits.SendMessages) || !permissions.has(PermissionFlagsBits.ManageMessages) || !permissions.has(PermissionFlagsBits.AttachFiles))) {
+    if (config.anonymous.enabled && !(await opsFor(req.params.guildId).anonymousReady(req.params.guildId, config.anonymous.channelId))) {
       return res.status(400).json({ error: "Dans le salon anonyme, le bot doit pouvoir envoyer des messages, gérer les messages et joindre des fichiers." });
     }
   }
@@ -220,7 +222,7 @@ app.put("/api/guilds/:guildId/config", requireAuth, requireCsrf, requireGuildAcc
   const changed = Object.keys(MOD).filter(k => JSON.stringify(previous[k]) !== JSON.stringify(config[k])).map(k => MOD[k]);
   if (changed.length) addLog(req.params.guildId, "panneau", "Réglages enregistrés", changed.join(", "), panelActor(req));
   let commandsSynced = true;
-  try { await syncGuildCommands(req.params.guildId, config); }
+  try { await opsFor(req.params.guildId).syncGuildCommands(req.params.guildId, config); }
   catch (error) {
     commandsSynced = false;
     console.error(`Synchronisation des commandes impossible sur ${req.params.guildId}:`, error.message);
@@ -233,14 +235,14 @@ app.post("/api/guilds/:guildId/tickets/publish", requireAuth, requireCsrf, requi
     const config = getGuildConfig(req.params.guildId);
     if (!config.tickets.enabled) return res.status(400).json({ error: "Active les tickets et enregistre la configuration avant de publier." });
     if (!config.tickets.panelChannelId) return res.status(400).json({ error: "Choisis le salon où publier le panneau." });
-    const message = await publishTicketPanel(req.params.guildId, config);
+    const message = await opsFor(req.params.guildId).publishTicketPanel(req.params.guildId, config);
     addLog(req.params.guildId, "panneau", "Panneau de tickets publié", "", panelActor(req));
     res.json({ ok: true, channelId: message.channelId, messageId: message.id });
   } catch (error) { next(error); }
 });
 
-app.get("/api/guilds/:guildId/activities", requireAuth, requireGuildAccess, (req, res) => {
-  const guild = botGuildSummary(req.params.guildId);
+app.get("/api/guilds/:guildId/activities", requireAuth, requireGuildAccess, async (req, res) => {
+  const guild = await opsFor(req.params.guildId).summary(req.params.guildId);
   if (!guild) return res.status(409).json({ error: "Le bot n’est pas présent sur ce serveur." });
   const polls = listPolls(req.params.guildId).map(poll => {
     const counts = getPollVoteCounts(poll.id);
@@ -257,7 +259,7 @@ app.get("/api/guilds/:guildId/activities", requireAuth, requireGuildAccess, (req
 
 app.post("/api/guilds/:guildId/polls", requireAuth, requireCsrf, requireGuildAccess, async (req, res, next) => {
   try {
-    const summary = botGuildSummary(req.params.guildId);
+    const summary = await opsFor(req.params.guildId).summary(req.params.guildId);
     if (!summary) return res.status(409).json({ error: "Le bot n’est pas présent sur ce serveur." });
     const channelId = /^\d{17,20}$/.test(String(req.body?.channelId ?? "")) ? String(req.body.channelId) : "";
     if (!summary.channels.some(channel => channel.id === channelId)) return res.status(400).json({ error: "Choisis un salon textuel valide." });
@@ -272,7 +274,7 @@ app.post("/api/guilds/:guildId/polls", requireAuth, requireCsrf, requireGuildAcc
     const imageUrl = String(req.body?.imageUrl || "").trim();
     if (!/^#[0-9a-fA-F]{6}$/.test(embedColor)) return res.status(400).json({ error: "Choisis une couleur d’embed valide." });
     if (imageUrl && (imageUrl.length > 2048 || !isHttpsUrl(imageUrl))) return res.status(400).json({ error: "L’image doit utiliser une URL HTTPS valide (2 048 caractères maximum)." });
-    const result = await publishPoll(req.params.guildId, { channelId, question, options, durationHours, embedColor, imageUrl, createdBy: req.session.user.id });
+    const result = await opsFor(req.params.guildId).publishPoll(req.params.guildId, { channelId, question, options, durationHours, embedColor, imageUrl, createdBy: req.session.user.id });
     addLog(req.params.guildId, "animations", "Sondage publié", `« ${String(req.body?.question || "").slice(0, 200)} »`, panelActor(req));
     res.json({ ok: true, pollId: result.pollId, messageId: result.message.id });
   } catch (error) { next(error); }
@@ -282,7 +284,7 @@ app.post("/api/guilds/:guildId/polls/:pollId/close", requireAuth, requireCsrf, r
   try {
     const poll = getPoll(req.params.pollId);
     if (!poll || poll.guild_id !== req.params.guildId) return res.status(404).json({ error: "Sondage introuvable." });
-    const closed = await finishPoll(poll.id);
+    const closed = await opsFor(req.params.guildId).finishPoll(poll.id);
     if (closed) addLog(req.params.guildId, "animations", "Sondage clôturé depuis le panneau", "", panelActor(req));
     res.json({ ok: true, closed });
   } catch (error) { next(error); }
@@ -290,7 +292,7 @@ app.post("/api/guilds/:guildId/polls/:pollId/close", requireAuth, requireCsrf, r
 
 app.post("/api/guilds/:guildId/giveaways", requireAuth, requireCsrf, requireGuildAccess, async (req, res, next) => {
   try {
-    const summary = botGuildSummary(req.params.guildId);
+    const summary = await opsFor(req.params.guildId).summary(req.params.guildId);
     if (!summary) return res.status(409).json({ error: "Le bot n’est pas présent sur ce serveur." });
     const channelId = /^\d{17,20}$/.test(String(req.body?.channelId ?? "")) ? String(req.body.channelId) : "";
     if (!summary.channels.some(channel => channel.id === channelId)) return res.status(400).json({ error: "Choisis un salon textuel valide." });
@@ -304,7 +306,7 @@ app.post("/api/guilds/:guildId/giveaways", requireAuth, requireCsrf, requireGuil
     const imageUrl = String(req.body?.imageUrl || "").trim();
     if (!/^#[0-9a-fA-F]{6}$/.test(embedColor)) return res.status(400).json({ error: "Choisis une couleur d’embed valide." });
     if (imageUrl && (imageUrl.length > 2048 || !isHttpsUrl(imageUrl))) return res.status(400).json({ error: "L’image doit utiliser une URL HTTPS valide (2 048 caractères maximum)." });
-    const result = await publishGiveaway(req.params.guildId, { channelId, prize, durationHours, winnersCount, embedColor, imageUrl, createdBy: req.session.user.id });
+    const result = await opsFor(req.params.guildId).publishGiveaway(req.params.guildId, { channelId, prize, durationHours, winnersCount, embedColor, imageUrl, createdBy: req.session.user.id });
     addLog(req.params.guildId, "animations", "Tirage au sort publié", String(req.body?.prize || "").slice(0, 200), panelActor(req));
     res.json({ ok: true, giveawayId: result.giveawayId, messageId: result.message.id });
   } catch (error) { next(error); }
@@ -314,7 +316,7 @@ app.post("/api/guilds/:guildId/giveaways/:giveawayId/end", requireAuth, requireC
   try {
     const giveaway = getGiveaway(req.params.giveawayId);
     if (!giveaway || giveaway.guild_id !== req.params.guildId) return res.status(404).json({ error: "Tirage introuvable." });
-    const result = await finishGiveaway(giveaway.id);
+    const result = await opsFor(req.params.guildId).finishGiveaway(giveaway.id);
     res.json({ ok: true, ...result });
   } catch (error) { next(error); }
 });
@@ -334,7 +336,7 @@ app.post("/api/guilds/:guildId/fivem/publish", requireAuth, requireCsrf, require
     if (!config.fivem.enabled) return res.status(400).json({ error: "Active puis enregistre le module FiveM avant de publier." });
     if (!config.fivem.panelEnabled) return res.status(400).json({ error: "Active puis enregistre le panneau de statut FiveM." });
     if (!config.fivem.panelChannelId) return res.status(400).json({ error: "Choisis puis enregistre le salon du panneau FiveM." });
-    const message = await publishFiveMStatusPanel(req.params.guildId, config.fivem, config.fivem.panelMessageId);
+    const message = await opsFor(req.params.guildId).publishFiveMStatusPanel(req.params.guildId, config.fivem, config.fivem.panelMessageId);
     config.fivem.panelMessageId = message.id;
     saveGuildConfig(req.params.guildId, config);
     addLog(req.params.guildId, "panneau", "Statut FiveM publié", "", panelActor(req));
@@ -388,28 +390,29 @@ function parseMessageInput(guild, input = {}, { requireChannel = true } = {}) {
 
 app.post("/api/guilds/:guildId/messages", requireAuth, requireCsrf, requireGuildAccess, async (req, res, next) => {
   try {
-    const guild = botGuildSummary(req.params.guildId);
+    const guild = await opsFor(req.params.guildId).summary(req.params.guildId);
     if (!guild) return res.status(409).json({ error: "Le bot n’est pas présent sur ce serveur." });
     const parsed = parseMessageInput(guild, req.body || {});
     if (parsed.error) return res.status(400).json({ error: parsed.error });
     const data = parsed.data;
-    const message = await publishCustomMessage(req.params.guildId, data);
+    const message = await opsFor(req.params.guildId).publishCustomMessage(req.params.guildId, data);
     const sentId = recordSentMessage(req.params.guildId, { channelId: message.channelId, messageId: message.id, data, by: req.session.user?.username || "" });
-    addLog(req.params.guildId, "panneau", "Message personnalisé envoyé", `#${bot.guilds.cache.get(req.params.guildId)?.channels.cache.get(message.channelId)?.name || "?"}`, panelActor(req));
+    addLog(req.params.guildId, "panneau", "Message personnalisé envoyé", `#${guild.channels.find(channel => channel.id === message.channelId)?.name || "?"}`, panelActor(req));
     res.json({ ok: true, sentId, channelId: message.channelId, messageId: message.id, url: `https://discord.com/channels/${req.params.guildId}/${message.channelId}/${message.id}` });
   } catch (error) { next(error); }
 });
 
 /* Profil du bot sur ce serveur */
 const profileHits = new Map();
-app.get("/api/guilds/:guildId/profile", requireAuth, requireGuildAccess, (req, res) => {
-  const profile = botProfile(req.params.guildId);
+app.get("/api/guilds/:guildId/profile", requireAuth, requireGuildAccess, async (req, res, next) => {
+  const profile = await opsFor(req.params.guildId).botProfile(req.params.guildId).catch(next);
+  if (res.headersSent) return;
   if (!profile) return res.status(409).json({ error: "Le bot n’est pas présent sur ce serveur." });
   res.json({ ...profile, bio: getGuildConfig(req.params.guildId).profile?.bio || "" });
 });
 app.put("/api/guilds/:guildId/profile", requireAuth, requireCsrf, requireGuildAccess, async (req, res, next) => {
   try {
-    if (!botProfile(req.params.guildId)) return res.status(409).json({ error: "Le bot n’est pas présent sur ce serveur." });
+    if (!(await opsFor(req.params.guildId).botProfile(req.params.guildId))) return res.status(409).json({ error: "Le bot n’est pas présent sur ce serveur." });
     const now = Date.now(), hits = (profileHits.get(req.params.guildId) || []).filter(t => now - t < 10 * 60e3);
     if (hits.length >= 8) return res.status(429).json({ error: "Trop de modifications : attends quelques minutes." });
     hits.push(now); profileHits.set(req.params.guildId, hits);
@@ -428,11 +431,11 @@ app.put("/api/guilds/:guildId/profile", requireAuth, requireCsrf, requireGuildAc
     catch (error) { return res.status(error.status || 400).json({ error: error.message }); }
     if (changes.avatar !== undefined) done.push(changes.avatar ? "avatar" : "avatar par défaut");
     if (changes.banner !== undefined) done.push(changes.banner ? "bannière" : "bannière par défaut");
-    try { await updateBotProfile(req.params.guildId, changes); }
+    try { await opsFor(req.params.guildId).updateBotProfile(req.params.guildId, changes); }
     catch (error) { return res.status(400).json({ error: error.message }); }
     if (changes.bio !== undefined) { const config = getGuildConfig(req.params.guildId); config.profile = { bio: changes.bio }; saveGuildConfig(req.params.guildId, config); }
     if (done.length) addLog(req.params.guildId, "panneau", "Profil du bot modifié", done.join(", "), panelActor(req));
-    res.json({ ok: true, ...botProfile(req.params.guildId), bio: getGuildConfig(req.params.guildId).profile?.bio || "" });
+    res.json({ ok: true, ...(await opsFor(req.params.guildId).botProfile(req.params.guildId)), bio: getGuildConfig(req.params.guildId).profile?.bio || "" });
   } catch (error) { next(error); }
 });
 
@@ -446,12 +449,15 @@ app.post("/api/guilds/:guildId/cases/:caseId/revoke", requireAuth, requireCsrf, 
   res.json({ ok: true });
 });
 /* Niveaux : classement et remise à zéro */
-app.get("/api/guilds/:guildId/leaderboard", requireAuth, requireGuildAccess, (req, res) => {
-  const guild = bot.guilds.cache.get(req.params.guildId);
-  res.json({ rows: leaderboard(req.params.guildId, 50).map(r => {
-    const user = bot.users.cache.get(r.user_id), info = levelFromXp(r.xp);
-    return { userId: r.user_id, name: user?.globalName || user?.username || r.user_name || r.user_id, avatar: user ? user.displayAvatarURL({ size: 64 }) : "", xp: r.xp, level: info.level, current: info.current, needed: info.needed, messages: r.messages };
-  }), members: guild?.memberCount || 0 });
+app.get("/api/guilds/:guildId/leaderboard", requireAuth, requireGuildAccess, async (req, res, next) => {
+  try {
+    const ops = opsFor(req.params.guildId), rows = leaderboard(req.params.guildId, 50);
+    const [summary, users] = await Promise.all([ops.summary(req.params.guildId), ops.users(rows.map(r => r.user_id))]);
+    res.json({ rows: rows.map(r => {
+      const user = users[r.user_id], info = levelFromXp(r.xp);
+      return { userId: r.user_id, name: user?.name || r.user_name || r.user_id, avatar: user?.avatar || "", xp: r.xp, level: info.level, current: info.current, needed: info.needed, messages: r.messages };
+    }), members: summary?.memberCount || 0 });
+  } catch (error) { next(error); }
 });
 app.post("/api/guilds/:guildId/leaderboard/reset", requireAuth, requireCsrf, requireGuildAccess, (req, res) => {
   const n = resetLevels(req.params.guildId);
@@ -465,27 +471,30 @@ app.post("/api/guilds/:guildId/suggestions/:id/decide", requireAuth, requireCsrf
   if (!status) return res.status(400).json({ error: "Décision invalide." });
   const rows = listSuggestions(req.params.guildId, 500);
   if (!rows.some(s => s.id === Number(req.params.id))) return res.status(404).json({ error: "Suggestion introuvable." });
-  try { await decideSuggestion(bot, Number(req.params.id), status, String(req.body?.note || "").slice(0, 500), panelActor(req)); res.json({ ok: true }); }
+  try { await opsFor(req.params.guildId).decideSuggestion(Number(req.params.id), status, String(req.body?.note || "").slice(0, 500), panelActor(req)); res.json({ ok: true }); }
   catch (error) { res.status(400).json({ error: error.message }); }
 });
 /* Compteurs : valeurs actuelles pour l'aperçu */
-app.get("/api/guilds/:guildId/counters", requireAuth, requireGuildAccess, (req, res) => {
-  const guild = bot.guilds.cache.get(req.params.guildId);
-  if (!guild) return res.status(409).json({ error: "Le bot n’est pas présent sur ce serveur." });
-  res.json({ values: counterValues(guild) });
+app.get("/api/guilds/:guildId/counters", requireAuth, requireGuildAccess, async (req, res, next) => {
+  try {
+    const values = await opsFor(req.params.guildId).counterValues(req.params.guildId);
+    if (!values) return res.status(409).json({ error: "Le bot n’est pas présent sur ce serveur." });
+    res.json({ values });
+  } catch (error) { next(error); }
 });
 
 /* Modèles de messages et historique des messages envoyés */
-app.get("/api/guilds/:guildId/message-library", requireAuth, requireGuildAccess, (req, res) => {
-  const guild = botGuildSummary(req.params.guildId);
+app.get("/api/guilds/:guildId/message-library", requireAuth, requireGuildAccess, async (req, res) => {
+  const guild = await opsFor(req.params.guildId).summary(req.params.guildId).catch(() => null);
   const channelName = id => guild?.channels.find(channel => channel.id === id)?.name || "salon supprimé";
   res.json({
     templates: listTemplates(req.params.guildId),
     sent: listSentMessages(req.params.guildId).map(item => ({ ...item, channelName: channelName(item.channel_id), url: `https://discord.com/channels/${req.params.guildId}/${item.channel_id}/${item.message_id}` }))
   });
 });
-app.post("/api/guilds/:guildId/templates", requireAuth, requireCsrf, requireGuildAccess, (req, res) => {
-  const guild = botGuildSummary(req.params.guildId);
+app.post("/api/guilds/:guildId/templates", requireAuth, requireCsrf, requireGuildAccess, async (req, res, next) => {
+  const guild = await opsFor(req.params.guildId).summary(req.params.guildId).catch(next);
+  if (res.headersSent) return;
   if (!guild) return res.status(409).json({ error: "Le bot n’est pas présent sur ce serveur." });
   const name = String(req.body?.name || "").trim().slice(0, 60);
   if (!name) return res.status(400).json({ error: "Donne un nom au modèle." });
@@ -503,13 +512,13 @@ app.delete("/api/guilds/:guildId/templates/:templateId", requireAuth, requireCsr
 });
 app.put("/api/guilds/:guildId/sent/:sentId", requireAuth, requireCsrf, requireGuildAccess, async (req, res, next) => {
   try {
-    const guild = botGuildSummary(req.params.guildId);
+    const guild = await opsFor(req.params.guildId).summary(req.params.guildId);
     if (!guild) return res.status(409).json({ error: "Le bot n’est pas présent sur ce serveur." });
     const sent = getSentMessage(req.params.guildId, req.params.sentId);
     if (!sent) return res.status(404).json({ error: "Message introuvable dans l’historique." });
     const parsed = parseMessageInput(guild, { ...(req.body || {}), channelId: sent.channel_id }, { requireChannel: false });
     if (parsed.error) return res.status(400).json({ error: parsed.error });
-    try { await editCustomMessage(req.params.guildId, sent.channel_id, sent.message_id, parsed.data); }
+    try { await opsFor(req.params.guildId).editCustomMessage(req.params.guildId, sent.channel_id, sent.message_id, parsed.data); }
     catch (error) { if (error.gone) deleteSentMessage(req.params.guildId, sent.id); return res.status(400).json({ error: error.message }); }
     updateSentMessage(req.params.guildId, sent.id, parsed.data);
     addLog(req.params.guildId, "panneau", "Message modifié sur Discord", `#${guild.channels.find(channel => channel.id === sent.channel_id)?.name || "?"}`, panelActor(req));
@@ -526,14 +535,65 @@ function requireOwner(req, res, next) {
   if (!isBotOwner(req.session.user?.id)) return res.status(403).json({ error: "Réservé au propriétaire du bot." });
   next();
 }
-app.get("/api/presence", requireAuth, requireOwner, (req, res) => {
-  res.json({ settings: getPresenceSettings(), values: presenceValues() });
+/* ?bot=<id> : statut d'un bot client (son créateur ou le propriétaire) ; sans paramètre : bot principal (propriétaire) */
+function presenceTarget(req, res, next) {
+  const id = String(req.query.bot || "main");
+  if (id === "main") return requireOwner(req, res, () => { req.botId = "main"; next(); });
+  const row = getCustomBot(id);
+  if (!row || !canManageBot(req, row)) return res.status(404).json({ error: "Bot introuvable." });
+  req.botId = id; next();
+}
+app.get("/api/presence", requireAuth, presenceTarget, async (req, res) => {
+  const values = await opsForBot(req.botId).presenceValues().catch(() => ({}));
+  res.json({ settings: getPresenceSettings(req.botId), values });
 });
-app.put("/api/presence", requireAuth, requireCsrf, requireOwner, (req, res) => {
-  const settings = savePresenceSettings(req.body || {});
-  restartPresence();
-  res.json({ ok: true, settings, preview: settings.items.map(item => renderPresenceText(item.text)) });
+app.put("/api/presence", requireAuth, requireCsrf, presenceTarget, async (req, res) => {
+  const settings = savePresenceSettings(req.body || {}, req.botId);
+  const values = await opsForBot(req.botId).restartPresence().then(() => opsForBot(req.botId).presenceValues()).catch(() => ({}));
+  res.json({ ok: true, settings, preview: settings.items.map(item => renderPresenceText(item.text, values)) });
 });
+
+/* ---------- Bots personnalisés : chaque client utilise son propre bot Discord ---------- */
+const canManageBot = (req, row) => isBotOwner(req.session.user?.id) || row.owner_id === req.session.user?.id;
+function botRow(req, res, next) {
+  const row = getCustomBot(String(req.params.botId));
+  if (!row || !canManageBot(req, row)) return res.status(404).json({ error: "Bot introuvable." });
+  req.botRow = row; next();
+}
+app.get("/api/custombots", requireAuth, (req, res) => {
+  const uid = req.session.user.id, owner = isBotOwner(uid), sales = salesSettings();
+  const rows = owner ? listCustomBots() : listCustomBots(uid);
+  const allowed = owner || sales.open || sales.allowedUserIds.includes(uid);
+  res.json({
+    bots: rows.map(describeBot), isOwner: owner, mainClientId: process.env.DISCORD_CLIENT_ID,
+    canCreate: allowed && (owner || listCustomBots(uid).length < sales.maxPerUser) && listCustomBots().length < (owner ? 100 : sales.maxTotal),
+    allowed, limits: { perUser: sales.maxPerUser }, settings: owner ? sales : undefined, running: owner ? runningCount() : undefined
+  });
+});
+const tokenLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: "draft-8", legacyHeaders: false });
+app.post("/api/custombots", requireAuth, requireCsrf, tokenLimiter, async (req, res) => {
+  const uid = req.session.user.id, owner = isBotOwner(uid), sales = salesSettings();
+  if (!owner && !sales.open && !sales.allowedUserIds.includes(uid)) return res.status(403).json({ error: "Les bots personnalisés ne sont pas ouverts à ton compte. Contacte le propriétaire d’AERO BOT." });
+  if (!owner && listCustomBots(uid).length >= sales.maxPerUser) return res.status(403).json({ error: `Limite atteinte : ${sales.maxPerUser} bot(s) par compte.` });
+  if (!owner && listCustomBots().length >= sales.maxTotal) return res.status(403).json({ error: "Plus de place pour un nouveau bot pour le moment. Contacte le propriétaire d’AERO BOT." });
+  try {
+    const result = await createBot({ token: req.body?.token, ownerId: uid, ownerName: req.session.user.username });
+    res.json({ ok: true, ...result });
+  } catch (error) { res.status(400).json({ error: error.message }); }
+});
+app.put("/api/custombots/:botId/token", requireAuth, requireCsrf, tokenLimiter, botRow, async (req, res) => {
+  try { res.json({ ok: true, ...(await replaceToken(req.botRow.id, req.body?.token)) }); }
+  catch (error) { res.status(400).json({ error: error.message }); }
+});
+app.post("/api/custombots/:botId/:action", requireAuth, requireCsrf, botRow, (req, res) => {
+  const { action } = req.params;
+  if (action === "start" || action === "restart") setBotEnabled(req.botRow.id, true);
+  else if (action === "stop") setBotEnabled(req.botRow.id, false);
+  else return res.status(404).json({ error: "Action inconnue." });
+  res.json({ ok: true });
+});
+app.delete("/api/custombots/:botId", requireAuth, requireCsrf, botRow, (req, res) => { removeBot(req.botRow.id); res.json({ ok: true }); });
+app.put("/api/custombots-settings", requireAuth, requireCsrf, requireOwner, (req, res) => res.json({ ok: true, settings: saveSalesSettings(req.body || {}) }));
 
 /* Journal : tout ce qui se passe sur le serveur Discord et dans le panneau */
 app.get("/api/guilds/:guildId/logs", requireAuth, requireGuildAccess, (req, res) => {
@@ -546,11 +606,11 @@ app.get("/api/guilds/:guildId/logs", requireAuth, requireGuildAccess, (req, res)
 let publicStatsCache = { at: 0, data: null };
 app.get("/api/public/stats", (req, res) => {
   if (!publicStatsCache.data || Date.now() - publicStatsCache.at > 30_000) {
-    const guilds = [...bot.guilds.cache.values()];
+    const guilds = [...bot.guilds.cache.values()].filter(guild => !customGuild(guild.id)), extra = customTotals();
     publicStatsCache = { at: Date.now(), data: {
       botReady: bot.isReady(),
-      guilds: guilds.length,
-      members: guilds.reduce((sum, guild) => sum + (guild.memberCount || 0), 0),
+      guilds: guilds.length + extra.guilds,
+      members: guilds.reduce((sum, guild) => sum + (guild.memberCount || 0), 0) + extra.members,
       uptime: bot.uptime || 0,
       ping: Math.max(0, Math.round(bot.ws?.ping ?? 0)),
       clientId: process.env.DISCORD_CLIENT_ID || "",
@@ -566,10 +626,12 @@ app.get(/.*/, (req, res) => res.sendFile(path.join(publicDir, "index.html")));
 app.use((error, req, res, _next) => {
   console.error(error);
   if (res.headersSent) return;
+  if (error.expose) return res.status(error.status || 400).json({ error: error.message });
   res.status(500).json({ error: error.message?.startsWith("Discord API") ? "Discord ne répond pas pour le moment. Réessaie dans un instant." : "Une erreur est survenue. Vérifie les réglages du bot et réessaie." });
 });
 
 const server = app.listen(port, process.env.HOST || "0.0.0.0", () => console.log(`Panneau web prêt sur ${baseUrl}`));
+startAllBots();
 bot.login(process.env.DISCORD_TOKEN).catch(error => {
   console.error("Connexion Discord impossible :", error.message);
   server.close(() => process.exit(1));
@@ -577,6 +639,7 @@ bot.login(process.env.DISCORD_TOKEN).catch(error => {
 
 function shutdown() {
   server.close();
+  stopAllBots();
   bot.destroy();
   db.close();
   process.exit(0);

@@ -12,6 +12,7 @@ fs.mkdirSync(dataDir, { recursive: true });
 
 export const db = new Database(path.join(dataDir, "app.sqlite"));
 db.pragma("journal_mode = WAL");
+db.pragma("busy_timeout = 5000");   // plusieurs processus (bots clients) partagent la base
 db.exec(`
   CREATE TABLE IF NOT EXISTS guild_configs (
     guild_id TEXT PRIMARY KEY,
@@ -166,6 +167,21 @@ db.exec(`
     guild_id TEXT NOT NULL,
     owner_id TEXT NOT NULL,
     created_at INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS custom_bots (
+    id TEXT PRIMARY KEY,
+    owner_id TEXT NOT NULL,
+    owner_name TEXT NOT NULL DEFAULT '',
+    app_id TEXT NOT NULL,
+    name TEXT NOT NULL DEFAULT '',
+    avatar TEXT NOT NULL DEFAULT '',
+    token_enc TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS bot_guilds (
+    guild_id TEXT PRIMARY KEY,
+    bot_id TEXT NOT NULL
   );
   CREATE TABLE IF NOT EXISTS app_settings (
     key TEXT PRIMARY KEY,
@@ -485,14 +501,16 @@ export function sanitizePresence(input = {}) {
     items: items.length ? items : structuredClone(defaultPresence.items)
   };
 }
-export function getPresenceSettings() {
-  const row = db.prepare("SELECT value FROM app_settings WHERE key = 'presence'").get();
+/* statut propre à chaque bot : « presence » pour le bot principal, « presence:<id> » pour un bot client */
+const presenceKey = (botId = process.env.BOT_INSTANCE_ID || "main") => (botId === "main" ? "presence" : `presence:${botId}`);
+export function getPresenceSettings(botId) {
+  const row = db.prepare("SELECT value FROM app_settings WHERE key = ?").get(presenceKey(botId));
   if (!row) return structuredClone(defaultPresence);
   try { return sanitizePresence(JSON.parse(row.value)); } catch { return structuredClone(defaultPresence); }
 }
-export function savePresenceSettings(value) {
+export function savePresenceSettings(value, botId) {
   const clean = sanitizePresence(value);
-  db.prepare("INSERT INTO app_settings(key, value) VALUES('presence', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(JSON.stringify(clean));
+  db.prepare("INSERT INTO app_settings(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(presenceKey(botId), JSON.stringify(clean));
   return clean;
 }
 
@@ -620,3 +638,25 @@ export function addTempVoice(channelId, guildId, ownerId) { db.prepare("INSERT O
 export function getTempVoice(channelId) { return db.prepare("SELECT * FROM temp_voice WHERE channel_id = ?").get(channelId); }
 export function removeTempVoice(channelId) { db.prepare("DELETE FROM temp_voice WHERE channel_id = ?").run(channelId); }
 export function listTempVoice() { return db.prepare("SELECT * FROM temp_voice").all(); }
+
+/* ---------- Bots clients (chaque client utilise son propre bot Discord) ---------- */
+export function listCustomBots(ownerId = "") {
+  return ownerId ? db.prepare("SELECT * FROM custom_bots WHERE owner_id = ? ORDER BY created_at").all(ownerId) : db.prepare("SELECT * FROM custom_bots ORDER BY created_at").all();
+}
+export function getCustomBot(id) { return db.prepare("SELECT * FROM custom_bots WHERE id = ?").get(id); }
+export function getCustomBotByApp(appId) { return db.prepare("SELECT * FROM custom_bots WHERE app_id = ?").get(appId); }
+export function saveCustomBot(b) {
+  db.prepare(`INSERT INTO custom_bots(id, owner_id, owner_name, app_id, name, avatar, token_enc, enabled, created_at) VALUES(@id, @owner_id, @owner_name, @app_id, @name, @avatar, @token_enc, @enabled, @created_at)
+    ON CONFLICT(id) DO UPDATE SET name = excluded.name, avatar = excluded.avatar, token_enc = excluded.token_enc, enabled = excluded.enabled, app_id = excluded.app_id`).run(b);
+}
+export function deleteCustomBot(id) { db.prepare("DELETE FROM custom_bots WHERE id = ?").run(id); db.prepare("DELETE FROM bot_guilds WHERE bot_id = ?").run(id); db.prepare("DELETE FROM app_settings WHERE key = ?").run(`presence:${id}`); }
+/* serveurs pris en charge par un bot client : le bot principal les ignore (pas de double réponse) */
+export function claimGuild(guildId, botId) { db.prepare("INSERT INTO bot_guilds(guild_id, bot_id) VALUES(?, ?) ON CONFLICT(guild_id) DO UPDATE SET bot_id = excluded.bot_id").run(guildId, botId); }
+export function releaseGuild(guildId, botId) { db.prepare("DELETE FROM bot_guilds WHERE guild_id = ? AND bot_id = ?").run(guildId, botId); }
+export function releaseAllGuilds(botId) { db.prepare("DELETE FROM bot_guilds WHERE bot_id = ?").run(botId); }
+export function claimedGuilds() { return db.prepare("SELECT guild_id, bot_id FROM bot_guilds").all(); }
+export function getSetting(key, fallback) {
+  const row = db.prepare("SELECT value FROM app_settings WHERE key = ?").get(key);
+  if (!row) return fallback; try { return JSON.parse(row.value); } catch { return fallback; }
+}
+export function setSetting(key, value) { db.prepare("INSERT INTO app_settings(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(key, JSON.stringify(value)); }

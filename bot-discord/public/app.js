@@ -63,7 +63,9 @@ async function boot() {
     state.clientId = data.clientId;
     state.guilds = data.guilds;
     state.isOwner = data.isOwner === true;
-    $("#presenceNav").hidden = !state.isOwner;
+    state.canCustomBot = data.canCustomBot === true;
+    $("#customNav").hidden = $("#customNavGroup").hidden = !state.canCustomBot;
+    $("#presenceNav").hidden = !state.isOwner && !state.canCustomBot;
     $("#appShell").hidden = false;
     renderUser();
     renderGuilds();
@@ -620,6 +622,7 @@ function switchPage(page) {
   if (page === "logs") loadLogs(true);
   if (page === "profile") loadProfile();
   if (page === "presence") loadPresence();
+  if (page === "custombot") loadCustomBots();
   loadModulePage(page);
   if (page === "messages") loadMessageLibrary();
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1021,7 +1024,9 @@ function updatePresenceUi() {
 }
 async function loadPresence() {
   try {
-    const { settings, values } = await api("/api/presence");
+    await fillPresenceBots();
+    const target = $("#presenceBot").value || "main";
+    const { settings, values } = await api(`/api/presence?bot=${encodeURIComponent(target)}`);
     presenceState.values = values;
     $("#presenceEnabled").checked = settings.enabled; $("#presenceInterval").value = settings.interval; $("#presenceStatus").value = settings.status;
     $("#presenceItems").innerHTML = settings.items.map(presenceRow).join("");
@@ -1036,7 +1041,7 @@ $("#presenceItems").addEventListener("input", () => { presenceState.index = Math
 $("#presenceSave").addEventListener("click", async event => {
   const button = event.currentTarget, original = button.innerHTML; button.disabled = true; button.textContent = "Enregistrement…";
   try {
-    await api("/api/presence", { method: "PUT", body: JSON.stringify({ enabled: $("#presenceEnabled").checked, status: $("#presenceStatus").value, interval: $("#presenceInterval").value, items: presenceItems() }) });
+    await api(`/api/presence?bot=${encodeURIComponent($("#presenceBot").value || "main")}`, { method: "PUT", body: JSON.stringify({ enabled: $("#presenceEnabled").checked, status: $("#presenceStatus").value, interval: $("#presenceInterval").value, items: presenceItems() }) });
     showToast("Statut animé enregistré : il défile maintenant sur Discord.");
   } catch (error) { showToast(error.message, true); }
   finally { button.disabled = false; button.innerHTML = original; }
@@ -1268,4 +1273,95 @@ document.addEventListener("click", async event => {
     if (note === null) return;
     try { await api(`/api/guilds/${state.guildId}/suggestions/${sugg.dataset.sugg}/decide`, { method: "POST", body: JSON.stringify({ status: sugg.dataset.st, note }) }); showToast(sugg.dataset.st === "accepted" ? "Suggestion acceptée." : "Suggestion refusée."); loadSuggestions(); } catch (error) { showToast(error.message, true); }
   }
+});
+
+/* ---------- Bot personnalisé (le client utilise son propre bot Discord) ---------- */
+const customState = { bots: [], timer: null };
+async function fillPresenceBots() {
+  const select = $("#presenceBot"), previous = select.value || presenceState.want || "";
+  let bots = [];
+  try { bots = (await api("/api/custombots")).bots; } catch { /* pas de bots personnalisés */ }
+  const options = [...(state.isOwner ? [["main", "AERO BOT (bot principal)"]] : []), ...bots.map(b => [b.id, b.name])];
+  select.innerHTML = options.map(([v, l]) => `<option value="${escapeHtml(v)}">${escapeHtml(l)}</option>`).join("");
+  if (options.some(([v]) => v === previous)) select.value = previous;
+  presenceState.want = "";
+  $("#presenceBotField").hidden = options.length < 2;
+  const bot = bots.find(b => b.id === select.value);
+  $(".presence-meta b").firstChild.textContent = (bot?.name || "AERO BOT") + " ";
+  $(".presence-avatar img").src = bot?.avatar || "/logo.svg";
+}
+$("#presenceBot").addEventListener("change", () => loadPresence());
+function customBotCard(b) {
+  const status = b.online ? ["green", "En ligne"] : !b.enabled ? ["amber", "Arrêté"] : b.error ? ["red", "Erreur"] : ["blue", "Démarrage…"];
+  const guilds = b.guilds.map(g => `<span class="custom-guild">${escapeHtml(g.name)} <small>${fmtN(g.memberCount || 0)}</small></span>`).join("") || '<span class="field-hint">Sur aucun serveur pour le moment : clique sur « Ajouter à un serveur ».</span>';
+  return `<article class="settings-card custom-bot" data-bot="${escapeHtml(b.id)}">
+    <div class="card-heading">${b.avatar ? `<img class="custom-avatar" src="${escapeHtml(b.avatar)}" alt="">` : '<div class="feature-icon module-blue"><svg class="ic" aria-hidden="true"><use href="#i-bot"/></svg></div>'}
+      <div class="card-title"><h2>${escapeHtml(b.name)} <span class="case-type ${status[0]}">${status[1]}</span></h2><p>${b.online ? `${fmtN(b.guilds.length)} serveur(s) · ${fmtN(b.members)} membres · en ligne depuis ${fmtUptime(b.uptime)} · ${b.ping} ms` : "ID " + escapeHtml(b.appId)}${state.isOwner && b.ownerName ? ` · client : ${escapeHtml(b.ownerName)}` : ""}</p></div>
+      <a class="button button-primary button-small" href="${escapeHtml(b.inviteUrl)}" target="_blank" rel="noopener"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg> Ajouter à un serveur</a></div>
+    ${b.error ? `<div class="info-banner custom-error"><span><svg class="ic" aria-hidden="true"><use href="#i-info"/></svg></span><p>${escapeHtml(b.error)}</p></div>` : ""}
+    <div class="form-divider"></div><div class="custom-guilds">${guilds}</div>
+    <div class="custom-actions">
+      ${b.enabled ? '<button class="button button-secondary button-small" data-act="restart"><svg class="ic" aria-hidden="true"><use href="#i-rotate"/></svg> Redémarrer</button><button class="button button-secondary button-small" data-act="stop">Arrêter</button>' : '<button class="button button-primary button-small" data-act="start">Démarrer</button>'}
+      <button class="button button-secondary button-small" data-act="presence"><svg class="ic" aria-hidden="true"><use href="#i-sparkle-text"/></svg> Statut animé</button>
+      <button class="button button-secondary button-small" data-act="token"><svg class="ic" aria-hidden="true"><use href="#i-lock"/></svg> Changer le jeton</button>
+      <button class="button button-secondary button-small danger" data-act="delete"><svg class="ic" aria-hidden="true"><use href="#i-trash"/></svg> Supprimer</button>
+    </div>
+    <div class="token-row custom-token" hidden><input class="input" type="password" autocomplete="off" spellcheck="false" placeholder="Nouveau jeton du même bot"><button class="button button-primary button-small" data-act="token-save">Valider</button></div>
+  </article>`;
+}
+async function loadCustomBots(quiet = false) {
+  try {
+    const d = await api("/api/custombots");
+    customState.bots = d.bots;
+    $("#customBots").innerHTML = d.bots.map(customBotCard).join("");
+    $("#customBadge").textContent = d.bots.length ? `${d.bots.filter(b => b.online).length} / ${d.bots.length}` : "NEW";
+    $("#customToken").disabled = $("#customCreate").disabled = !d.canCreate;
+    $("#customClosed").hidden = d.canCreate;
+    $("#customClosedText").textContent = !d.allowed ? "Les bots personnalisés ne sont pas encore ouverts à ton compte. Contacte le propriétaire d’AERO BOT pour en obtenir un." : `Tu as atteint la limite de ${d.limits.perUser} bot(s) par compte.`;
+    $("#customOwnerCard").hidden = !d.isOwner;
+    if (d.isOwner && !quiet) {
+      $("#salesOpen").checked = d.settings.open; $("#salesIds").value = d.settings.allowedUserIds.join("\n");
+      $("#salesPerUser").value = d.settings.maxPerUser; $("#salesTotal").value = d.settings.maxTotal;
+    }
+    if (d.isOwner) $("#salesRunning").textContent = `${d.running} bot(s) en marche`;
+    clearTimeout(customState.timer);
+    customState.timer = setTimeout(() => { if (state.page === "custombot") loadCustomBots(true); }, d.bots.some(b => b.enabled && !b.online && !b.error) ? 4000 : 20000);
+  } catch (error) { if (!quiet) showToast(error.message, true); }
+}
+const intentWarning = missing => missing?.length ? ` Attention : active ${missing.join(" et ")} dans le portail Discord (onglet Bot), sinon il ne pourra pas démarrer.` : "";
+$("#customCreate").addEventListener("click", async event => {
+  const button = event.currentTarget, token = $("#customToken").value.trim();
+  if (!token) return showToast("Colle le jeton de ton bot.", true);
+  button.disabled = true;
+  try {
+    const r = await api("/api/custombots", { method: "POST", body: JSON.stringify({ token }) });
+    $("#customToken").value = "";
+    showToast(`${r.bot.name} est ajouté et démarre.` + intentWarning(r.missing), Boolean(r.missing?.length));
+    await loadCustomBots(true);
+  } catch (error) { showToast(error.message, true); }
+  finally { button.disabled = false; }
+});
+$("#customBots").addEventListener("click", async event => {
+  const button = event.target.closest("[data-act]"); if (!button) return;
+  const card = button.closest("[data-bot]"), id = card.dataset.bot, act = button.dataset.act, bot = customState.bots.find(b => b.id === id);
+  const url = `/api/custombots/${encodeURIComponent(id)}`;
+  try {
+    if (act === "presence") { presenceState.want = id; $("#presenceBot").value = id; return switchPage("presence"); }
+    if (act === "token") { const row = $(".custom-token", card); row.hidden = !row.hidden; if (!row.hidden) $("input", row).focus(); return; }
+    if (act === "delete") { if (!confirm(`Supprimer ${bot?.name || "ce bot"} ? Il s’arrête et quitte le panneau (il reste sur le portail Discord). Les réglages de tes serveurs sont conservés.`)) return; await api(url, { method: "DELETE" }); showToast("Bot supprimé."); }
+    else if (act === "token-save") {
+      const token = $(".custom-token input", card).value.trim(); if (!token) return showToast("Colle le nouveau jeton.", true);
+      const r = await api(`${url}/token`, { method: "PUT", body: JSON.stringify({ token }) });
+      showToast("Jeton mis à jour, le bot redémarre." + intentWarning(r.missing), Boolean(r.missing?.length));
+    } else { button.disabled = true; await api(`${url}/${act}`, { method: "POST", body: "{}" }); showToast(act === "stop" ? "Bot arrêté." : "Le bot démarre…"); }
+    await loadCustomBots(true);
+  } catch (error) { showToast(error.message, true); button.disabled = false; }
+});
+$("#salesSave").addEventListener("click", async () => {
+  try {
+    const { settings } = await api("/api/custombots-settings", { method: "PUT", body: JSON.stringify({ open: $("#salesOpen").checked, allowedUserIds: $("#salesIds").value, maxPerUser: $("#salesPerUser").value, maxTotal: $("#salesTotal").value }) });
+    $("#salesIds").value = settings.allowedUserIds.join("\n");
+    showToast("Réglages de vente enregistrés.");
+    loadCustomBots(true);
+  } catch (error) { showToast(error.message, true); }
 });

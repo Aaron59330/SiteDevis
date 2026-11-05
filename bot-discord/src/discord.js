@@ -10,7 +10,7 @@ import {
   deleteGiveawayRecord, deletePollRecord, drawGiveaway, enterGiveaway, getGiveaway, getGiveawayEntryCount, getPoll,
   getPollVoteCounts, getOpenTicket, getTicketByChannel, listConfiguredGuildIds, listDueGiveaways, listDuePolls,
   getGuildConfig, listGiveaways, listOpenTickets, listPolls, reopenTicket, saveGuildConfig,
-  setGiveawayMessageId, setPollMessageId, getPresenceSettings, publicCounts, addLog, nextTicketNumber, setTicketNumber, setTicketDeleteAt, listPendingTicketDeletes
+  setGiveawayMessageId, setPollMessageId, getPresenceSettings, claimedGuilds, publicCounts, addLog, nextTicketNumber, setTicketNumber, setTicketDeleteAt, listPendingTicketDeletes
 } from "./database.js";
 
 export async function fetchFiveMStatus(settings) {
@@ -81,6 +81,25 @@ const anonymousDeletes = new Set();   // messages supprimés par le relais anony
 /* nom de salon Discord : minuscules, sans accents ni espaces */
 const slug = value => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 const lastFiveMPanelRefresh = new Map();
+/* ---------- Plusieurs bots : chaque serveur est servi par un seul bot ---------- */
+export const INSTANCE_ID = process.env.BOT_INSTANCE_ID || "main";
+let customGuilds = new Set();
+const refreshClaims = () => {
+  let next;
+  try { next = new Set(claimedGuilds().filter(c => c.bot_id !== INSTANCE_ID).map(c => c.guild_id)); } catch { return; /* base occupée : on garde la liste précédente */ }
+  const before = customGuilds; customGuilds = next;
+  if (!bot.isReady()) return;
+  for (const g of next) if (!before.has(g)) bot.guilds.cache.get(g)?.commands.set([]).catch(() => {});
+  for (const g of before) if (!next.has(g) && bot.guilds.cache.has(g)) syncGuildCommands(g).catch(() => {});
+};
+export const handlesGuild = guildId => !guildId || INSTANCE_ID !== "main" || !customGuilds.has(guildId);
+if (INSTANCE_ID === "main") { refreshClaims(); setInterval(refreshClaims, 15_000).unref(); bot.once("clientReady", () => { for (const g of customGuilds) bot.guilds.cache.get(g)?.commands.set([]).catch(() => {}); }); }
+{
+  const emit = bot.emit.bind(bot);
+  const guildOf = args => { for (const a of args) { const g = a?.guild?.id ?? a?.guildId; if (g) return g; } return null; };
+  // un serveur confié à un bot client ne déclenche plus rien sur le bot principal
+  bot.emit = (event, ...args) => (handlesGuild(guildOf(args)) ? emit(event, ...args) : false);
+}
 
 function canGrantWithButton(role, guild) {
   const botMember = guild.members.me;
@@ -774,6 +793,7 @@ bot.on("interactionCreate", async interaction => {
 
 async function checkAutoCloseTickets() {
   for (const ticket of listOpenTickets()) {
+    if (!handlesGuild(ticket.guild_id)) continue;
     const guild = bot.guilds.cache.get(ticket.guild_id);
     if (!guild) continue;
     const config = getGuildConfig(ticket.guild_id);
@@ -797,14 +817,16 @@ bot.once("clientReady", () => {
     if (activitySweepRunning) return;
     activitySweepRunning = true;
     try {
-      for (const poll of listDuePolls()) await finishPoll(poll.id);
-      for (const giveaway of listDueGiveaways()) await finishGiveaway(giveaway.id);
+      const mine = g => handlesGuild(g) && bot.guilds.cache.has(g);
+      for (const poll of listDuePolls()) if (mine(poll.guild_id)) await finishPoll(poll.id);
+      for (const giveaway of listDueGiveaways()) if (mine(giveaway.guild_id)) await finishGiveaway(giveaway.id);
     } catch (error) { console.error("Clôture automatique des sondages/tirages impossible :", error); }
     finally { activitySweepRunning = false; }
   }, 15_000).unref();
   const refreshing = new Set();
   setInterval(async () => {
     for (const guildId of listConfiguredGuildIds()) {
+      if (!handlesGuild(guildId) || !bot.guilds.cache.has(guildId)) continue;
       const config = getGuildConfig(guildId);
       const settings = config.fivem;
       if (!settings.enabled || !settings.panelEnabled || !settings.autoRefresh || !settings.panelChannelId || refreshing.has(guildId)) continue;
@@ -825,11 +847,12 @@ bot.once("clientReady", () => {
 });
 
 bot.once("clientReady", () => {
-  for (const item of listPendingTicketDeletes()) scheduleTicketDeletion(item.channel_id, item.guild_id, item.delete_at);
+  for (const item of listPendingTicketDeletes()) if (handlesGuild(item.guild_id) && bot.guilds.cache.has(item.guild_id)) scheduleTicketDeletion(item.channel_id, item.guild_id, item.delete_at);
 });
 
 bot.once("clientReady", async () => {
   for (const guildId of listConfiguredGuildIds()) {
+    if (!bot.guilds.cache.has(guildId) || !handlesGuild(guildId)) continue;
     try { await syncGuildCommands(guildId, getGuildConfig(guildId)); }
     catch (error) { console.error(`Synchronisation des commandes impossible sur ${guildId}:`, error.message); }
   }
@@ -1101,4 +1124,4 @@ bot.on("messageCreate", async message => {
   }
 });
 
-registerModules(bot);
+registerModules(bot, handlesGuild);
