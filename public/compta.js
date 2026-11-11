@@ -76,15 +76,15 @@
   const fold = s => String(s || '').trim().toLowerCase();
   function invoiceMatCost(q, micro) {
     const src = q.fromQuoteId && getQuote(q.fromQuoteId), base = src || q;
-    const linesHt = (base.lines || []).filter(l => l.t === 'item').reduce((s, l) => s + num(l.qty) * num(l.price), 0);
+    const linesHt = (base.lines || []).filter(l => l.t === 'item').reduce((s, l) => s + lineAmount(l), 0);
     const share = linesHt > 0 ? Math.min(1, totals(q).ht / (src ? totals(src).ht || linesHt : linesHt)) : 0;
     const real = src && src.profit ? src.profit.costs.filter(c => c.kind === 'mat').reduce((s, c) => s + num(c.amount), 0) : 0;
     let est = real, atPrice = 0;
     if (!real) (base.lines || []).filter(l => l.t === 'item').forEach(l => {
       const c = db.catalog.find(x => (l.ref && x.ref && x.ref === l.ref) || (fold(x.desc) && fold(x.desc) === fold(l.desc)));
       const k = c && typeof itemCost === 'function' ? itemCost(c) : 0;
-      if (k > 0) est += k * num(l.qty) * (micro ? 1.2 : 1);                         // prix d'achat connu (catalogue)
-      else if (lineNature(l) === 'vente') atPrice += num(l.qty) * num(l.price);     // vente sans prix d'achat : déduite au montant facturé
+      if (k > 0) est += k * lineQty(l) * (micro ? 1.2 : 1);                         // prix d'achat connu (catalogue)
+      else if (lineNature(l) === 'vente') atPrice += lineAmount(l);     // vente sans prix d'achat : déduite au montant facturé
     });
     if (real) est = real * (micro ? 1.2 : 1);
     // les matériaux suivent la répartition des ventes (priorité aux premières factures)

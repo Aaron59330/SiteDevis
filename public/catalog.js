@@ -506,7 +506,7 @@ function purchaseData(q) {
   q.lines.forEach(l => {
     if (l.t !== 'item' || !l.cid) return;
     const it = catItem(l.cid); if (!it) return;
-    if (isPack(it)) (it.parts || []).forEach(p => add(catItem(p.id), num(l.qty) * num(p.coef))); else add(it, num(l.qty));
+    if (isPack(it)) (it.parts || []).forEach(p => add(catItem(p.id), lineQty(l) * num(p.coef))); else add(it, lineQty(l));
   });
   return [...by.values()];
 }

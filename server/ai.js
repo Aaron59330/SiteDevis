@@ -48,7 +48,7 @@ function sanitize(d) {
   d = d || {};
   const lines = (Array.isArray(d.lines) ? d.lines : []).slice(0, 200).map(l => ({
     type: ['item', 'title', 'subtotal', 'spacer'].includes(l && l.t) ? l.t : 'item', ref: cut(l && l.ref, 40),
-    desc: cut(l && (l.t === 'subtotal' ? l.label : l.desc), 600), qty: Number(l && l.qty) || 0, unit: cut(l && l.unit, 20), unit_price: Number(l && l.price) || 0, vat_percent: Number(l && l.vat) || 0
+    desc: cut(l && (l.t === 'subtotal' ? l.label : l.desc), 600), qty: l && (l.qty === '' || l.qty == null) ? null : Number(l.qty) || 0, unit: cut(l && l.unit, 20), unit_price: Number(l && l.price) || 0, vat_percent: Number(l && l.vat) || 0
   }));
   return {
     kind: d.kind === 'facture' ? 'facture' : 'devis', date: cut(d.date, 10), valid_until: cut(d.validUntil, 10), due_date: cut(d.dueDate, 10),

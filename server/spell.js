@@ -40,9 +40,9 @@ function advice(doc) {
     if (l.type !== 'item') return;
     if (!String(l.desc).trim()) push('oubli', 'important', 'line', i, 'Cette ligne n\'a pas de désignation.');
     else if (String(l.desc).trim().length < 4) push('clarte', 'info', 'line', i, 'Désignation très courte : précisez la prestation ou le matériau.');
-    if (!(l.qty > 0)) push('oubli', 'important', 'line', i, 'Quantité absente ou nulle.');
+    if (l.qty !== null && !(l.qty > 0)) push('oubli', 'important', 'line', i, 'Quantité absente ou nulle.');
     if (!(l.unit_price > 0)) push('oubli', 'important', 'line', i, 'Prix unitaire absent ou nul.');
-    if (!String(l.unit).trim()) push('oubli', 'info', 'line', i, 'Unité manquante (m², h, forfait…).');
+    if (l.qty !== null && !String(l.unit).trim()) push('oubli', 'info', 'line', i, 'Unité manquante (m², h, forfait…).');
     if (doc.vat_exempt_company && l.vat_percent > 0) push('coherence', 'important', 'line', i, 'Un taux de TVA est indiqué alors que l\'entreprise est non assujettie à la TVA.');
   });
   const seen = new Map();

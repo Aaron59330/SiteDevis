@@ -8,11 +8,12 @@ const day = (d = new Date()) => new Date(d.getTime() - d.getTimezoneOffset() * 6
 const diff = (a, b) => Math.round((new Date(a + 'T12:00:00') - new Date(b + 'T12:00:00')) / 864e5);
 
 const num = v => { const n = parseFloat(String(v).replace(',', '.')); return isFinite(n) ? n : 0; };
+const lineAmount = l => (l.qty === '' || l.qty == null ? 1 : num(l.qty)) * num(l.price);   // quantité vide = forfait
 /* même calcul que totals() côté application : reste dû = TTC (part d'échéance, total saisi) − déjà payé */
 function due(q, exempt) {
-  const it = (q.lines || []).filter(l => l.t === 'item'), sub = it.reduce((s, l) => s + num(l.qty) * num(l.price), 0);
+  const it = (q.lines || []).filter(l => l.t === 'item'), sub = it.reduce((s, l) => s + lineAmount(l), 0);
   const ratio = 1 - num(q.discount) / 100;
-  let t = it.reduce((s, l) => s + num(l.qty) * num(l.price) * ratio * (1 + (exempt ? 0 : num(l.vat)) / 100), 0);
+  let t = it.reduce((s, l) => s + lineAmount(l) * ratio * (1 + (exempt ? 0 : num(l.vat)) / 100), 0);
   if (num(q.stepPct) > 0) t *= num(q.stepPct) / 100;
   if (q.totalOverride !== '' && q.totalOverride != null && Number.isFinite(Number(q.totalOverride))) t = Number(q.totalOverride);
   return sub || t ? r2(t - num(q.alreadyPaid)) : 0;

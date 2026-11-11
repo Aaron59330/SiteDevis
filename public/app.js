@@ -169,20 +169,24 @@ function parsePayments(text) {
   }).filter(p => p.pct > 0);
   return list.length ? list : [{ pct: 100, label: 'Paiement à la réception' }];
 }
+/* quantité vide = prix au forfait : la ligne vaut son prix (quantité 1, non affichée) */
+const qtyBlank = l => l.qty === '' || l.qty == null;
+const lineQty = l => (qtyBlank(l) ? 1 : num(l.qty));
+const lineAmount = l => lineQty(l) * num(l.price);
 function newItem(base) { base = base || db; return { t: 'item', ref: '', desc: '', qty: 1, unit: 'u', price: 0, vat: base.settings.defaultVat }; }
 
 function docLines(q) {
   let run = 0;
   return q.lines.map(l => {
     if (l.t === 'subtotal') { const r = { ...l, amount: run }; run = 0; return r; }
-    if (l.t === 'item') { const total = num(l.qty) * num(l.price); run += total; return { ...l, total }; }
+    if (l.t === 'item') { const total = lineAmount(l); run += total; return { ...l, total }; }
     return { ...l };
   });
 }
 
 function totals(q) {
   const exempt = db.company.vatExempt;
-  const items = q.lines.filter(l => l.t === 'item').map(l => ({ ...l, total: num(l.qty) * num(l.price) }));
+  const items = q.lines.filter(l => l.t === 'item').map(l => ({ ...l, total: lineAmount(l) }));
   const subtotal = items.reduce((s, l) => s + l.total, 0);
   const discountAmt = subtotal * num(q.discount) / 100;
   const ratio = subtotal ? (subtotal - discountAmt) / subtotal : 1;
@@ -229,7 +233,7 @@ function lineNature(l) {
 /* part des ventes et des services dans un document (au prorata des lignes HT) */
 function natSplit(q) {
   let v = 0, s = 0;
-  (q.lines || []).filter(l => l.t === 'item').forEach(l => { const a = num(l.qty) * num(l.price); if (lineNature(l) === 'vente') v += a; else s += a; });
+  (q.lines || []).filter(l => l.t === 'item').forEach(l => { const a = lineAmount(l); if (lineNature(l) === 'vente') v += a; else s += a; });
   const t = v + s; if (!(t > 0)) return { vente: 0, service: 1 };
   return { vente: v / t, service: s / t };
 }
@@ -492,7 +496,7 @@ function linesHtml(q) {
     return `<div class="line" data-i="${i}">
       <div class="r1"><input data-l="ref" value="${esc(l.ref)}" placeholder="Réf."><textarea rows="1" data-l="desc" placeholder="Désignation">${esc(l.desc)}</textarea></div>
       <div class="r2">
-        <div><label>Qté</label><input type="number" step="any" min="0" data-l="qty" value="${l.qty}"></div>
+        <div><label>Qté</label><input type="number" step="any" min="0" data-l="qty" value="${qtyBlank(l) ? '' : l.qty}" placeholder="—" title="Laisser vide pour un prix au forfait (la ligne vaut le prix indiqué)"></div>
         <div><label>Unité</label><input data-l="unit" list="units" value="${esc(l.unit)}"></div>
         <div><label>PU HT</label><input type="number" step="any" min="0" data-l="price" value="${l.price}"></div>
         <div><label>TVA</label><select data-l="vat">${VATS.map(v => `<option value="${v}" ${num(l.vat) === v ? 'selected' : ''}>${String(v).replace('.', ',')} %</option>`).join('')}</select></div>
@@ -527,7 +531,7 @@ function renderDoc(q) {
   const head = { ref: 'Référence', desc: 'Désignation', qty: 'Quantité', unit: 'Unité', price: 'PU Vente', vat: 'TVA', amount: 'Montant' };
   const cell = (c, l) => ({
     ref: `<td class="c-ref">${esc(l.ref)}</td>`, desc: `<td class="desc c-desc">${esc(l.desc)}</td>`,
-    qty: `<td class="r c-qty">${fmtNum.format(num(l.qty))}</td>`, unit: `<td class="c-unit">${esc(l.unit)}</td>`,
+    qty: `<td class="r c-qty">${qtyBlank(l) ? '' : fmtNum.format(num(l.qty))}</td>`, unit: `<td class="c-unit">${esc(l.unit)}</td>`,
     price: `<td class="r c-price">${money(num(l.price))}</td>`,
     vat: `<td class="r c-vat">${fmtNum.format(db.company.vatExempt ? 0 : num(l.vat))}</td>`, amount: `<td class="r c-amount">${money(l.total)}</td>`
   }[c]);
@@ -1126,7 +1130,7 @@ document.addEventListener('input', e => {
       save(); refreshPreview();
     } else if (t.dataset.l) {
       const l = q.lines[t.closest('.line').dataset.i], k = t.dataset.l;
-      l[k] = (t.type === 'number' || k === 'vat') ? num(t.value) : t.value;
+      l[k] = k === 'qty' && !String(t.value).trim() ? '' : (t.type === 'number' || k === 'vat') ? num(t.value) : t.value;
       save(); refreshPreview();
     } else if (t.dataset.p) {
       const p = q.payments[t.closest('.pay').dataset.i];

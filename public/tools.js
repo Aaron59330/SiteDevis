@@ -242,7 +242,7 @@ function checkQuote(q) {
     C(!!q.date && !!q.validUntil, 'La date et la durée de validité sont indiquées', 'Renseignez « Valable jusqu\'au » : le prix des matériaux peut changer.'),
     C(filled.length > 0, 'Au moins une ligne avec un prix', 'Ajoutez vos prestations dans la section « Prestations ».'),
     C(items.every(l => String(l.desc).trim().length >= 8 || !num(l.price)), 'Chaque ligne a une désignation claire', 'Remplacez les désignations trop courtes par une description précise (quoi, où, comment).', true),
-    C(filled.every(l => num(l.qty) > 0 && String(l.unit).trim()), 'Chaque ligne a une quantité et une unité', 'Indiquez la quantité et l\'unité (m², ml, heure, forfait).'),
+    C(filled.every(l => qtyBlank(l) || (num(l.qty) > 0 && String(l.unit).trim())), 'Chaque ligne a une quantité et une unité (ou un prix au forfait)', 'Indiquez la quantité et l\'unité (m², ml, heure), ou videz la quantité pour un prix au forfait.'),
     C(co.vatExempt ? /293 ?b/i.test(q.footer || '') : filled.every(l => [0, 5.5, 10, 20, 2.1].includes(num(l.vat))), co.vatExempt ? 'La mention d\'exonération de TVA est présente' : 'Le taux de TVA est renseigné sur chaque ligne', co.vatExempt ? 'Ajoutez « TVA non applicable, article 293 B du CGI » dans le pied de page.' : 'Choisissez un taux de TVA pour chaque ligne.'),
     C(Math.abs(pays - 100) < 0.01 && (q.payments || []).length > 0, 'Les conditions de paiement sont définies (total 100 %)', 'Complétez l\'échéancier dans « Paiement » : acompte, solde…'),
     C(!!(q.bank || '').trim(), 'Vos coordonnées bancaires sont indiquées', 'Ajoutez votre IBAN dans « Paiement » pour être payé par virement.', true),

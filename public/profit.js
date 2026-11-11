@@ -17,7 +17,7 @@
     q.lines.filter(l => l.t === 'item').forEach(l => {
       items++;
       const c = db.catalog.find(x => (l.ref && x.ref && x.ref === l.ref) || fold(x.desc) === fold(l.desc));
-      if (c && typeof itemCost === 'function') { const k = itemCost(c); if (k > 0) { total += k * num(l.qty); found++; } }
+      if (c && typeof itemCost === 'function') { const k = itemCost(c); if (k > 0) { total += k * lineQty(l); found++; } }
     });
     return { total, found, items };
   }

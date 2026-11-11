@@ -37,14 +37,14 @@ function buyerOf(q) {
 /* Montants de la facture électronique (arrondis à 2 décimales, cohérents entre eux) */
 function eiAmounts(q) {
   const co = db.company, exempt = co.vatExempt;
-  const items = q.lines.filter(l => l.t === 'item' && (num(l.qty) || num(l.price)));
+  const items = q.lines.filter(l => l.t === 'item' && (lineQty(l) || num(l.price)));
   let lines, allowances = [];
   const rateOf = l => (exempt ? 0 : num(l.vat));
   if (num(q.stepPct) > 0) {                                                   // facture d'une échéance : une ligne par taux de TVA
     const t = totals(q);
     lines = Object.entries(t.htByRate).filter(([, v]) => Math.abs(v) > 0.004).map(([rate, ht]) => ({ ref: '', name: `${q.stepLabel ? 'Facture ' + q.stepLabel : 'Échéance'} – ${String(num(q.stepPct)).replace('.', ',')} % du devis${q.fromNumber ? ' N° ' + q.fromNumber : ''}`, qty: 1, unit: 'C62', price: r2(ht), net: r2(ht), rate: num(rate) }));
   } else {
-    lines = items.map(l => ({ ref: l.ref || '', name: String(l.desc || '').trim() || 'Prestation', qty: num(l.qty), unit: unitCode(l.unit), price: num(l.price), net: r2(num(l.qty) * num(l.price)), rate: rateOf(l) }));
+    lines = items.map(l => ({ ref: l.ref || '', name: String(l.desc || '').trim() || 'Prestation', qty: lineQty(l), unit: unitCode(qtyBlank(l) ? 'forfait' : l.unit), price: num(l.price), net: r2(lineAmount(l)), rate: rateOf(l) }));
     if (num(q.discount) > 0) {
       const by = {}; lines.forEach(l => { by[l.rate] = (by[l.rate] || 0) + l.net; });
       allowances = Object.entries(by).map(([rate, base]) => ({ rate: num(rate), base: r2(base), amount: r2(base * num(q.discount) / 100), pct: num(q.discount) }));
