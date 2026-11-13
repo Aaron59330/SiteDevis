@@ -407,7 +407,7 @@ function renderEditor() {
               <button class="btn" data-act="new-client-inline" title="Nouveau client">＋</button>
             </div></div>
           <div class="field"><label>Statut</label>
-            <select data-f="status">${Object.entries(statusOf(q)).map(([k, v]) => `<option value="${k}" ${q.status === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
+            <select data-f="status">${Object.entries(statusOf(q)).map(([k, v]) => `<option value="${k}" ${q.status === k ? 'selected' : ''}>${v}</option>`).join('')}</select>${window.onlineAnswer ? onlineAnswer(q) : ''}</div>
         </div>
         ${siteField(q)}
         <details>
@@ -648,7 +648,7 @@ function clientRows() {
       <td><span class="badge ${c.type === 'pro' ? 'envoye' : 'brouillon'}">${c.type === 'pro' ? 'Pro' : 'Particulier'}</span>${c.siret ? `<div class="muted" style="font-size:.78rem">${esc(c.siret)}</div>` : ''}</td>
       <td>${esc(c.email)}</td><td>${esc(c.phone)}</td>
       <td>${db.quotes.filter(q => q.clientId === c.id).length}</td>
-      <td class="right"><button class="btn small" data-act="edit-client" data-id="${c.id}">Modifier</button>
+      <td class="right"><button class="btn small" data-act="portal-client" data-id="${c.id}" title="Donner à ce client l'accès en ligne à ses devis et factures">Espace client</button> <button class="btn small" data-act="edit-client" data-id="${c.id}">Modifier</button>
       <button class="btn small danger" data-act="del-client" data-id="${c.id}">🗑</button></td></tr>`).join('');
 }
 function clientTabs() {
@@ -1008,6 +1008,7 @@ const actions = {
       <div class="field"><label>Objet</label><input name="subject" value="${esc(label + (co.name ? ' – ' + co.name : ''))}" maxlength="150"></div>
       <div class="field"><label>Message</label><textarea name="message" rows="6" maxlength="3000">${esc(`Bonjour${who ? ' ' + who : ''},\n\nVeuillez trouver ci-joint ${inv ? 'notre facture' : 'notre devis'} ${q.number}.\n${inv ? 'Je reste à votre disposition pour toute question.' : 'Je reste à votre disposition pour toute question ou modification.'}\n\nCordialement,\n${co.name || ''}`)}</textarea></div>
       ${inv && typeof eiCheck === 'function' && session.config.einvoice ? (eiCheck(q).ok ? `<label class="check"><input type="checkbox" name="facturx" checked> Joindre la facture au format électronique Factur-X</label>` : `<p class="muted" style="font-size:.8rem;margin:0 0 8px">Facture électronique Factur-X : complétez les informations demandées dans la carte « Facture électronique » pour la joindre.</p>`) : ''}
+      ${cl ? `<label class="check"><input type="checkbox" name="portal" checked> Ajouter le lien vers son espace client (suivi${inv ? '' : ' et acceptation du devis en ligne'}, sans mot de passe)</label>` : ''}
       <label class="check"><input type="checkbox" name="copy" checked> M'envoyer une copie</label>
       <div class="form-err" id="mailErr" hidden></div>
       <div class="row" style="justify-content:flex-end;margin-top:14px"><button type="button" class="btn" data-act="close-modal">Annuler</button><button class="btn primary" id="mailGo">✉ Envoyer</button></div></form>`);
@@ -1015,8 +1016,9 @@ const actions = {
     f.onsubmit = async e => {
       e.preventDefault(); const go = $('#mailGo'), err = $('#mailErr'); err.hidden = true; go.disabled = true; go.textContent = 'Envoi…';
       try {
+        if (f.elements.portal && f.elements.portal.checked) { if (q.status === 'brouillon') q.status = 'envoye'; try { await api('PUT', '/api/data', db); } catch (e2) { /* enregistré plus tard */ } }
         const r = await fetch('/api/send-document', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'sitedevis' },
-          body: JSON.stringify({ html: $('#doc').innerHTML, accent: accentOf(), label, date: flongdate(q.date), filename: `${q.opts.docLabel}-${q.number}`, to: f.elements.to.value.trim(), subject: f.elements.subject.value, message: f.elements.message.value, copy: f.elements.copy.checked, replyTo: co.email || '', fromName: co.name || '', ...(f.elements.facturx && f.elements.facturx.checked ? { xml: ciiXml(q), title: `${q.opts.docLabel} ${q.number}`, author: co.name || '' } : {}) }) });
+          body: JSON.stringify({ html: $('#doc').innerHTML, accent: accentOf(), label, date: flongdate(q.date), filename: `${q.opts.docLabel}-${q.number}`, to: f.elements.to.value.trim(), subject: f.elements.subject.value, message: f.elements.message.value, copy: f.elements.copy.checked, replyTo: co.email || '', fromName: co.name || '', ...(f.elements.portal && f.elements.portal.checked ? { portal: true, clientId: cl.id, clientName: cl.contact || cl.name, quote: !inv } : {}), ...(f.elements.facturx && f.elements.facturx.checked ? { xml: ciiXml(q), title: `${q.opts.docLabel} ${q.number}`, author: co.name || '' } : {}) }) });
         const j = await r.json().catch(() => ({}));
         if (!r.ok) throw new Error(j.error || 'Erreur ' + r.status);
         if (q.status === 'brouillon') { q.status = 'envoye'; save(); }
@@ -1189,7 +1191,7 @@ document.addEventListener('wheel', e => {
 }, { passive: true, capture: true });
 
 /* espace comptable (lecture seule) : les requêtes partagées portent ?s=1 */
-const vq = () => (session.viewer ? '?s=1' : '');
+const vq = () => (session.viewer ? '?s=1' : session.portal ? '?p=1' : '');
 /* PDF du document affiché, créé par le serveur */
 async function docPdf(q) {
   const r = await fetch('/api/pdf' + vq(), { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'sitedevis' },

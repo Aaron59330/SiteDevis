@@ -24,6 +24,7 @@ async function startApp(me, params) {
   else if (params && params.get('bank') && window.trBankReturn) trBankReturn(params.get('bank'));
   else { let b = null; try { b = sessionStorage.getItem('od-bank'); sessionStorage.removeItem('od-bank'); } catch (e) { /* ignore */ } if (b && window.trBankReturn) trBankReturn(b); }
   render();
+  if (window.portalSync) setTimeout(portalSync, 1500);
   if (legacy && session.access.active) { save(); toast('Vos devis locaux ont été importés dans votre compte'); }
 }
 
@@ -44,8 +45,19 @@ async function startApp(me, params) {
     try { await api('POST', '/api/share/open', { token: acces }); }
     catch (e) { return renderAuth('login', { banner: { ok: false, text: e.message } }); }
   }
+  /* espace client : ?espace=<lien reçu par email> ouvre la session, ?espace seul affiche la connexion par email */
+  const espace = p.get('espace');
+  if (espace !== null) {
+    history.replaceState({}, '', location.pathname);
+    if (/^[a-f0-9]{64}$/.test(espace)) {
+      try { await api('POST', '/api/portal/open', { token: espace }); return startPortal(await api('GET', '/api/portal/me')); }
+      catch (e) { return portalLogin({ banner: { ok: false, text: e.message } }); }
+    }
+    try { return startPortal(await api('GET', '/api/portal/me')); } catch (e) { return portalLogin(); }
+  }
   if (!acces) { try { me = await api('GET', '/api/me'); } catch (e) { /* non connecté */ } }
   if (!me) { try { const sh = await api('GET', '/api/share/data'); return startViewer(sh); } catch (e) { /* pas d'accès comptable */ } }
+  if (!me && !acces && /(?:^|;\s*)od-pt=1/.test(document.cookie)) { try { return startPortal(await api('GET', '/api/portal/me')); } catch (e) { /* plus de session client */ } }
   // retire les paramètres (?verified, ?reset…) ; garde la page de l'accueil (#/tarifs…) quand on n'est pas connecté
   history.replaceState({}, '', location.pathname + (me ? '' : (location.hash.match(/^#\/[\w-]*$/) || [''])[0]));
   /* retour de la banque dans un navigateur non connecté : on ouvrira la Trésorerie après la connexion */

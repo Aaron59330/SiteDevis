@@ -19,6 +19,7 @@ function renderAuth(mode, opts = {}) {
       <button class="btn primary block">Se connecter</button>
     </form>
     <p class="auth-video-link"><a href="#" data-act="hero-open">Voir la vidéo de présentation (1 min 30)</a></p>
+    <p class="auth-alt">Vous avez reçu un devis ? <a href="/?espace">Espace client →</a></p>
     ${cfg.registrationOpen ? `<p class="auth-alt">Pas encore de compte ? <a href="#" data-act="auth-go" data-mode="register">Créer un compte</a></p>` : '<p class="auth-alt muted">Les inscriptions sont fermées.</p>'}`;
   else if (mode === 'register') card = `
     <h2>Créer un compte</h2><p class="muted">Un email de confirmation vous sera envoyé.</p>

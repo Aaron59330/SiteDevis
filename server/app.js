@@ -188,7 +188,11 @@ async function handle(req, res, url) {
     if (r.auth === 'share' || r.auth === 'any') {
       if (r.auth === 'any' && url.searchParams.get('s') !== '1') ctx.user = sessionUser(req);   // ?s=1 : demande faite depuis l'espace comptable
       if (!ctx.user) ctx.share = shareFromReq(req);
-      if (!ctx.user && !ctx.share) throw err(401, 'Connexion requise.', { code: 'auth' });
+      if (r.auth === 'any' && !ctx.user && !ctx.share && url.searchParams.get('p') === '1') ctx.portal = portalFromReq(req);   // ?p=1 : espace client
+      if (!ctx.user && !ctx.share && !ctx.portal) throw err(401, 'Connexion requise.', { code: 'auth' });
+    } else if (r.auth === 'portal') {
+      ctx.portal = portalFromReq(req);
+      if (!ctx.portal) throw err(401, 'Connexion requise.', { code: 'portal' });
     } else if (r.auth !== 'none' && r.auth !== 'webhook') {
       ctx.user = sessionUser(req);
       if (!ctx.user) throw err(401, 'Connexion requise.', { code: 'auth' });
@@ -324,8 +328,17 @@ route('POST', '/api/send-document', 'user', async ctx => {
     if (!facturx.available() || !facturx.checkXml(b.xml)) throw err(400, 'Facture électronique invalide.');
     try { buf = await facturx.make(buf, b.xml, { title: str(b.title, 120), author: str(b.author, 120) }); } catch (e) { console.error('Factur-X :', e.message); throw err(502, 'Impossible de créer la facture électronique pour le moment.'); }
   }
-  const text = (message ? message + '\n\n' : '') + 'Le document est en pièce jointe (PDF).\n\n— Envoyé depuis OptiDevis. Pour répondre, répondez simplement à cet email.';
-  const entry = await mail.send(to, subject, text, { replyTo, fromName: str(b.fromName, 60), bcc: b.copy ? ctx.user.email : undefined, attachments: [{ filename: fname.replace(/\.pdf$/i, '') + '.pdf', content: buf.toString('base64') }] });
+  /* lien vers l'espace client : suivi des devis et factures, acceptation du devis en ligne */
+  let portalText = '';
+  if (b.portal && b.clientId) {
+    const d = store.getUserData(ctx.user.id) || {};
+    if ((d.clients || []).some(c => c.id === str(b.clientId, 80))) {
+      const { link } = portalGrant(ctx.user, str(b.clientId, 80), to.toLowerCase(), str(b.clientName, 80));
+      portalText = `\n\nSuivez ce document${b.quote ? ', et acceptez-le en ligne si vous le souhaitez,' : ''} depuis votre espace client (sans mot de passe) :\n\n${link}`;
+    }
+  }
+  const text = (message ? message + '\n\n' : '') + 'Le document est en pièce jointe (PDF).' + portalText + '\n\n— Envoyé depuis OptiDevis. Pour répondre, répondez simplement à cet email.';
+  const entry = await mail.send(to, subject, text, { replyTo, fromName: str(b.fromName, 60), button: portalText ? 'Ouvrir mon espace client' : undefined, bcc: b.copy ? ctx.user.email : undefined, attachments: [{ filename: fname.replace(/\.pdf$/i, '') + '.pdf', content: buf.toString('base64') }] });
   if (entry.status !== 'envoyé') throw err(502, 'L\'email n\'a pas pu être envoyé (' + (entry.error ? 'refusé par le service d\'envoi' : 'service indisponible') + '). Vérifiez l\'adresse puis réessayez.');
   audit(ctx.user, 'document envoyé par email', to);
   return ok({ sent: true, to });
@@ -374,6 +387,7 @@ route('POST', '/api/pdf/batch', 'user', async ctx => {
 route('POST', '/api/pdf', 'any', async ctx => {
   if (!pdf.available()) throw err(501, 'Le téléchargement PDF n\'est pas disponible sur ce serveur.', { code: 'no_pdf' });
   if (ctx.share) { if (!['factures', 'devis', 'compta'].some(k => ctx.share.perms.includes(k))) throw err(403, 'Accès non autorisé.'); limit('pdf:s' + ctx.share.id, 60, 3600e3); }
+  else if (ctx.portal) limit('pdf:p' + ctx.portal.email, 40, 3600e3);
   else { if (!access(ctx.user).active) throw err(402, 'Un abonnement actif est nécessaire.', { code: 'payment_required' }); limit('pdf:' + ctx.user.id, 40, 3600e3); }
   const b = ctx.body || {};
   if (typeof b.html !== 'string' || b.html.length < 50 || b.html.length > 5.5e6) throw err(400, 'Document invalide.');
@@ -563,6 +577,155 @@ route('GET', '/api/share/data', 'share', ctx => {
     compta: P('compta') ? (d.compta || {}) : undefined, expenses: P('compta') ? (d.expenses || []).map(e => P('justificatifs') ? e : { ...e, file: '', fileMime: '' }) : [],
     catalog: P('compta') ? (d.catalog || []).map(c => ({ id: c.id, ref: c.ref, desc: c.desc, type: c.type, unit: c.unit })) : [], suppliers: [], sites: [] };
   return { share: { name: sh.name, email: sh.email, perms: sh.perms, expiresAt: sh.expiresAt || '', owner: (d.company && d.company.name) || (owner && owner.name) || '' }, data };
+});
+
+/* ---------- Espace client : l'artisan ouvre à son client (par son email) le suivi de ses devis et factures ----------
+   Le client se connecte sans mot de passe (lien reçu par email), voit les documents qui lui sont adressés
+   chez chaque artisan qui lui a ouvert l'accès, télécharge les PDF et peut accepter ou refuser un devis en ligne.
+   Ses réponses sont gardées à part (db.portalEvents) puis reportées dans les données de l'artisan par l'application. */
+const mailOk = e => /^[^\s@<>,;"]{1,64}@[^\s@<>,;"]{1,190}\.[A-Za-z]{2,}$/.test(e);
+const portalCookie = (v, maxAge) => `cps=${v}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${maxAge}${process.env.COOKIE_SECURE === 'true' ? '; Secure' : ''}`;
+const pdb = () => { db.portal = db.portal || []; db.portalTokens = (db.portalTokens || []).filter(t => t.exp > Date.now()); db.portalSessions = (db.portalSessions || []).filter(s => s.exp > Date.now()); db.portalEvents = db.portalEvents || []; return db; };
+function portalFromReq(req) {
+  const m = /(?:^|;\s*)cps=([a-f0-9]{64})/.exec(req.headers.cookie || '');
+  if (!m) return null;
+  const h = sha(m[1]), s = (db.portalSessions || []).find(x => x.h === h && x.exp > Date.now());
+  return s ? { email: s.email, sid: h } : null;
+}
+/* accès valides pour une adresse : l'artisan existe, n'est pas suspendu, le client existe encore */
+function portalGrants(email) {
+  return (db.portal || []).filter(g => g.email === email).map(g => {
+    const owner = findUser(g.ownerId); if (!owner || owner.suspended) return null;
+    const d = store.getUserData(g.ownerId) || {}, client = (d.clients || []).find(c => c.id === g.clientId);
+    return client ? { g, d, client, owner } : null;
+  }).filter(Boolean);
+}
+const portalDocs = (d, clientId) => (d.quotes || []).filter(q => q && q.clientId === clientId && q.status && q.status !== 'brouillon');
+/* une réponse du client pas encore reportée par l'artisan reste visible */
+function withEvents(ownerId, q) {
+  const ev = (db.portalEvents || []).filter(e => e.ownerId === ownerId && e.quoteId === q.id).pop();
+  if (!ev) return q;
+  const out = { ...q, online: { type: ev.type, name: ev.name, at: ev.at, reason: ev.reason || '' } };
+  if (q.status === 'envoye') out.status = ev.type === 'accept' ? 'accepte' : 'refuse';
+  return out;
+}
+const portalQuote = (ownerId, q) => { const { siteId, ...rest } = withEvents(ownerId, q); return { ...rest, lines: (q.lines || []).map(({ cid, nat, cost, ...l }) => l) }; };
+function portalAccount(x) {
+  const { g, d, client, owner } = x, s = d.settings || {}, docs = portalDocs(d, client.id);
+  return {
+    id: g.id, owner: (d.company && d.company.name) || owner.name || '', client: { id: client.id, name: client.name || '', contact: client.contact || '', type: client.type || '' },
+    company: d.company || {}, settings: { defaultVat: s.defaultVat, defaultPayments: s.defaultPayments, validityDays: s.validityDays, dueDays: s.dueDays },
+    sites: (d.sites || []).filter(st => docs.some(q => q.siteId === st.id)),
+    quotes: docs.map(q => portalQuote(g.ownerId, q))
+  };
+}
+async function portalInvite(user, g, link, extra) {
+  const d = store.getUserData(user.id) || {}, co = (d.company && d.company.name) || user.name;
+  return mail.send(g.email, `${co} : suivez vos devis et factures en ligne`,
+    `Bonjour${g.name ? ' ' + g.name : ''},\n\n${co} vous a ouvert un espace client sur ${db.settings.siteName}. Vous pouvez y retrouver vos devis et factures, suivre leur avancement, les télécharger en PDF et accepter un devis en ligne.\n\nAucun compte ni mot de passe n'est nécessaire : ouvrez simplement ce lien personnel.\n\n${link}\n\nPar la suite, vous pourrez toujours y revenir depuis ${APP_URL()}/?espace en indiquant votre adresse email.${extra ? '\n\n' + extra : ''}\n\nBonne journée,\n${co}`,
+    { replyTo: (d.company && d.company.email) || user.email, fromName: co, button: 'Ouvrir mon espace client' });
+}
+/* crée (ou retrouve) l'accès d'un client et renvoie un lien d'ouverture valable 60 jours */
+function portalGrant(user, clientId, email, name) {
+  pdb();
+  let g = db.portal.find(x => x.ownerId === user.id && x.clientId === clientId);
+  if (g && g.email !== email) { db.portalEvents = db.portalEvents.filter(e => !(e.ownerId === user.id && e.grantId === g.id && e.done)); g.email = email; }
+  if (!g) {
+    if (db.portal.filter(x => x.ownerId === user.id).length >= 2000) throw err(400, 'Nombre maximum d\'accès clients atteint.');
+    g = { id: rnd(8), ownerId: user.id, clientId, email, name: str(name, 80), createdAt: now(), lastAt: '' };
+    db.portal.push(g); audit(user, 'espace client ouvert', email);
+  } else if (name) g.name = str(name, 80);
+  const tok = rnd(32); db.portalTokens.push({ h: sha(tok), email, exp: Date.now() + 60 * 864e5, multi: true });
+  store.save();
+  return { g, link: `${APP_URL()}/?espace=${tok}` };
+}
+const publicGrant = g => ({ id: g.id, clientId: g.clientId, email: g.email, name: g.name, createdAt: g.createdAt, lastAt: g.lastAt || '' });
+
+/* côté artisan */
+route('GET', '/api/portal/grants', 'user', ctx => ({ rows: (db.portal || []).filter(g => g.ownerId === ctx.user.id).map(publicGrant) }));
+route('POST', '/api/portal/grants', 'user', async ctx => {
+  const b = ctx.body || {}, email = str(b.email, 160).toLowerCase(), clientId = str(b.clientId, 80);
+  if (!mailOk(email)) throw err(400, 'Adresse email du client invalide.');
+  const d = store.getUserData(ctx.user.id) || {};
+  if (!clientId || !(d.clients || []).some(c => c.id === clientId)) throw err(400, 'Enregistrez d\'abord ce client (il doit exister dans vos clients).');
+  limit('portalg:' + ctx.user.id, 60, 3600e3);
+  const { g, link } = portalGrant(ctx.user, clientId, email, b.name);
+  let sent = false;
+  if (b.send && mail.configured()) { try { sent = (await portalInvite(ctx.user, g, link)).status === 'envoyé'; } catch (e) { console.error('Email espace client :', e.message); } }
+  return ok({ grant: publicGrant(g), link, sent });
+});
+route('DELETE', '/api/portal/grants/:id', 'user', ctx => {
+  pdb(); const g = db.portal.find(x => x.id === ctx.params.id && x.ownerId === ctx.user.id); if (!g) throw err(404, 'Accès introuvable.');
+  db.portal = db.portal.filter(x => x !== g); audit(ctx.user, 'espace client retiré', g.email); store.save(); return ok();
+});
+/* réponses des clients (acceptation / refus) à reporter dans les devis */
+route('GET', '/api/portal/events', 'user', ctx => ({ rows: (db.portalEvents || []).filter(e => e.ownerId === ctx.user.id && !e.done).map(e => ({ id: e.id, quoteId: e.quoteId, type: e.type, name: e.name, reason: e.reason || '', at: e.at, email: e.email })) }));
+route('POST', '/api/portal/events/ack', 'user', ctx => {
+  const ids = new Set(Array.isArray(ctx.body.ids) ? ctx.body.ids.map(String) : []);
+  (db.portalEvents || []).forEach(e => { if (e.ownerId === ctx.user.id && ids.has(e.id)) e.done = true; });
+  store.save(); return ok();
+});
+
+/* côté client */
+route('POST', '/api/portal/login', 'none', async ctx => {
+  const email = str((ctx.body || {}).email, 160).toLowerCase();
+  if (!mailOk(email)) throw err(400, 'Adresse email invalide.');
+  limit('portall:' + ctx.ip, 15, 3600e3); limit('portalle:' + email, 5, 3600e3);
+  pdb(); let devLink;
+  if (portalGrants(email).length) {
+    const tok = rnd(32); db.portalTokens.push({ h: sha(tok), email, exp: Date.now() + 30 * 60e3 }); store.save();
+    const link = `${APP_URL()}/?espace=${tok}`;
+    if (mail.configured()) {
+      try { await mail.send(email, `Votre lien de connexion à votre espace client ${db.settings.siteName}`, `Bonjour,\n\nVoici votre lien pour consulter vos devis et factures. Il est valable 30 minutes.\n\n${link}\n\nSi vous n'avez rien demandé, ignorez simplement cet email.\n\n${db.settings.siteName}`, { button: 'Ouvrir mon espace client' }); }
+      catch (e) { console.error('Email espace client :', e.message); }
+    } else devLink = link;
+  }
+  return ok({ devLink });   // même réponse que l'adresse soit connue ou non
+});
+route('POST', '/api/portal/open', 'none', ctx => {
+  limit('portalo:' + ctx.ip, 40, 3600e3); pdb();
+  const tok = String((ctx.body || {}).token || ''); if (!/^[a-f0-9]{64}$/.test(tok)) throw err(400, 'Lien invalide.');
+  const t = db.portalTokens.find(x => x.h === sha(tok));
+  if (!t) throw err(410, 'Ce lien a expiré. Indiquez votre email pour en recevoir un nouveau.');
+  if (!t.multi) db.portalTokens = db.portalTokens.filter(x => x !== t);
+  const s = rnd(32); db.portalSessions.push({ h: sha(s), email: t.email, exp: Date.now() + 30 * 864e5 }); store.save();
+  ctx.setCookie = portalCookie(s, 30 * 86400);
+  return ok();
+});
+route('POST', '/api/portal/quit', 'none', ctx => {
+  const p = portalFromReq(ctx.req); if (p) { db.portalSessions = (db.portalSessions || []).filter(x => x.h !== p.sid); store.save(); }
+  ctx.setCookie = portalCookie('', 0); return ok();
+});
+route('GET', '/api/portal/me', 'portal', ctx => {
+  const list = portalGrants(ctx.portal.email);
+  let touched = false;
+  list.forEach(({ g }) => { if (!g.lastAt || Date.now() - new Date(g.lastAt) > 600e3) { g.lastAt = now(); touched = true; } });
+  if (touched) store.save();
+  return { email: ctx.portal.email, accounts: list.map(portalAccount) };
+});
+function portalTarget(ctx) {
+  const x = portalGrants(ctx.portal.email).find(a => a.g.id === ctx.params.gid); if (!x) throw err(404, 'Document introuvable.');
+  const q = portalDocs(x.d, x.client.id).find(d => d.id === ctx.params.qid); if (!q) throw err(404, 'Document introuvable.');
+  return { ...x, q: withEvents(x.g.ownerId, q) };
+}
+route('POST', '/api/portal/doc/:gid/:qid/answer', 'portal', async ctx => {
+  const t = portalTarget(ctx), b = ctx.body || {}, type = b.type === 'accept' ? 'accept' : b.type === 'refuse' ? 'refuse' : '';
+  if (!type) throw err(400, 'Réponse invalide.');
+  if (t.q.kind === 'facture') throw err(400, 'Une facture ne s\'accepte pas en ligne.');
+  if (t.q.status !== 'envoye') throw err(409, t.q.status === 'accepte' ? 'Ce devis est déjà accepté.' : t.q.status === 'refuse' ? 'Ce devis a déjà été refusé.' : 'Ce devis ne peut plus recevoir de réponse.');
+  if (t.q.validUntil && t.q.validUntil < new Date().toISOString().slice(0, 10)) throw err(409, 'Ce devis n\'est plus valable : demandez à ' + (t.d.company && t.d.company.name || 'l\'entreprise') + ' de le mettre à jour.');
+  const name = str(b.name, 100); if (type === 'accept' && name.length < 3) throw err(400, 'Indiquez votre nom et prénom pour signer.');
+  if (type === 'accept' && b.agree !== true) throw err(400, 'Cochez la case pour confirmer votre accord.');
+  limit('portala:' + ctx.portal.email, 30, 3600e3);
+  const ev = { id: rnd(8), ownerId: t.g.ownerId, grantId: t.g.id, quoteId: t.q.id, number: t.q.number, type, name, reason: str(b.reason, 600), email: ctx.portal.email, at: now(), ip: ctx.ip, ua: str(ctx.req.headers['user-agent'], 160), done: false };
+  pdb(); db.portalEvents.push(ev); store.save();
+  if (mail.configured()) {
+    const cl = t.client.name || ctx.portal.email;
+    mail.send(t.owner.email, `${type === 'accept' ? '✅ Devis accepté' : 'Devis refusé'} : ${t.q.number} – ${cl}`,
+      `Bonjour,\n\n${cl} ${type === 'accept' ? `a accepté en ligne votre devis N° ${t.q.number}${t.q.title ? ' (' + t.q.title + ')' : ''}.\nSignature : ${name}, le ${new Date().toLocaleString('fr-FR', { timeZone: 'Europe/Paris' })}.` : `a refusé votre devis N° ${t.q.number}${t.q.title ? ' (' + t.q.title + ')' : ''}.${ev.reason ? '\nMotif : ' + ev.reason : ''}`}\n\nLe statut du devis est mis à jour automatiquement dans votre espace.\n\n${APP_URL()}\n\n${db.settings.siteName}`, { button: 'Ouvrir mon espace' })
+      .catch(e => console.error('Email réponse devis :', e.message));
+  }
+  return ok({ quote: portalQuote(t.g.ownerId, t.q.status === 'envoye' ? withEvents(t.g.ownerId, { ...t.q }) : t.q) });
 });
 
 /* ---------- Trésorerie : comptes bancaires et opérations ---------- */
