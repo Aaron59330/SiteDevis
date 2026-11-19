@@ -914,6 +914,42 @@ route('DELETE', '/api/me', 'user', ctx => {
   return ok();
 });
 
+/* ---------- Factures émises : inaltérables ----------
+   Une facture qui n'est plus en brouillon ne peut être ni modifiée ni supprimée (numérotation continue, conservation).
+   Seuls le suivi du paiement (statut payée / annulée, date de paiement) et des réglages internes changent.
+   Une version modifiée ou supprimée est remplacée par celle déjà enregistrée. */
+const lkS = v => String(v == null ? '' : v).trim();
+const lkN = v => { const x = parseFloat(String(v == null ? '' : v).replace(',', '.')); return Number.isFinite(x) ? Math.round(x * 1e4) / 1e4 : 0; };
+const LOCK_TEXT = ['kind', 'number', 'date', 'dueDate', 'serviceDate', 'clientId', 'clientText', 'issuerText', 'title', 'footer', 'bank', 'notes', 'payMethod', 'deliveryAddress', 'totalOverride', 'creditOfNumber'];
+const LOCK_NUM = ['discount', 'stepPct', 'alreadyPaid'];
+const LOCK_OPTS = ['docLabel', 'showRef', 'showVat', 'showSite', 'showSiteHours'];
+const lineKey = l => [lkS(l.t || 'item'), lkS(l.ref), lkS(l.desc), lkS(l.label), l.qty === '' || l.qty == null ? '' : lkN(l.qty), lkS(l.unit), lkN(l.price), lkN(l.vat)].join('\u0001');
+function sameInvoice(a, b) {   // a = version enregistrée ; un champ absent de a (ancienne version) n'est pas comparé
+  for (const k of LOCK_TEXT) if (a[k] !== undefined && lkS(a[k]) !== lkS(b[k])) return false;
+  for (const k of LOCK_NUM) if (a[k] !== undefined && lkN(a[k]) !== lkN(b[k])) return false;
+  const ao = a.opts || {}, bo = b.opts || {};
+  for (const k of LOCK_OPTS) if (ao[k] !== undefined && (typeof ao[k] === 'boolean' ? !!ao[k] !== !!bo[k] : lkS(ao[k]) !== lkS(bo[k]))) return false;
+  const al = Array.isArray(a.lines) ? a.lines : [], bl = Array.isArray(b.lines) ? b.lines : [];
+  return al.length === bl.length && al.every((l, i) => lineKey(l || {}) === lineKey(bl[i] || {}));
+}
+function lockInvoices(old, d) {
+  if (!old || !Array.isArray(old.quotes)) return 0;
+  let n = 0;
+  const byId = new Map(d.quotes.filter(q => q && q.id).map(q => [q.id, q]));
+  for (const o of old.quotes) {
+    if (!o || o.kind !== 'facture' || !o.status || o.status === 'brouillon') continue;
+    const q = byId.get(o.id);
+    if (!q) { d.quotes.push(o); n++; continue; }                                   // supprimée : rétablie
+    const st = ['envoye', 'payee', 'annulee'].includes(q.status) ? q.status : o.status;
+    if (q.kind === 'facture' && q.status !== 'brouillon' && sameInvoice(o, q)) { q.status = st; continue; }
+    const keep = { status: st, paidAt: q.paidAt, online: q.online, siteId: q.siteId, companyIgnore: q.companyIgnore, creditId: q.creditId };
+    const lines = (o.lines || []).map((l, i) => (q.lines && q.lines[i] && l && q.lines[i].nat ? { ...l, nat: q.lines[i].nat } : l));
+    d.quotes[d.quotes.indexOf(q)] = { ...o, ...Object.fromEntries(Object.entries(keep).filter(([, v]) => v !== undefined)), lines };
+    n++;
+  }
+  return n;
+}
+
 /* ---------- Données de l'utilisateur ---------- */
 route('GET', '/api/data', 'user', ctx => ({ data: store.getUserData(ctx.user.id) }));
 route('PUT', '/api/data', 'user', ctx => {
@@ -921,9 +957,11 @@ route('PUT', '/api/data', 'user', ctx => {
   if (!a.active) throw err(402, 'Un abonnement actif est nécessaire pour créer ou modifier des devis.', { code: 'payment_required' });
   const d = ctx.body;
   if (!d || typeof d !== 'object' || !Array.isArray(d.quotes) || !Array.isArray(d.clients)) throw err(400, 'Données invalides.');
+  const restored = lockInvoices(store.getUserData(ctx.user.id), d);
   store.setUserData(ctx.user.id, d);
   ctx.user.quotesCount = d.quotes.filter(q => q && q.kind !== 'facture').length; ctx.user.dataAt = now(); store.save();
-  return ok();
+  if (restored) audit(ctx.user, 'facture émise rétablie', restored + ' facture(s)');
+  return ok(restored ? { restored } : {});
 });
 
 /* ---------- Abonnement & paiement ---------- */

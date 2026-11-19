@@ -81,7 +81,14 @@ function save() {
 async function push() {
   if (pushing) { pushTimer = setTimeout(push, 300); return; }
   pushing = true; dirty = false;
-  try { await api('PUT', '/api/data', db); if (!dirty) setSaved('✓ Enregistré', true); }
+  try {
+    const r = await api('PUT', '/api/data', db); if (!dirty) setSaved('✓ Enregistré', true);
+    /* le serveur a rétabli une facture émise (modifiée ou supprimée) : on recharge sa version */
+    if (r && r.restored) {
+      const d = (await api('GET', '/api/data')).data; if (d) { db = normalize(d); render(); }
+      toast(`🔒 ${r.restored} facture${r.restored > 1 ? 's' : ''} émise${r.restored > 1 ? 's' : ''} rétablie${r.restored > 1 ? 's' : ''} : une facture émise ne peut pas être modifiée ni supprimée.`);
+    }
+  }
   catch (e) {
     if (e.status === 402) { session.access = { active: false, reason: 'expired' }; updateTopbar(); toast('Abonnement requis pour enregistrer'); go('billing'); }
     else if (e.status === 401) { location.reload(); }

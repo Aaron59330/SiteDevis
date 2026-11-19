@@ -1208,3 +1208,7 @@ body.portal #nav, body.portal #bottomnav, body.portal #notifbox, body.portal #sa
   .pt-mail { display: none; }
   .pt-amount { align-items: flex-start; }
 }
+
+/* Listes déroulantes : options toujours lisibles (fond et texte du thème, pas la couleur du badge) */
+select option, select optgroup { background-color: var(--card); color: var(--text); font-weight: 500; }
+.tr-catsel option { font-size: .9rem; }

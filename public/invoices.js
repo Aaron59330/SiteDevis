@@ -48,7 +48,7 @@ EXTRA.invoices = function renderInvoices() {
       <tbody>${list.map(q => {
         const c = getClient(q.clientId), st = invState(q), t = totals(q);
         return `<tr>
-          <td><a href="#" data-act="edit" data-id="${q.id}"><b>${esc(q.number)}</b></a></td>
+          <td><a href="#" data-act="edit" data-id="${q.id}"><b>${esc(q.number)}</b></a>${q.isCredit ? ' <span class="badge info2">Avoir</span>' : q.status !== 'brouillon' ? ' <span title="Facture émise : non modifiable">🔒</span>' : ''}</td>
           <td>${esc(c ? c.name : '—')}</td>
           <td>${q.fromQuoteId && getQuote(q.fromQuoteId) ? `<a href="#" data-act="billing-view" data-id="${q.fromQuoteId}" title="Voir toutes les factures de ce devis">${esc(q.fromNumber)}</a>` : esc(q.fromNumber || '—')}${q.stepLabel ? `<div class="muted" style="font-size:.78rem">${esc(q.stepLabel)}${q.stepPct ? ' · ' + fmtNum.format(num(q.stepPct)) + ' %' : ''}</div>` : ''}</td>
           <td>${fdate(q.date)}</td><td>${q.dueDate ? fdate(q.dueDate) : '—'}</td>
@@ -59,7 +59,7 @@ EXTRA.invoices = function renderInvoices() {
             <button class="btn small" data-act="edit" data-id="${q.id}">Ouvrir</button>
             ${q.status !== 'payee' && q.status !== 'annulee' ? `<button class="btn small" data-act="mark-paid" data-id="${q.id}" title="Marquer comme payée">✓ Payée</button>` : ''}
             <button class="btn small" data-act="dup" data-id="${q.id}" title="Dupliquer">⧉</button>
-            <button class="btn small danger" data-act="del-quote" data-id="${q.id}" title="Supprimer">🗑</button>
+            ${q.status === 'brouillon' ? `<button class="btn small danger" data-act="del-quote" data-id="${q.id}" title="Supprimer">🗑</button>` : ''}
           </td></tr>`;
       }).join('')}</tbody></table>`
       : `<div class="empty">${all.length ? 'Aucune facture ne correspond.' : 'Aucune facture pour le moment.<br><br>Ouvrez un devis et cliquez sur <b>🧾 Créer la facture</b>.'}</div>`}

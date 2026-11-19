@@ -72,6 +72,7 @@ function eiCheck(q) {
   if (dig(co.siret).length !== 14) err.push('SIRET de votre entreprise, 14 chiffres (Mon entreprise)');
   if (!sa.zip || !sa.city) err.push('Adresse de votre entreprise avec code postal et ville (Mon entreprise)');
   if (!co.vatExempt && !/^[A-Z]{2}[0-9A-Z]{2,13}$/.test(String(co.vatNumber || '').replace(/\s/g, ''))) err.push('N° de TVA intracommunautaire de votre entreprise (Mon entreprise)');
+  if (q.isCredit) err.push('Avoir : le format électronique Factur-X n’est pas encore proposé pour les avoirs (envoyez le PDF)');
   if (!String(q.number || '').trim()) err.push('Numéro de facture');
   if (!q.date) err.push('Date de la facture');
   if (!q.dueDate) err.push('Échéance de paiement');
