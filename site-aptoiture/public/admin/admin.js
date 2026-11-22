@@ -104,9 +104,11 @@
   }
   function chooseFiles(multiple) {
     return new Promise(res => {
-      const inp = el('input', { type: 'file', accept: 'image/*' });
+      // champ ajouté à la page le temps du choix : plus fiable sur tous les navigateurs (Safari, téléphones)
+      const inp = el('input', { type: 'file', accept: 'image/*', style: 'position:fixed;left:-9999px;opacity:0' });
       if (multiple) inp.multiple = true;
-      inp.addEventListener('change', () => res(Array.from(inp.files)));
+      inp.addEventListener('change', () => { res(Array.from(inp.files)); inp.remove(); });
+      document.body.append(inp);
       inp.click();
     });
   }

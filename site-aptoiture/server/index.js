@@ -39,6 +39,11 @@ const normReal = it => ({ ...it, photos: Array.isArray(it.photos) && it.photos.l
 const getRealisations = () => readJSON('realisations.json', []).map(normReal).filter(it => it.photos.length);
 const getOverrides = () => readJSON('content.json', { global: {}, pages: {} });
 
+/* chaque démarrage (donc chaque mise à jour) change la version des scripts et feuilles de style :
+   le navigateur recharge les nouveaux fichiers au lieu de garder les anciens en cache */
+const VERSION = Date.now().toString(36);
+const versioned = html => html.replace(/(\s(?:src|href)=")((?!https?:|\/\/)[^"?#]+\.(?:js|css))"/g, `$1$2?v=${VERSION}"`);
+const sendView = (res, name) => { res.setHeader('Cache-Control', 'no-store'); res.type('html').send(versioned(fs.readFileSync(path.join(VIEWS, name), 'utf8'))); };
 function sendPage(file) {
   return (req, res) => {
     const admin = req.isAdmin;
@@ -51,7 +56,7 @@ function sendPage(file) {
     if (file === 'faq.html') faqJsonLd($);
     res.setHeader('Cache-Control', admin ? 'no-store' : 'no-cache');
     stats.view(req, file === 'index.html' ? '/' : '/' + file);
-    res.type('html').send($.html());
+    res.type('html').send(versioned($.html()));
   };
 }
 pages.forEach(f => app.get('/' + f, sendPage(f)));
@@ -66,12 +71,12 @@ app.get('/attestation-decennale.pdf', publicApi.docRoute);
 app.get('/admin', (req, res) => {
   if (req.isAdmin) return res.redirect('/');
   res.setHeader('Cache-Control', 'no-store');
-  res.sendFile(path.join(VIEWS, 'login.html'));
+  sendView(res, 'login.html');
 });
 app.get('/admin/tableau-de-bord', (req, res) => {
   if (!req.isAdmin) return res.redirect('/admin');
   res.setHeader('Cache-Control', 'no-store');
-  res.sendFile(path.join(VIEWS, 'dashboard.html'));
+  sendView(res, 'dashboard.html');
 });
 app.get('/admin/qr-print', async (req, res) => {
   if (!req.isAdmin) return res.redirect('/admin');
