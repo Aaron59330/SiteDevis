@@ -136,9 +136,19 @@ function fillGallery($, items, admin) {
     g.html('<p class="empty">' + (admin ? 'Aucune photo pour le moment. Utilisez « Ajouter des photos » ci-dessus.' : 'Les réalisations seront bientôt publiées.') + '</p>');
     return;
   }
+  const attr = v => esc(String(v)).replace(/"/g, '&quot;');
   const html = items.map(it => {
-    const alt = esc((it.title || it.description || 'Réalisation P.A Couverture').slice(0, 120)).replace(/"/g, '&quot;');
-    return `<figure class="shot" data-id="${it.id}"><a class="shot-img" href="${it.file}"><img src="${it.file}" alt="${alt}" loading="lazy"></a><figcaption><b class="t" data-ph="Ajouter un titre">${esc(it.title || '')}</b><span class="d" data-ph="Ajouter une description du chantier">${esc(it.description || '')}</span></figcaption></figure>`;
+    const photos = it.photos && it.photos.length ? it.photos : [it.file];
+    const alt = attr((it.title || it.description || 'Réalisation P.A Couverture').slice(0, 120));
+    const n = photos.length, count = `<span class="shot-count">${n} photo${n > 1 ? 's' : ''}</span>`;
+    if (admin) {
+      return `<figure class="shot adm-shot" data-id="${it.id}"><a class="shot-img" href="${photos[0]}"><img src="${photos[0]}" alt="${alt}" loading="lazy">${count}</a>`
+        + `<div class="adm-photos">${photos.map((p, i) => `<span class="adm-ph${i ? '' : ' cover'}" data-photo="${attr(p)}"><img src="${p}" alt="" loading="lazy"><button type="button" class="ph-cover" title="Mettre en photo de couverture">★</button><button type="button" class="ph-del" title="Retirer cette photo">×</button></span>`).join('')}<button type="button" class="adm-ph-add" title="Ajouter des photos à ce chantier">＋</button></div>`
+        + `<figcaption><b class="t" data-ph="Titre du chantier">${esc(it.title || '')}</b><span class="c" data-ph="Catégorie (ex. Rénovation complète)">${esc(it.category || '')}</span><span class="d" data-ph="Description du chantier (une ligne vide = nouveau paragraphe)">${esc(it.description || '')}</span></figcaption></figure>`;
+    }
+    return `<figure class="shot" data-id="${it.id}" data-photos="${attr(JSON.stringify(photos))}"><a class="shot-img" href="${photos[0]}" aria-label="Voir le détail : ${alt}"><img src="${photos[0]}" alt="${alt}" loading="lazy">${count}`
+      + `<span class="shot-over">${it.title ? `<b class="t">${esc(it.title)}</b>` : ''}${it.category ? `<span class="c">${esc(it.category)}</span>` : ''}<span class="shot-more">Voir le détail →</span></span></a>`
+      + `<span class="d" hidden>${esc(it.description || '')}</span></figure>`;
   }).join('');
   g.html(html);
 }

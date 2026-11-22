@@ -94,3 +94,23 @@ body[data-admin] .shot .t:focus,body[data-admin] .shot .d:focus{outline:2px soli
 .adm-bar .adm-dash{background:var(--red);color:#fff;padding:8px 14px;font:600 .78rem var(--f1);letter-spacing:.08em;text-transform:uppercase;border-radius:2px;text-decoration:none}
 @media(max-width:760px){.db-grid2,.db-stats{grid-template-columns:1fr 1fr}}
 @media(max-width:520px){.db-grid2,.db-stats{grid-template-columns:1fr}}
+
+/* réalisations (admin) : photos du chantier et champs à remplir */
+.adm-shot .shot-img{position:relative}
+.adm-shot .shot-count{position:absolute;top:10px;left:10px;right:auto}
+.adm-photos{display:flex;flex-wrap:wrap;gap:8px;padding:12px 14px 0}
+.adm-ph{position:relative;width:64px;height:48px;border:2px solid transparent}
+.adm-ph.cover{border-color:var(--red)}
+.adm-ph img{width:100%;height:100%;object-fit:cover;display:block}
+.adm-ph button{position:absolute;top:-8px;width:22px;height:22px;border:1px solid #555;background:rgba(13,13,13,.92);color:#fff;font-size:.75rem;line-height:1;cursor:pointer;padding:0;display:none}
+.adm-ph:hover button{display:block}
+.adm-ph .ph-cover{left:-6px}.adm-ph .ph-del{right:-6px}
+.adm-ph .ph-del:hover{background:#a11;border-color:#a11}
+.adm-ph.cover .ph-cover{display:none!important}
+.adm-ph-add{width:64px;height:48px;border:1px dashed #666;background:transparent;color:var(--muted);font-size:1.3rem;cursor:pointer}
+.adm-ph-add:hover{border-color:var(--red);color:#fff}
+.adm-shot figcaption .c{color:var(--red2);font-family:var(--f1);font-size:.8rem;letter-spacing:.1em;text-transform:uppercase;display:block}
+.adm-shot figcaption [contenteditable]{outline:1px dashed transparent;outline-offset:3px;min-height:1.2em}
+.adm-shot figcaption [contenteditable]:hover,.adm-shot figcaption [contenteditable]:focus{outline-color:var(--red)}
+.adm-shot figcaption [contenteditable]:empty::before{content:attr(data-ph);color:#777;font-style:italic;text-transform:none;letter-spacing:0}
+.adm-shot .t:empty,.adm-shot .d:empty,.adm-shot .c:empty{display:block!important}

@@ -142,51 +142,66 @@
   });
   window.addEventListener('beforeunload', e => { if (dirtyText.size || dirtyImg.size) { e.preventDefault(); e.returnValue = ''; } });
 
-  // ---------- réalisations
+  // ---------- réalisations : un chantier = plusieurs photos + titre, catégorie, description
   const gallery = document.getElementById('gallery');
   if (gallery) {
-    const input = el('button', {}, 'Ajouter des photos');
-    const add = el('div', { class: 'adm-add' }, el('p', {}, 'Ajoutez les photos de vos chantiers (plusieurs à la fois possible), puis cliquez sur un titre ou une description sous chaque photo pour la renseigner.'), input);
+    const input = el('button', {}, 'Nouvelle réalisation');
+    const add = el('div', { class: 'adm-add' }, el('p', {}, 'Choisissez toutes les photos d’un même chantier (plusieurs à la fois), puis renseignez son titre, sa catégorie et sa description. ＋ ajoute des photos à un chantier, ★ choisit la photo de couverture.'), input);
     gallery.before(add);
+    async function sendPhotos(files, projectId, btn, label) {
+      let id = projectId;
+      for (let i = 0; i < files.length; i++) {
+        btn.textContent = `Envoi ${i + 1}/${files.length}…`;
+        const fd = new FormData(); fd.append('files', files[i]); if (id) fd.append('projectId', id);
+        id = (await api('/api/realisations', { method: 'POST', body: fd })).id || id;
+      }
+      return id;
+    }
     input.addEventListener('click', async () => {
       const files = await chooseFiles(true);
       if (!files.length) return;
       input.disabled = true;
-      try {
-        const ordered = files.slice().reverse();
-        for (let i = 0; i < ordered.length; i++) {
-          input.textContent = `Envoi ${i + 1}/${ordered.length}…`;
-          const fd = new FormData(); fd.append('files', ordered[i]);
-          await api('/api/realisations', { method: 'POST', body: fd });
-        }
-        location.reload();
-      } catch (ex) { say(ex.message, true); input.disabled = false; input.textContent = 'Ajouter des photos'; }
+      try { await sendPhotos(files, null, input); location.reload(); }
+      catch (ex) { say(ex.message, true); input.disabled = false; input.textContent = 'Nouvelle réalisation'; }
     });
+    const patch = (id, json, ok) => api('/api/realisations/' + id, { method: 'PATCH', json }).then(() => { if (ok) say(ok); });
 
     gallery.querySelectorAll('.shot').forEach(fig => {
       const id = fig.dataset.id;
-      const tools = el('div', { class: 'adm-tools' },
+      fig.append(el('div', { class: 'adm-tools' },
         el('button', { title: 'Déplacer avant', onclick: () => move(id, 'up') }, '←'),
         el('button', { title: 'Déplacer après', onclick: () => move(id, 'down') }, '→'),
-        el('button', { class: 'del', title: 'Supprimer', onclick: () => remove(id) }, '×'));
-      fig.append(tools);
+        el('button', { class: 'del', title: 'Supprimer ce chantier et ses photos', onclick: () => remove(id) }, '×')));
       fig.querySelector('.shot-img').addEventListener('click', e => e.preventDefault());
-      ['t', 'd'].forEach(c => {
-        const n = fig.querySelector('.' + c);
+      fig.querySelectorAll('.adm-ph').forEach(ph => {
+        const photo = ph.dataset.photo;
+        ph.querySelector('.ph-cover').addEventListener('click', async () => { try { await patch(id, { coverPhoto: photo }); location.reload(); } catch (ex) { say(ex.message, true); } });
+        ph.querySelector('.ph-del').addEventListener('click', async () => {
+          if ((await dialog('Retirer cette photo ?', 'Elle sera supprimée de ce chantier.', [['Retirer', 'y', true], ['Annuler', null]])) !== 'y') return;
+          try { await patch(id, { removePhoto: photo }); location.reload(); } catch (ex) { say(ex.message, true); }
+        });
+      });
+      const plus = fig.querySelector('.adm-ph-add');
+      plus.addEventListener('click', async () => {
+        const files = await chooseFiles(true); if (!files.length) return;
+        plus.disabled = true;
+        try { await sendPhotos(files, id, plus); location.reload(); } catch (ex) { say(ex.message, true); plus.disabled = false; plus.textContent = '＋'; }
+      });
+      [['t', 'title'], ['c', 'category'], ['d', 'description']].forEach(([c, field]) => {
+        const n = fig.querySelector('.' + c); if (!n) return;
         n.setAttribute('contenteditable', 'plaintext-only');
         n.dataset.orig = n.textContent;
-        n.addEventListener('keydown', e => { if (c === 't' && e.key === 'Enter') { e.preventDefault(); n.blur(); } });
+        n.addEventListener('keydown', e => { if (c !== 'd' && e.key === 'Enter') { e.preventDefault(); n.blur(); } });
         n.addEventListener('blur', async () => {
-          const v = n.textContent.trim();
+          const v = n.innerText.trim();
           if (v === n.dataset.orig.trim()) return;
-          try { await api('/api/realisations/' + id, { method: 'PATCH', json: { [c === 't' ? 'title' : 'description']: v } }); n.dataset.orig = v; say('Légende enregistrée'); }
-          catch (ex) { say(ex.message, true); }
+          try { await patch(id, { [field]: v }, 'Enregistré'); n.dataset.orig = v; } catch (ex) { say(ex.message, true); }
         });
       });
     });
     async function move(id, dir) { await api('/api/realisations/move', { method: 'POST', json: { id, dir } }); location.reload(); }
     async function remove(id) {
-      if ((await dialog('Supprimer cette photo ?', 'Cette action est définitive.', [['Supprimer', 'y', true], ['Annuler', null]])) !== 'y') return;
+      if ((await dialog('Supprimer ce chantier ?', 'Toutes ses photos seront supprimées. Cette action est définitive.', [['Supprimer', 'y', true], ['Annuler', null]])) !== 'y') return;
       await api('/api/realisations/' + id, { method: 'DELETE' }); location.reload();
     }
   }

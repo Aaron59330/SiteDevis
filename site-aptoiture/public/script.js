@@ -33,37 +33,75 @@ if (form) {
   });
 }
 
-// Visionneuse des réalisations
+// Visionneuse des réalisations : une fenêtre par chantier (photos, catégorie, description, devis)
 (function () {
   if (document.body.hasAttribute('data-admin')) return;
-  const items = () => Array.from(document.querySelectorAll('.shot-img'));
-  let idx = 0, box;
+  let box = null, photos = [], idx = 0, lastFocus = null;
+  const mk = (tag, cls, txt) => { const n = document.createElement(tag); if (cls) n.className = cls; if (txt != null) n.textContent = txt; return n; };
   const show = i => {
-    const list = items(); idx = (i + list.length) % list.length;
-    const fig = list[idx].closest('.shot');
-    const t = fig.querySelector('.t'), d = fig.querySelector('.d');
-    box.querySelector('img').src = list[idx].getAttribute('href');
-    box.querySelector('p').innerHTML = '';
-    if (t && t.textContent.trim()) { const b = document.createElement('b'); b.textContent = t.textContent; box.querySelector('p').appendChild(b); }
-    if (d && d.textContent.trim()) box.querySelector('p').appendChild(document.createTextNode(d.textContent));
+    idx = (i + photos.length) % photos.length;
+    const img = box.querySelector('.pj-img');
+    img.classList.remove('on'); void img.offsetWidth; img.src = photos[idx]; img.classList.add('on');
+    box.querySelector('.pj-count').textContent = (idx + 1) + ' / ' + photos.length;
+    box.querySelectorAll('.pj-thumb').forEach((t, j) => t.classList.toggle('on', j === idx));
   };
-  const close = () => { if (box) { box.remove(); box = null; document.removeEventListener('keydown', key); } };
+  const close = () => { if (!box) return; box.remove(); box = null; document.body.classList.remove('pj-open'); document.removeEventListener('keydown', key); if (lastFocus) lastFocus.focus(); };
   const key = e => { if (e.key === 'Escape') close(); if (e.key === 'ArrowRight') show(idx + 1); if (e.key === 'ArrowLeft') show(idx - 1); };
-  document.addEventListener('click', e => {
-    const a = e.target.closest('.shot-img');
-    if (!a) return;
-    e.preventDefault();
-    box = document.createElement('div'); box.className = 'lb';
-    box.innerHTML = '<button class="x" aria-label="Fermer">&times;</button><button class="pv" aria-label="Précédente">&#8249;</button><button class="nx" aria-label="Suivante">&#8250;</button><img alt=""><p></p>';
-    document.body.appendChild(box);
-    box.addEventListener('click', ev => {
-      if (ev.target.classList.contains('pv')) show(idx - 1);
-      else if (ev.target.classList.contains('nx')) show(idx + 1);
-      else if (ev.target.tagName !== 'IMG' && ev.target.tagName !== 'P' && ev.target.tagName !== 'B') close();
-    });
+  function open(fig) {
+    try { photos = JSON.parse(fig.dataset.photos || '[]'); } catch (e) { photos = []; }
+    if (!photos.length) photos = [fig.querySelector('.shot-img').getAttribute('href')];
+    const t = fig.querySelector('.t'), c = fig.querySelector('.c'), d = fig.querySelector('.d');
+    const title = t ? t.textContent.trim() : '', cat = c ? c.textContent.trim() : '', desc = d ? d.textContent.trim() : '';
+    lastFocus = document.activeElement;
+    box = mk('div', 'pj'); box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true'); box.setAttribute('aria-label', title || 'Réalisation');
+    const panel = mk('div', 'pj-box');
+    const media = mk('div', 'pj-media'), stage = mk('div', 'pj-stage');
+    const img = mk('img', 'pj-img'); img.alt = title;
+    stage.append(img, mk('span', 'pj-count'));
+    if (photos.length > 1) {
+      const pv = mk('button', 'pj-nav pv', '‹'), nx = mk('button', 'pj-nav nx', '›');
+      pv.type = nx.type = 'button'; pv.setAttribute('aria-label', 'Photo précédente'); nx.setAttribute('aria-label', 'Photo suivante');
+      pv.onclick = () => show(idx - 1); nx.onclick = () => show(idx + 1);
+      stage.append(pv, nx);
+    }
+    media.append(stage);
+    if (photos.length > 1) {
+      const th = mk('div', 'pj-thumbs');
+      photos.forEach((p, j) => { const b = mk('button', 'pj-thumb'); b.type = 'button'; b.setAttribute('aria-label', 'Photo ' + (j + 1)); const im = mk('img'); im.src = p; im.alt = ''; im.loading = 'lazy'; b.append(im); b.onclick = () => show(j); th.append(b); });
+      media.append(th);
+    }
+    // glisser du doigt sur mobile
+    let x0 = null;
+    stage.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; }, { passive: true });
+    stage.addEventListener('touchend', e => { if (x0 == null) return; const dx = e.changedTouches[0].clientX - x0; if (Math.abs(dx) > 40 && photos.length > 1) show(idx + (dx < 0 ? 1 : -1)); x0 = null; });
+    const info = mk('div', 'pj-info');
+    if (cat) info.append(mk('span', 'pj-tag', cat));
+    if (title) info.append(mk('h2', 'pj-title', title));
+    const txt = mk('div', 'pj-desc');
+    desc.split(/\n\s*\n|\n/).map(x => x.trim()).filter(Boolean).forEach(par => txt.append(mk('p', '', par)));
+    info.append(txt);
+    const cta = mk('a', 'btn pj-cta', 'Demander un devis similaire');
+    cta.href = 'devis.html?projet=' + encodeURIComponent(title || cat || 'Réalisation');
+    info.append(cta);
+    const x = mk('button', 'pj-x', '×'); x.type = 'button'; x.setAttribute('aria-label', 'Fermer'); x.onclick = close;
+    panel.append(media, info, x);
+    box.append(panel);
+    box.addEventListener('click', e => { if (e.target === box) close(); });
+    document.body.append(box); document.body.classList.add('pj-open');
     document.addEventListener('keydown', key);
-    show(items().indexOf(a));
+    show(0); x.focus();
+  }
+  document.addEventListener('click', e => {
+    const a = e.target.closest('.shot-img'); if (!a) return;
+    e.preventDefault(); open(a.closest('.shot'));
   });
+})();
+
+// Formulaire de devis : « Demander un devis similaire » pré-remplit la description
+(function () {
+  const p = new URLSearchParams(location.search).get('projet');
+  const m = p && document.querySelector('form textarea[name="message"]');
+  if (m && !m.value) m.value = 'Bonjour, je souhaiterais un devis pour des travaux similaires à votre réalisation « ' + p.slice(0, 120) + ' ».';
 })();
 
 // Effets d'animation (désactivés en mode administrateur et si l'utilisateur réduit les animations)

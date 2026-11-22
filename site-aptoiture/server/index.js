@@ -34,7 +34,9 @@ const pages = fs.readdirSync(PUBLIC).filter(f => f.endsWith('.html'));
 const rawPages = {};
 pages.forEach(f => { rawPages[f] = fs.readFileSync(path.join(PUBLIC, f), 'utf8'); });
 
-const getRealisations = () => readJSON('realisations.json', []);
+/* une réalisation = un chantier : plusieurs photos (la première sert de couverture), titre, catégorie, description */
+const normReal = it => ({ ...it, photos: Array.isArray(it.photos) && it.photos.length ? it.photos : (it.file ? [it.file] : []), category: it.category || '' });
+const getRealisations = () => readJSON('realisations.json', []).map(normReal).filter(it => it.photos.length);
 const getOverrides = () => readJSON('content.json', { global: {}, pages: {} });
 
 function sendPage(file) {
@@ -145,22 +147,29 @@ const clip = (v, n) => String(v == null ? '' : v).slice(0, n);
 app.post('/api/realisations', auth.requireAdmin, upload.array('files', 30), async (req, res) => {
   if (!req.files || !req.files.length) return res.status(400).json({ error: 'Aucune image valide reçue.' });
   const list = getRealisations();
-  const added = [];
-  for (const f of req.files) {
-    try {
-      added.push({ id: newId(), file: await saveImage(f.buffer), title: clip(req.body.title, 120), description: clip(req.body.description, 2000), created: new Date().toISOString() });
-    } catch {}
-  }
-  if (!added.length) return res.status(400).json({ error: 'Images illisibles.' });
-  writeJSON('realisations.json', added.reverse().concat(list));
-  res.json({ ok: true, count: added.length });
+  const files = [];
+  for (const f of req.files) { try { files.push(await saveImage(f.buffer)); } catch {} }
+  if (!files.length) return res.status(400).json({ error: 'Images illisibles.' });
+  const target = req.body.projectId && list.find(x => x.id === req.body.projectId);
+  if (target) { target.photos = target.photos.concat(files).slice(0, 40); target.file = target.photos[0]; writeJSON('realisations.json', list); return res.json({ ok: true, id: target.id, count: files.length }); }
+  const it = { id: newId(), photos: files, file: files[0], title: clip(req.body.title, 120), category: clip(req.body.category, 60), description: clip(req.body.description, 4000), created: new Date().toISOString() };
+  writeJSON('realisations.json', [it].concat(list));
+  res.json({ ok: true, id: it.id, count: files.length });
 });
 app.patch('/api/realisations/:id', auth.requireAdmin, (req, res) => {
   const list = getRealisations();
   const it = list.find(x => x.id === req.params.id);
   if (!it) return res.status(404).json({ error: 'Introuvable' });
   if ('title' in req.body) it.title = clip(req.body.title, 120).trim();
-  if ('description' in req.body) it.description = clip(req.body.description, 2000).trim();
+  if ('description' in req.body) it.description = clip(req.body.description, 4000).trim();
+  if ('category' in req.body) it.category = clip(req.body.category, 60).trim();
+  if (req.body.coverPhoto && it.photos.includes(req.body.coverPhoto)) it.photos = [req.body.coverPhoto].concat(it.photos.filter(p => p !== req.body.coverPhoto));
+  if (req.body.removePhoto && it.photos.includes(req.body.removePhoto)) {
+    if (it.photos.length === 1) return res.status(400).json({ error: 'Une réalisation garde au moins une photo : supprimez la réalisation entière.' });
+    it.photos = it.photos.filter(p => p !== req.body.removePhoto);
+    fs.rm(path.join(UPLOADS, path.basename(req.body.removePhoto)), { force: true }, () => {});
+  }
+  it.file = it.photos[0];
   writeJSON('realisations.json', list);
   res.json({ ok: true });
 });
@@ -169,7 +178,7 @@ app.delete('/api/realisations/:id', auth.requireAdmin, (req, res) => {
   const it = list.find(x => x.id === req.params.id);
   if (!it) return res.status(404).json({ error: 'Introuvable' });
   writeJSON('realisations.json', list.filter(x => x !== it));
-  fs.rm(path.join(UPLOADS, path.basename(it.file)), { force: true }, () => {});
+  it.photos.forEach(p => fs.rm(path.join(UPLOADS, path.basename(p)), { force: true }, () => {}));
   res.json({ ok: true });
 });
 app.post('/api/realisations/move', auth.requireAdmin, (req, res) => {
