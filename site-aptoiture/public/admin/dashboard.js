@@ -31,6 +31,41 @@
   const TABS = [['demandes', 'Demandes de devis'], ['rdv', 'Rendez-vous'], ['avis', 'Avis'], ['annonce', 'Annonce'], ['horaires', 'Horaires'], ['documents', 'Documents'], ['stats', 'Statistiques'], ['qr', 'QR code'], ['reglages', 'Réglages']];
   let current = 'demandes', info = {};
 
+  /* ---------- Répondre au client par e-mail (historique des réponses + formulaire) */
+  function replyBox(item, url, defSubject, onSent) {
+    const wrapEl = el('div', { class: 'db-reply' });
+    const hist = () => (item.replies || []).map(rp => el('div', { class: 'db-sent' },
+      el('div', { class: 'db-sent-h' }, el('b', {}, '✉ Réponse envoyée'), ' le ', frDateTime(rp.at), ' — ', rp.subject),
+      el('div', { class: 'db-sent-t' }, rp.text)));
+    const open = () => {
+      wrapEl.innerHTML = '';
+      wrapEl.append(...hist());
+      const subj = el('input', { type: 'text', value: defSubject, maxlength: 150 });
+      const body = el('textarea', { rows: 7, placeholder: 'Votre réponse au client…' }, `Bonjour ${item.nom},\n\n\n\nCordialement,\nP.A Couverture`);
+      const send = el('button', { class: 'pri', type: 'button', onclick: wrap(async () => {
+        send.disabled = true; send.textContent = 'Envoi…';
+        try {
+          const r = await api(url, { method: 'POST', json: { subject: subj.value, message: body.value } });
+          item.replies = r.replies; if (r.status) item.status = r.status;
+          msg('Réponse envoyée à ' + item.email); onSent ? onSent() : close();
+        } finally { send.disabled = false; send.textContent = 'Envoyer la réponse'; }
+      }) }, 'Envoyer la réponse');
+      wrapEl.append(el('div', { class: 'db-compose' },
+        el('div', { class: 'db-compose-h' }, 'Réponse à ', el('b', {}, item.email), ' — mise en page aux couleurs du site, le client peut vous répondre directement.'),
+        el('label', {}, 'Objet', subj), el('label', {}, 'Message', body),
+        el('div', { class: 'db-actions' }, send, el('button', { type: 'button', onclick: close }, 'Annuler'))));
+      body.focus(); body.setSelectionRange(body.value.indexOf('\n\n') + 2, body.value.indexOf('\n\n') + 2);
+    };
+    const close = () => {
+      wrapEl.innerHTML = '';
+      wrapEl.append(...hist(), el('div', { class: 'db-actions' }, info.mail
+        ? el('button', { class: 'pri', type: 'button', onclick: open }, (item.replies || []).length ? '✉ Répondre à nouveau' : '✉ Répondre par e-mail')
+        : el('span', { class: 'db-note-s' }, 'Réponse par e-mail : activez d\'abord l\'envoi d\'e-mails (onglet Réglages).')));
+    };
+    close();
+    return wrapEl;
+  }
+
   // ---------- Demandes
   async function demandes(p) {
     const list = await api('/api/admin/requests');
@@ -59,6 +94,7 @@
             r.delai ? el('div', {}, el('dt', {}, 'Délai'), el('dd', {}, r.delai)) : ''),
           r.message ? el('p', { class: 'db-text' }, r.message) : '',
           photos.length ? el('div', { class: 'db-photos' }, photos) : '',
+          replyBox(r, `/api/admin/requests/${r.id}/reply`, `Votre ${r.source === 'contact' ? 'message' : 'demande de devis'} – P.A Couverture`, () => { draw(); updateBadges(); }),
           note,
           el('div', { class: 'db-actions' },
             r.status !== 'traite' ? el('button', { class: 'pri', onclick: set('traite') }, 'Marquer comme traitée') : el('button', { onclick: set('nouveau') }, 'Rouvrir'),
@@ -95,6 +131,7 @@
             el('div', {}, el('dt', {}, 'E-mail'), el('dd', {}, el('a', { href: 'mailto:' + a.email }, a.email))),
             el('div', {}, el('dt', {}, 'Adresse'), el('dd', {}, a.adresse || '—'))),
           a.note ? el('p', { class: 'db-text' }, a.note) : '',
+          replyBox(a, `/api/admin/rdv/${a.id}/reply`, 'Votre rendez-vous – P.A Couverture'),
           el('div', { class: 'db-actions' },
             a.status === 'en_attente' ? [el('button', { class: 'pri', onclick: act('confirme') }, 'Confirmer'), el('button', { onclick: act('refuse', 'Refuser ce créneau ? Le client sera prévenu par e-mail.') }, 'Refuser')] : '',
             a.status === 'confirme' ? el('button', { onclick: act('annule', 'Annuler ce rendez-vous ? Le client sera prévenu par e-mail.') }, 'Annuler') : '',
@@ -262,8 +299,9 @@
       el('label', {}, 'Adresse officielle du site (pour le QR code)', el('input', { type: 'url', name: 'url', value: s.siteUrl, placeholder: 'https://www.mon-site.fr' })),
       el('button', { class: 'pri', type: 'submit' }, 'Enregistrer'));
     p.append(f, el('div', { class: 'db-form' }, el('h2', { class: 'db-h' }, 'Envoi d\'e-mails'),
-      i.mail ? el('p', {}, el('span', { class: 'badge ok' }, 'Configuré'), ' Vous recevez un e-mail à chaque demande et vos clients reçoivent leurs confirmations.') :
-        el('p', {}, el('span', { class: 'badge warn' }, 'Non configuré'), ' Les demandes sont enregistrées dans ce tableau de bord, mais aucun e-mail n\'est envoyé. Pour les activer, renseignez les variables SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS (et MAIL_FROM) chez votre hébergeur. Voir le README.')));
+      i.mail ? [el('p', {}, el('span', { class: 'badge ok' }, 'Configuré'), ' Vous recevez un e-mail à chaque demande et rendez-vous, vos clients reçoivent leurs confirmations et vos réponses.'),
+        el('button', { type: 'button', onclick: wrap(async e => { e.target.disabled = true; try { const r = await api('/api/admin/test-mail', { method: 'POST' }); msg('E-mail d\'essai envoyé à ' + r.to); } finally { e.target.disabled = false; } }) }, 'Envoyer un e-mail d\'essai')] :
+        el('p', {}, el('span', { class: 'badge warn' }, 'Non configuré'), ' Les demandes sont enregistrées dans ce tableau de bord, mais aucun e-mail n\'est envoyé. Pour les activer, lancez sur le serveur :  bash deploy/aptoiture-mail.sh')));
   }
 
   // ---------- navigation

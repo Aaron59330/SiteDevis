@@ -119,3 +119,15 @@ body[data-admin] .shot .t:focus,body[data-admin] .shot .d:focus{outline:2px soli
 /* la carte garde la largeur de sa colonne, même avec un texte très long */
 .gallery>.shot{min-width:0}
 .adm-shot figcaption{min-width:0;gap:10px}
+
+/* réponses aux clients par e-mail */
+.db-reply{display:grid;gap:10px}
+.db-sent{border:1px solid var(--line);border-left:3px solid var(--red);background:rgba(56,109,185,.07);padding:10px 14px}
+.db-sent-h{font-size:.8rem;color:var(--muted);margin-bottom:6px}.db-sent-h b{color:var(--red2)}
+.db-sent-t{white-space:pre-wrap;font-size:.92rem;overflow-wrap:anywhere}
+.db-compose{border:1px solid var(--red);padding:16px;display:grid;gap:12px;background:var(--bg2)}
+.db-compose-h{font-size:.85rem;color:var(--muted)}
+.db-compose label{display:grid;gap:6px;font-size:.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.db-compose input,.db-compose textarea{background:var(--inp);color:var(--text);border:1px solid var(--inp-b);padding:10px 12px;font:inherit;font-size:.95rem;text-transform:none;letter-spacing:0;width:100%;box-sizing:border-box;resize:vertical}
+.db-compose input:focus,.db-compose textarea:focus{outline:2px solid var(--red2);border-color:transparent}
+.db-note-s{font-size:.82rem;color:var(--muted)}

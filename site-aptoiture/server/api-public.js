@@ -26,6 +26,9 @@ const okEmail = e => /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(e);
 const okPhone = p => { const d = p.replace(/[^\d]/g, ''); return d.length >= 8 && d.length <= 15 && /^[\d\s+().-]+$/.test(p); };
 const yes = v => ['1', 'on', 'true', 'yes'].includes(String(v));
 const newId = () => crypto.randomBytes(6).toString('hex');
+const esc = v => String(v == null ? '' : v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+/* adresse du site pour les liens des e-mails (réglage « Adresse officielle », sinon l'adresse utilisée) */
+const siteBase = (req, s) => (s.siteUrl || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
 const frDate = d => new Date(d + 'T12:00:00Z').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
 
 const upload = multer({
@@ -69,17 +72,30 @@ router.post('/devis', limiter('devis', 6, 3600e3), photos, async (req, res) => {
   writeJSON('requests.json', list);
   stats.event('form');
 
-  const s = settings.get();
-  const lines = [`Nouvelle ${contact ? 'demande de contact' : 'demande de devis'} depuis le site`, '',
-    `Nom : ${r.nom}`, `Téléphone : ${r.tel}`, `E-mail : ${r.email}`, `Travaux : ${r.travaux}`];
-  if (r.commune) lines.push(`Commune : ${r.commune}`);
-  if (r.batiment) lines.push(`Bâtiment : ${r.batiment}`);
-  if (r.surface) lines.push(`Surface approximative : ${r.surface}`);
-  if (r.delai) lines.push(`Délai souhaité : ${r.delai}`);
-  if (r.photos.length) lines.push(`Photos jointes : ${r.photos.length}`);
-  lines.push('', r.message);
-  mailer.send({ to: s.notifyEmail, subject: `Nouvelle demande ${contact ? 'de contact' : 'de devis'} : ${r.nom}${r.commune ? ' (' + r.commune + ')' : ''}`, text: lines.join('\n'), replyTo: r.email, attachments });
-  mailer.send({ to: r.email, subject: 'Votre demande a bien été reçue – P.A Couverture', text: `Bonjour ${r.nom},\n\nNous avons bien reçu votre demande. Par précaution, nous préférons venir voir votre chantier sur place avant d'établir un devis précis : nous vous contactons rapidement pour convenir d'une visite.\n\nP.A Couverture\n06 03 50 82 30` });
+  const s = settings.get(), base = siteBase(req, s), kind = contact ? 'message de contact' : 'demande de devis';
+  mailer.send({
+    to: s.notifyEmail, replyTo: r.email, attachments,
+    subject: `Nouvelle ${kind} : ${r.nom}${r.commune ? ' (' + r.commune + ')' : ''}`,
+    mail: {
+      eyebrow: contact ? 'Message de contact' : 'Demande de devis', title: `Nouvelle ${kind} de ${r.nom}`,
+      intro: `Une nouvelle ${kind} vient d'arriver sur le site.${r.photos.length ? ` ${r.photos.length} photo${r.photos.length > 1 ? 's' : ''} en pièce jointe.` : ''} Répondez directement à cet e-mail pour écrire au client, ou depuis le tableau de bord.`,
+      rows: [['Nom', r.nom], ['Téléphone', `<a href="tel:${r.tel.replace(/[^\d+]/g, '')}" style="color:#386db9;text-decoration:none">${esc(r.tel)}</a>`], ['E-mail', `<a href="mailto:${esc(r.email)}" style="color:#386db9;text-decoration:none">${esc(r.email)}</a>`],
+        ['Travaux', r.travaux], ['Commune', r.commune], ['Bâtiment', r.batiment], ['Surface', r.surface], ['Délai souhaité', r.delai]],
+      quote: { label: 'Message du client', text: r.message },
+      button: { label: 'Ouvrir le tableau de bord', url: base + '/admin/tableau-de-bord' },
+    },
+  });
+  mailer.send({
+    to: r.email, replyTo: s.notifyEmail, subject: 'Votre demande a bien été reçue – P.A Couverture',
+    mail: {
+      eyebrow: 'Demande reçue', title: `Merci ${r.nom}, votre demande est bien arrivée`,
+      intro: contact ? 'Nous avons bien reçu votre message et nous vous répondons au plus vite.'
+        : "Nous avons bien reçu votre demande de devis. Pour vous proposer un prix juste, nous préférons venir voir votre toiture sur place : nous vous contactons rapidement pour convenir d'une visite.",
+      rows: contact ? [] : [['Travaux', r.travaux], ['Commune', r.commune], ['Photos envoyées', r.photos.length ? String(r.photos.length) : '']],
+      quote: { label: 'Votre message', text: r.message },
+      note: `Une question en attendant ? Appelez-nous au ${mailer.PHONE} ou répondez simplement à cet e-mail.`,
+    },
+  });
   res.json({ ok: true });
 });
 
@@ -109,10 +125,26 @@ router.post('/rdv', limiter('rdv', 6, 3600e3), async (req, res) => {
   list.unshift(a);
   writeJSON('appointments.json', list);
   stats.event('form');
-  mailer.send({ to: s.notifyEmail, subject: `Demande de rendez-vous : ${a.nom}, ${a.date} à ${a.time}`, replyTo: a.email,
-    text: `Nouvelle demande de rendez-vous (à confirmer avant le ${a.confirmBy})\n\n${a.kind}\nLe ${frDate(a.date)} à ${a.time}\n\nNom : ${a.nom}\nTéléphone : ${a.tel}\nE-mail : ${a.email}\nAdresse : ${a.adresse}\n\n${a.note}` });
-  mailer.send({ to: a.email, subject: 'Demande de rendez-vous reçue – P.A Couverture',
-    text: `Bonjour ${a.nom},\n\nNous avons bien reçu votre demande de rendez-vous pour le ${frDate(a.date)} à ${a.time}.\nNous vous confirmerons ce rendez-vous ${s.booking.confirmDaysBefore} jours avant la date prévue.\n\nP.A Couverture\n06 03 50 82 30` });
+  const base = siteBase(req, s);
+  mailer.send({
+    to: s.notifyEmail, replyTo: a.email, subject: `Demande de rendez-vous : ${a.nom}, ${frDate(a.date)} à ${a.time}`,
+    mail: {
+      eyebrow: 'Rendez-vous à confirmer', title: `Demande de rendez-vous de ${a.nom}`,
+      intro: `À confirmer au plus tard le ${frDate(a.confirmBy)}. Le client est prévenu par e-mail dès que vous confirmez ou refusez depuis le tableau de bord.`,
+      rows: [['Date', `${frDate(a.date)} à ${a.time}`], ['Type', a.kind], ['Nom', a.nom], ['Téléphone', `<a href="tel:${a.tel.replace(/[^\d+]/g, '')}" style="color:#386db9;text-decoration:none">${esc(a.tel)}</a>`], ['E-mail', a.email], ['Adresse', a.adresse]],
+      quote: { label: 'Précisions du client', text: a.note },
+      button: { label: 'Confirmer dans le tableau de bord', url: base + '/admin/tableau-de-bord#rdv' },
+    },
+  });
+  mailer.send({
+    to: a.email, replyTo: s.notifyEmail, subject: 'Demande de rendez-vous reçue – P.A Couverture',
+    mail: {
+      eyebrow: 'Rendez-vous demandé', title: `Merci ${a.nom}, votre demande de rendez-vous est enregistrée`,
+      intro: `Nous vous confirmerons ce rendez-vous par e-mail au plus tard ${s.booking.confirmDaysBefore} jours avant la date prévue.`,
+      rows: [['Date souhaitée', `${frDate(a.date)} à ${a.time}`], ['Type', a.kind], ['Adresse', a.adresse]],
+      note: `Un empêchement ou une question ? Appelez-nous au ${mailer.PHONE} ou répondez à cet e-mail.`,
+    },
+  });
   res.json({ ok: true, confirmDaysBefore: s.booking.confirmDaysBefore });
 });
 
@@ -131,4 +163,4 @@ function docRoute(req, res) {
   res.setHeader('Content-Disposition', 'inline; filename="attestation-garantie-decennale.pdf"');
   res.sendFile(DOC);
 }
-module.exports = { router, docRoute, DOC, KINDS, frDate };
+module.exports = { router, docRoute, DOC, KINDS, frDate, siteBase };

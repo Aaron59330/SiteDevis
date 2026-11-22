@@ -9,7 +9,7 @@ const settings = require('./settings');
 const mailer = require('./mailer');
 const stats = require('./stats');
 const auth = require('./auth');
-const { DOC, frDate } = require('./api-public');
+const { DOC, frDate, siteBase } = require('./api-public');
 
 const router = express.Router();
 router.use((req, res, next) => {
@@ -62,19 +62,52 @@ router.post('/rdv/:id/status', (req, res) => {
   a.status = st;
   if (st === 'confirme') a.confirmedAt = new Date().toISOString();
   writeJSON('appointments.json', list);
-  const subjects = { confirme: 'Rendez-vous confirmé', refuse: 'Votre demande de rendez-vous', annule: 'Rendez-vous annulé' };
-  const bodies = {
-    confirme: `Bonjour ${a.nom},\n\nNous confirmons votre rendez-vous (${a.kind}) le ${frDate(a.date)} à ${a.time}.\n\nEn cas d'empêchement, merci de nous prévenir au 06 03 50 82 30.\n\nP.A Couverture`,
-    refuse: `Bonjour ${a.nom},\n\nNous ne pouvons malheureusement pas honorer le créneau du ${frDate(a.date)} à ${a.time}. Merci de nous appeler au 06 03 50 82 30 ou de choisir un autre créneau sur notre site.\n\nP.A Couverture`,
-    annule: `Bonjour ${a.nom},\n\nVotre rendez-vous du ${frDate(a.date)} à ${a.time} est annulé. Pour en fixer un nouveau, appelez-nous au 06 03 50 82 30 ou rendez-vous sur notre site.\n\nP.A Couverture`,
-  };
-  let mailed = false;
-  if (subjects[st]) mailer.send({ to: a.email, subject: subjects[st] + ' – P.A Couverture', text: bodies[st] }).then(r => { mailed = r.sent; });
+  const s = settings.get();
+  const when = `${frDate(a.date)} à ${a.time}`;
+  const M = {
+    confirme: { subject: 'Rendez-vous confirmé', eyebrow: 'Rendez-vous confirmé', title: `C'est confirmé, ${a.nom} !`, intro: `Nous avons le plaisir de vous confirmer votre rendez-vous.`, note: `En cas d'empêchement, merci de nous prévenir au ${mailer.PHONE} ou en répondant à cet e-mail.` },
+    refuse: { subject: 'Votre demande de rendez-vous', eyebrow: 'Créneau indisponible', title: `Bonjour ${a.nom}`, intro: `Nous ne pouvons malheureusement pas honorer ce créneau. Choisissez-en un autre sur notre site, ou appelez-nous au ${mailer.PHONE} : nous trouverons un moment qui vous convient.` },
+    annule: { subject: 'Rendez-vous annulé', eyebrow: 'Rendez-vous annulé', title: `Bonjour ${a.nom}`, intro: `Votre rendez-vous est annulé. Pour en fixer un nouveau, appelez-nous au ${mailer.PHONE} ou réservez un autre créneau sur notre site.` },
+  }[st];
+  if (M) mailer.send({ to: a.email, replyTo: s.notifyEmail, subject: M.subject + ' – P.A Couverture',
+    mail: { ...M, rows: [['Date', when], ['Type', a.kind], ['Adresse', a.adresse]], button: st === 'confirme' ? null : { label: 'Choisir un autre créneau', url: siteBase(req, s) + '/rendez-vous.html' } } });
   res.json({ ok: true });
 });
 router.delete('/rdv/:id', (req, res) => {
   writeJSON('appointments.json', readJSON('appointments.json', []).filter(x => x.id !== req.params.id));
   res.json({ ok: true });
+});
+
+// ---------- répondre au client par e-mail (demande de devis, message, rendez-vous)
+async function reply(req, res, file, label) {
+  if (!mailer.configured()) return res.status(503).json({ error: 'L\'envoi d\'e-mails n\'est pas encore configuré sur le serveur (voir l\'onglet Réglages).' });
+  const list = readJSON(file, []);
+  const it = list.find(x => x.id === req.params.id);
+  if (!it) return res.status(404).json({ error: 'Introuvable' });
+  const text = clip(req.body.message, 5000), subject = clip(req.body.subject, 150) || `Réponse à votre ${label} – P.A Couverture`;
+  if (text.length < 2) return res.status(400).json({ error: 'Écrivez votre réponse.' });
+  const s = settings.get();
+  const recap = file === 'appointments.json' ? [['Rendez-vous', `${frDate(it.date)} à ${it.time}`], ['Type', it.kind]] : [['Travaux', it.travaux], ['Commune', it.commune]];
+  const r = await mailer.send({ to: it.email, replyTo: s.notifyEmail, subject,
+    mail: { eyebrow: `Réponse à votre ${label}`, title: subject.replace(/ – P\.A Couverture$/, ''), intro: '', body: text, rows: recap,
+      quote: { label: file === 'appointments.json' ? 'Vos précisions' : 'Votre message', text: it.message || it.note || '' },
+      note: 'Pour nous répondre, répondez simplement à cet e-mail.' } });
+  if (!r.sent) return res.status(502).json({ error: 'L\'e-mail n\'a pas pu partir : ' + (r.error || 'service indisponible') });
+  it.replies = (it.replies || []).concat({ at: new Date().toISOString(), subject, text });
+  if (file === 'requests.json' && it.status === 'nouveau') it.status = 'traite';
+  writeJSON(file, list);
+  res.json({ ok: true, replies: it.replies, status: it.status });
+}
+router.post('/requests/:id/reply', (req, res) => reply(req, res, 'requests.json', 'demande').catch(e => res.status(500).json({ error: e.message })));
+router.post('/rdv/:id/reply', (req, res) => reply(req, res, 'appointments.json', 'demande de rendez-vous').catch(e => res.status(500).json({ error: e.message })));
+
+// ---------- e-mail d'essai (Réglages)
+router.post('/test-mail', async (req, res) => {
+  if (!mailer.configured()) return res.status(503).json({ error: 'Envoi d\'e-mails non configuré.' });
+  const s = settings.get();
+  const r = await mailer.send({ to: s.notifyEmail, subject: 'E-mail d\'essai – P.A Couverture', mail: { eyebrow: 'Essai', title: 'Tout fonctionne !', intro: 'Les e-mails du site sont bien configurés : vous recevrez les demandes de devis et de rendez-vous, et vos clients recevront vos réponses avec cette mise en page.', button: { label: 'Ouvrir le tableau de bord', url: siteBase(req, s) + '/admin/tableau-de-bord' } } });
+  if (!r.sent) return res.status(502).json({ error: 'Échec : ' + (r.error || 'service indisponible') });
+  res.json({ ok: true, to: s.notifyEmail });
 });
 
 // ---------- réglages (annonce, horaires, avis Google, adresse du site)

@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Active l'envoi d'e-mails du site P.A Couverture (demandes, rendez-vous, réponses aux clients).
+# Le mot de passe est saisi ici, sur le serveur, et n'apparaît nulle part ailleurs.
+#
+# Avec Gmail (conseillé) : il faut un « mot de passe d'application » (pas votre mot de passe Gmail) :
+#   myaccount.google.com → Sécurité → Validation en deux étapes (à activer) → Mots de passe des applications.
+# Usage (root) :  cd ~/sitedevis && git pull && bash deploy/aptoiture-mail.sh
+set -euo pipefail
+[ "$(id -u)" = 0 ] || { echo "Lancez ce script en root."; exit 1; }
+ENVF=/etc/aptoiture.env; SVC=aptoiture; NODE=/opt/aptoiture/node/bin/node; APP=/opt/aptoiture/app
+[ -f "$ENVF" ] || { echo "Site non installé : lancez d'abord  bash deploy/site-aptoiture.sh votre-domaine"; exit 1; }
+
+echo "Envoi d'e-mails du site P.A Couverture"
+echo "1) Gmail (smtp.gmail.com)   2) Autre service (OVH, IONOS, Brevo…)"
+read -rp "Choix [1] : " C; C="${C:-1}"
+if [ "$C" = 1 ]; then HOST=smtp.gmail.com; PORT=465
+else read -rp "Serveur SMTP (ex. ssl0.ovh.net) : " HOST; read -rp "Port [465] : " PORT; PORT="${PORT:-465}"; fi
+read -rp "Adresse e-mail d'envoi (ex. pro.ap.couverture@gmail.com) : " USER
+[[ "$USER" =~ ^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$ ]] || { echo "Adresse invalide."; exit 1; }
+read -rsp "Mot de passe d'application (rien ne s'affiche, c'est normal) : " PASS; echo
+PASS="$(printf '%s' "$PASS" | tr -d ' ')"     # Google l'affiche en 4 groupes séparés par des espaces
+[ -n "$PASS" ] || { echo "Mot de passe vide."; exit 1; }
+case "$PASS" in *[\#\"\'\\]*) echo "Ce mot de passe contient un caractère non pris en charge (# \" ' \\)."; exit 1 ;; esac
+
+setvar() { local k="$1" v="$2"; grep -v "^$k=" "$ENVF" > "$ENVF.tmp" || true; printf '%s=%s\n' "$k" "$v" >> "$ENVF.tmp"; cat "$ENVF.tmp" > "$ENVF"; rm -f "$ENVF.tmp"; }
+setvar SMTP_HOST "$HOST"; setvar SMTP_PORT "$PORT"; setvar SMTP_USER "$USER"; setvar SMTP_PASS "$PASS"
+setvar MAIL_FROM "P.A Couverture <$USER>"
+chown root:"$SVC" "$ENVF"; chmod 640 "$ENVF"
+
+echo "Vérification de la connexion au serveur d'e-mails…"
+if runuser -u "$SVC" -- env ENVF="$ENVF" "$NODE" -e '
+  const fs = require("fs"); const e = {};
+  for (const l of fs.readFileSync(process.env.ENVF, "utf8").split("\n")) { const m = /^([A-Z_]+)=(.*)$/.exec(l); if (m) e[m[1]] = m[2]; }
+  const nm = require(process.argv[1] + "/node_modules/nodemailer");
+  nm.createTransport({ host: e.SMTP_HOST, port: +e.SMTP_PORT, secure: +e.SMTP_PORT === 465, auth: { user: e.SMTP_USER, pass: e.SMTP_PASS } })
+    .verify().then(() => { console.log("✓ Connexion réussie"); }, err => { console.error("✗ " + err.message); process.exit(1); });' "$APP" </dev/null; then
+  systemctl restart "$SVC"; sleep 2
+  echo "✓ E-mails activés. Dans le tableau de bord du site → Réglages → « Envoyer un e-mail d'essai »."
+else
+  for k in SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASS MAIL_FROM; do sed -i "/^$k=/d" "$ENVF"; done   # rien d'enregistré
+  echo "✗ Connexion refusée. Avec Gmail, vérifiez : validation en deux étapes activée, et mot de passe d'APPLICATION (16 lettres)."
+  echo "  Relancez ce script pour réessayer. (Le site continue de fonctionner, sans e-mails.)"
+  exit 1
+fi
