@@ -28,6 +28,7 @@ setvar MAIL_FROM "P.A Couverture <$USER>"
 chown root:"$SVC" "$ENVF"; chmod 640 "$ENVF"
 
 echo "Vérification de la connexion au serveur d'e-mails…"
+cd "$APP"     # le compte du site ne peut pas lire /root : on lance la vérification depuis son dossier
 if runuser -u "$SVC" -- env ENVF="$ENVF" "$NODE" -e '
   const fs = require("fs"); const e = {};
   for (const l of fs.readFileSync(process.env.ENVF, "utf8").split("\n")) { const m = /^([A-Z_]+)=(.*)$/.exec(l); if (m) e[m[1]] = m[2]; }
@@ -38,7 +39,8 @@ if runuser -u "$SVC" -- env ENVF="$ENVF" "$NODE" -e '
   echo "✓ E-mails activés. Dans le tableau de bord du site → Réglages → « Envoyer un e-mail d'essai »."
 else
   for k in SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASS MAIL_FROM; do sed -i "/^$k=/d" "$ENVF"; done   # rien d'enregistré
-  echo "✗ Connexion refusée. Avec Gmail, vérifiez : validation en deux étapes activée, et mot de passe d'APPLICATION (16 lettres)."
+  echo "✗ La connexion au serveur d'e-mails a échoué (message ci-dessus)."
+  echo "  Avec Gmail, vérifiez : validation en deux étapes activée, et mot de passe d'APPLICATION (16 lettres)."
   echo "  Relancez ce script pour réessayer. (Le site continue de fonctionner, sans e-mails.)"
   exit 1
 fi
