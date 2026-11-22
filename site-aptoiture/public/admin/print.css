@@ -1,0 +1,11 @@
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,Helvetica,sans-serif;background:#fff;color:#10151d}
+.poster{width:min(210mm,100%);margin:0 auto;padding:18mm 14mm;text-align:center;display:grid;gap:8mm;justify-items:center}
+.plogo{width:80mm;height:auto;filter:invert(1) hue-rotate(180deg) brightness(.85) saturate(1.6)}
+h1{font-size:26pt;line-height:1.15;text-transform:uppercase;letter-spacing:.04em}
+.qr{width:110mm}.qr svg{display:block;width:100%;height:auto}
+.scan{font-size:13pt;color:#586377}
+.tel{font-size:30pt;font-weight:700;letter-spacing:.03em}
+.mail{font-size:13pt;color:#586377}
+.noprint button{padding:12px 28px;font-size:15px;background:#386db9;color:#fff;border:0;cursor:pointer}
+@media print{.noprint{display:none}.poster{padding:10mm}@page{size:A4;margin:8mm}}
