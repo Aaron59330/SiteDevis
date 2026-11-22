@@ -27,14 +27,30 @@ router.get('/info', (req, res) => {
 
 // ---------- demandes de devis
 router.get('/requests', (req, res) => res.json(readJSON('requests.json', [])));
-router.patch('/requests/:id', (req, res) => {
+router.patch('/requests/:id', async (req, res) => {
   const list = readJSON('requests.json', []);
   const r = list.find(x => x.id === req.params.id);
   if (!r) return res.status(404).json({ error: 'Introuvable' });
+  const before = r.status;
   if (['nouveau', 'traite', 'archive'].includes(req.body.status)) r.status = req.body.status;
   if ('note' in req.body) r.note = clip(req.body.note, 1000);
   writeJSON('requests.json', list);
-  res.json({ ok: true });
+  // le client est prévenu de l'avancement de sa demande
+  let mailed = false;
+  if (r.status !== before && r.email && mailer.configured()) {
+    const s = settings.get(), what = r.source === 'contact' ? 'message' : 'demande de devis';
+    const M = {
+      traite: { eyebrow: 'Demande traitée', title: `Votre ${what} a été traitée`, intro: r.source === 'contact' ? 'Nous avons bien pris en compte votre message.' : "Nous avons étudié votre demande. Si nous ne vous avons pas encore contacté pour convenir d'une visite ou vous transmettre votre devis, nous le faisons très rapidement.", status: 'Traitée' },
+      archive: { eyebrow: 'Demande clôturée', title: `Votre ${what} est clôturée`, intro: "Votre demande est maintenant clôturée. Merci de votre confiance ! Pour un nouveau projet ou une question, n'hésitez pas à nous recontacter.", status: 'Clôturée' },
+      nouveau: { eyebrow: 'Demande en cours', title: `Votre ${what} est de nouveau en cours`, intro: 'Nous avons rouvert votre demande et nous la traitons à nouveau. Nous revenons vers vous rapidement.', status: 'En cours de traitement' },
+    }[r.status];
+    const sent = await mailer.send({ to: r.email, replyTo: s.notifyEmail, subject: `${M.title} – P.A Couverture`,
+      mail: { eyebrow: M.eyebrow, title: M.title, intro: `Bonjour ${r.nom},\n\n${M.intro}`, rows: [['Statut', M.status], ['Travaux', r.travaux], ['Commune', r.commune], ['Demande du', new Date(r.created).toLocaleDateString('fr-FR', { timeZone: 'Europe/Paris' })]],
+        button: r.status === 'archive' ? { label: 'Faire une nouvelle demande', url: siteBase(req, s) + '/devis.html' } : null,
+        note: `Une question ? Appelez-nous au ${mailer.PHONE} ou répondez simplement à cet e-mail.` } });
+    mailed = sent.sent;
+  }
+  res.json({ ok: true, mailed });
 });
 router.delete('/requests/:id', (req, res) => {
   const list = readJSON('requests.json', []);
@@ -53,7 +69,7 @@ router.get('/private/:file', (req, res) => {
 
 // ---------- rendez-vous
 router.get('/rdv', (req, res) => res.json({ list: readJSON('appointments.json', []), confirmDaysBefore: settings.get().booking.confirmDaysBefore }));
-router.post('/rdv/:id/status', (req, res) => {
+router.post('/rdv/:id/status', async (req, res) => {
   const list = readJSON('appointments.json', []);
   const a = list.find(x => x.id === req.params.id);
   const st = req.body.status;
@@ -67,10 +83,13 @@ router.post('/rdv/:id/status', (req, res) => {
   const M = {
     confirme: { subject: 'Rendez-vous confirmé', eyebrow: 'Rendez-vous confirmé', title: `C'est confirmé, ${a.nom} !`, intro: `Nous avons le plaisir de vous confirmer votre rendez-vous.`, note: `En cas d'empêchement, merci de nous prévenir au ${mailer.PHONE} ou en répondant à cet e-mail.` },
     refuse: { subject: 'Votre demande de rendez-vous', eyebrow: 'Créneau indisponible', title: `Bonjour ${a.nom}`, intro: `Nous ne pouvons malheureusement pas honorer ce créneau. Choisissez-en un autre sur notre site, ou appelez-nous au ${mailer.PHONE} : nous trouverons un moment qui vous convient.` },
+    en_attente: { subject: 'Votre rendez-vous', eyebrow: 'Rendez-vous en attente', title: `Bonjour ${a.nom}`, intro: 'Votre demande de rendez-vous est de nouveau en attente de confirmation. Nous revenons vers vous rapidement.' },
     annule: { subject: 'Rendez-vous annulé', eyebrow: 'Rendez-vous annulé', title: `Bonjour ${a.nom}`, intro: `Votre rendez-vous est annulé. Pour en fixer un nouveau, appelez-nous au ${mailer.PHONE} ou réservez un autre créneau sur notre site.` },
   }[st];
-  if (M) mailer.send({ to: a.email, replyTo: s.notifyEmail, subject: M.subject + ' – P.A Couverture',
-    mail: { ...M, rows: [['Date', when], ['Type', a.kind], ['Adresse', a.adresse]], button: st === 'confirme' ? null : { label: 'Choisir un autre créneau', url: siteBase(req, s) + '/rendez-vous.html' } } });
+  let mailed = false;
+  if (M && a.email) mailed = (await mailer.send({ to: a.email, replyTo: s.notifyEmail, subject: M.subject + ' – P.A Couverture',
+    mail: { ...M, rows: [['Statut', { confirme: 'Confirmé', refuse: 'Créneau indisponible', annule: 'Annulé', en_attente: 'En attente de confirmation' }[st]], ['Date', when], ['Type', a.kind], ['Adresse', a.adresse]], button: ['confirme', 'en_attente'].includes(st) ? null : { label: 'Choisir un autre créneau', url: siteBase(req, s) + '/rendez-vous.html' } } })).sent;
+  return res.json({ ok: true, mailed });
   res.json({ ok: true });
 });
 router.delete('/rdv/:id', (req, res) => {

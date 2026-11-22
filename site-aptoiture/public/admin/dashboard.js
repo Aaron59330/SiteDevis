@@ -81,7 +81,7 @@
       shown.forEach(r => {
         const photos = (r.photos || []).map(f => el('a', { href: '/api/admin/private/' + f, target: '_blank', rel: 'noopener' }, el('img', { src: '/api/admin/private/' + f, alt: 'Photo du client', loading: 'lazy' })));
         const note = el('textarea', { rows: 2, placeholder: 'Note personnelle (visible uniquement par vous)', onblur: wrap(async e => { if (e.target.value !== (r.note || '')) { await api('/api/admin/requests/' + r.id, { method: 'PATCH', json: { note: e.target.value } }); r.note = e.target.value; msg('Note enregistrée'); } }) }, r.note || '');
-        const set = st => wrap(async () => { await api('/api/admin/requests/' + r.id, { method: 'PATCH', json: { status: st } }); r.status = st; draw(); updateBadges(); });
+        const set = st => wrap(async () => { const x = await api('/api/admin/requests/' + r.id, { method: 'PATCH', json: { status: st } }); r.status = st; draw(); updateBadges(); msg(x.mailed ? 'Mis à jour : le client a été prévenu par e-mail' : 'Mis à jour' + (info.mail ? '' : ' (e-mails non configurés : client non prévenu)')); });
         box.append(el('article', { class: 'db-card' + (r.status === 'nouveau' ? ' is-new' : '') },
           el('header', {}, el('h3', {}, r.nom, ' ', el('small', {}, r.source === 'contact' ? 'Message de contact' : 'Demande de devis')), el('span', { class: 'db-date' }, frDateTime(r.created))),
           el('dl', { class: 'db-dl' },
@@ -122,7 +122,7 @@
           left < 0 ? el('span', { class: 'badge bad' }, `Confirmation en retard (échéance le ${frDate(a.confirmBy)})`) :
           left === 0 ? el('span', { class: 'badge warn' }, 'À confirmer aujourd\'hui') :
           el('span', { class: 'badge' + (left <= 2 ? ' warn' : '') }, `À confirmer avant le ${frDate(a.confirmBy)} (dans ${left} j)`);
-        const act = (st, ask) => wrap(async () => { if (ask && !confirm(ask)) return; await api(`/api/admin/rdv/${a.id}/status`, { method: 'POST', json: { status: st } }); msg(st === 'confirme' ? 'Rendez-vous confirmé' + (info.mail ? ' : e-mail envoyé au client' : ' (pensez à prévenir le client)') : 'Mis à jour'); render(); });
+        const act = (st, ask) => wrap(async () => { if (ask && !confirm(ask)) return; const x = await api(`/api/admin/rdv/${a.id}/status`, { method: 'POST', json: { status: st } }); msg((st === 'confirme' ? 'Rendez-vous confirmé' : 'Mis à jour') + (x.mailed ? ' : le client a été prévenu par e-mail' : info.mail ? '' : ' (e-mails non configurés : pensez à prévenir le client)')); render(); });
         p.append(el('article', { class: 'db-card' + (a.status === 'en_attente' ? ' is-new' : '') },
           el('header', {}, el('h3', {}, frDate(a.date, true), ' à ', a.time, ' ', el('small', {}, a.kind)), badge),
           el('dl', { class: 'db-dl' },
