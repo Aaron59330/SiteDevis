@@ -31,7 +31,8 @@ DOM="$(echo "$DOM" | tr 'A-Z' 'a-z' | sed -E 's#^https?://##; s#/.*$##; s#^www\.
 say "Vérification du DNS de $DOM"
 MYIP="$(curl -4 -fsS -m 10 https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}')"
 ipof() { getent ahostsv4 "$1" | awk 'NR==1{print $1}' || true; }
-APEX="$(ipof "$DOM")"; WWW="$(ipof "www.$DOM")"
+SUBDOM=0; [ "$(echo "$DOM" | tr -cd . | wc -c)" -ge 2 ] && SUBDOM=1
+APEX="$(ipof "$DOM")"; WWW=""; [ "$SUBDOM" = 1 ] || WWW="$(ipof "www.$DOM")"
 if [ "$APEX" != "$MYIP" ]; then
   echo "✗ $DOM ne pointe pas encore vers ce serveur ($MYIP) : ${APEX:-aucune adresse}."
   if [ "$(echo "$DOM" | tr -cd . | wc -c)" -ge 2 ]; then
@@ -43,7 +44,7 @@ if [ "$APEX" != "$MYIP" ]; then
   exit 1
 fi
 echo "✓ $DOM → $MYIP"
-if [ "$WWW" = "$MYIP" ]; then echo "✓ www.$DOM → $MYIP"; else echo "⚠ www.$DOM ne pointe pas vers ce serveur (${WWW:-aucune adresse}) : le site marchera sans « www ». Ajoutez A  www → $MYIP  puis relancez ce script."; fi
+if [ "$SUBDOM" = 1 ]; then :; elif [ "$WWW" = "$MYIP" ]; then echo "✓ www.$DOM → $MYIP"; else echo "⚠ www.$DOM ne pointe pas vers ce serveur (${WWW:-aucune adresse}) : le site marchera sans « www ». Ajoutez A  www → $MYIP  puis relancez ce script."; fi
 
 say "Outils nécessaires"
 apt-get install -y -qq rsync curl xz-utils >/dev/null
