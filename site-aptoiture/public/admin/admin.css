@@ -131,3 +131,5 @@ body[data-admin] .shot .t:focus,body[data-admin] .shot .d:focus{outline:2px soli
 .db-compose input,.db-compose textarea{background:var(--inp);color:var(--text);border:1px solid var(--inp-b);padding:10px 12px;font:inherit;font-size:.95rem;text-transform:none;letter-spacing:0;width:100%;box-sizing:border-box;resize:vertical}
 .db-compose input:focus,.db-compose textarea:focus{outline:2px solid var(--red2);border-color:transparent}
 .db-note-s{font-size:.82rem;color:var(--muted)}
+.db-check{display:flex!important;flex-direction:row!important;align-items:center;gap:10px;text-transform:none!important;letter-spacing:0!important;font-size:.95rem!important;color:var(--text)!important;cursor:pointer}
+.db-check input{width:18px;height:18px;accent-color:var(--red)}

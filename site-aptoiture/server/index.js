@@ -9,6 +9,7 @@ const settings = require('./settings');
 const stats = require('./stats');
 const publicApi = require('./api-public');
 const adminApi = require('./api-admin');
+const reminders = require('./reminders');
 const auth = require('./auth');
 const { process: processPage, sanitize, faqJsonLd } = require('./render');
 
@@ -205,6 +206,7 @@ app.use((err, req, res, next) => {
   res.status(err.status || 500).type('text').send('Erreur');
 });
 
+reminders.start();
 app.listen(PORT, process.env.HOST || undefined, () => {   // HOST=127.0.0.1 : accessible uniquement via le serveur web (Caddy)
   console.log(`Site P.A Couverture : http://localhost:${PORT}`);
   if (!auth.admin()) console.log('Aucun compte admin : lancez « npm run set-admin ».');

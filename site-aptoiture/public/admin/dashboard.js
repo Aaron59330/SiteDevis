@@ -131,6 +131,7 @@
             el('div', {}, el('dt', {}, 'E-mail'), el('dd', {}, el('a', { href: 'mailto:' + a.email }, a.email))),
             el('div', {}, el('dt', {}, 'Adresse'), el('dd', {}, a.adresse || '—'))),
           a.note ? el('p', { class: 'db-text' }, a.note) : '',
+          a.status === 'confirme' && a.reminderSent && a.reminderSent !== 'confirmation' ? el('p', { class: 'db-note-s' }, '🔔 Rappel envoyé au client le ' + frDateTime(a.reminderSent)) : a.status === 'confirme' && a.date >= today ? el('p', { class: 'db-note-s' }, '🔔 Rappel automatique la veille' + (info.mail ? '' : ' (e-mails non configurés)')) : '',
           replyBox(a, `/api/admin/rdv/${a.id}/reply`, 'Votre rendez-vous – P.A Couverture'),
           el('div', { class: 'db-actions' },
             a.status === 'en_attente' ? [el('button', { class: 'pri', onclick: act('confirme') }, 'Confirmer'), el('button', { onclick: act('refuse', 'Refuser ce créneau ? Le client sera prévenu par e-mail.') }, 'Refuser')] : '',
@@ -293,10 +294,14 @@
   // ---------- Réglages
   async function reglages(p) {
     const [s, i] = await Promise.all([api('/api/admin/settings'), api('/api/admin/info')]);
-    const f = el('form', { class: 'db-form', onsubmit: wrap(async e => { e.preventDefault(); await api('/api/admin/settings', { method: 'PUT', json: { notifyEmail: f.mail.value, siteUrl: f.url.value } }); msg('Réglages enregistrés'); render(); }) },
+    const f = el('form', { class: 'db-form', onsubmit: wrap(async e => { e.preventDefault(); await api('/api/admin/settings', { method: 'PUT', json: { notifyEmail: f.mail.value, siteUrl: f.url.value, reminders: { enabled: f.rem.checked, hour: f.remh.value, dailySummary: f.sum.checked } } }); msg('Réglages enregistrés'); render(); }) },
       el('h2', { class: 'db-h' }, 'Réglages'),
       el('label', {}, 'Adresse e-mail qui reçoit les notifications', el('input', { type: 'email', name: 'mail', value: s.notifyEmail, required: true })),
       el('label', {}, 'Adresse officielle du site (pour le QR code)', el('input', { type: 'url', name: 'url', value: s.siteUrl, placeholder: 'https://www.mon-site.fr' })),
+      el('h2', { class: 'db-h' }, 'Rappels de rendez-vous'),
+      el('label', { class: 'db-check' }, el('input', { type: 'checkbox', name: 'rem', checked: s.reminders.enabled }), ' Envoyer un rappel au client la veille de chaque rendez-vous confirmé (avec le fichier agenda)'),
+      el('label', { class: 'db-check' }, el('input', { type: 'checkbox', name: 'sum', checked: s.reminders.dailySummary }), ' M\'envoyer chaque veille la liste de mes rendez-vous du lendemain'),
+      el('label', {}, 'Heure d\'envoi des rappels (la veille)', el('select', { name: 'remh' }, ...Array.from({ length: 14 }, (_, i) => i + 7).map(h => el('option', { value: h, selected: h === s.reminders.hour }, h + ' h')))),
       el('button', { class: 'pri', type: 'submit' }, 'Enregistrer'));
     p.append(f, el('div', { class: 'db-form' }, el('h2', { class: 'db-h' }, 'Envoi d\'e-mails'),
       i.mail ? [el('p', {}, el('span', { class: 'badge ok' }, 'Configuré'), ' Vous recevez un e-mail à chaque demande et rendez-vous, vos clients reçoivent leurs confirmations et vos réponses.'),

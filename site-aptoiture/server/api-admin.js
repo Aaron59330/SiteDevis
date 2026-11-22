@@ -81,13 +81,14 @@ router.post('/rdv/:id/status', async (req, res) => {
   const s = settings.get();
   const when = `${frDate(a.date)} à ${a.time}`;
   const M = {
-    confirme: { subject: 'Rendez-vous confirmé', eyebrow: 'Rendez-vous confirmé', title: `C'est confirmé, ${a.nom} !`, intro: `Nous avons le plaisir de vous confirmer votre rendez-vous.`, note: `En cas d'empêchement, merci de nous prévenir au ${mailer.PHONE} ou en répondant à cet e-mail.` },
+    confirme: { subject: 'Rendez-vous confirmé', eyebrow: 'Rendez-vous confirmé', title: `C'est confirmé, ${a.nom} !`, intro: `Nous avons le plaisir de vous confirmer votre rendez-vous. Vous recevrez un rappel la veille.`, note: `Le fichier joint ajoute le rendez-vous à votre agenda. En cas d'empêchement, merci de nous prévenir au ${mailer.PHONE} ou en répondant à cet e-mail.` },
     refuse: { subject: 'Votre demande de rendez-vous', eyebrow: 'Créneau indisponible', title: `Bonjour ${a.nom}`, intro: `Nous ne pouvons malheureusement pas honorer ce créneau. Choisissez-en un autre sur notre site, ou appelez-nous au ${mailer.PHONE} : nous trouverons un moment qui vous convient.` },
     en_attente: { subject: 'Votre rendez-vous', eyebrow: 'Rendez-vous en attente', title: `Bonjour ${a.nom}`, intro: 'Votre demande de rendez-vous est de nouveau en attente de confirmation. Nous revenons vers vous rapidement.' },
     annule: { subject: 'Rendez-vous annulé', eyebrow: 'Rendez-vous annulé', title: `Bonjour ${a.nom}`, intro: `Votre rendez-vous est annulé. Pour en fixer un nouveau, appelez-nous au ${mailer.PHONE} ou réservez un autre créneau sur notre site.` },
   }[st];
   let mailed = false;
-  if (M && a.email) mailed = (await mailer.send({ to: a.email, replyTo: s.notifyEmail, subject: M.subject + ' – P.A Couverture',
+  if (st === 'confirme') delete a.reminderSent, writeJSON('appointments.json', list);
+  if (M && a.email) mailed = (await mailer.send({ to: a.email, replyTo: s.notifyEmail, subject: M.subject + ' – P.A Couverture', attachments: st === 'confirme' ? [require('./reminders').icsAttachment(a)] : [],
     mail: { ...M, rows: [['Statut', { confirme: 'Confirmé', refuse: 'Créneau indisponible', annule: 'Annulé', en_attente: 'En attente de confirmation' }[st]], ['Date', when], ['Type', a.kind], ['Adresse', a.adresse]], button: ['confirme', 'en_attente'].includes(st) ? null : { label: 'Choisir un autre créneau', url: siteBase(req, s) + '/rendez-vous.html' } } })).sent;
   return res.json({ ok: true, mailed });
   res.json({ ok: true });
