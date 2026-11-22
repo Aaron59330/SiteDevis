@@ -110,7 +110,12 @@ body[data-admin] .shot .t:focus,body[data-admin] .shot .d:focus{outline:2px soli
 .adm-ph-add{width:64px;height:48px;border:1px dashed #666;background:transparent;color:var(--muted);font-size:1.3rem;cursor:pointer}
 .adm-ph-add:hover{border-color:var(--red);color:#fff}
 .adm-shot figcaption .c{color:var(--red2);font-family:var(--f1);font-size:.8rem;letter-spacing:.1em;text-transform:uppercase;display:block}
-.adm-shot figcaption [contenteditable]{outline:1px dashed transparent;outline-offset:3px;min-height:1.2em}
-.adm-shot figcaption [contenteditable]:hover,.adm-shot figcaption [contenteditable]:focus{outline-color:var(--red)}
+.adm-shot figcaption [contenteditable]{outline:1px dashed rgba(91,146,220,.45);outline-offset:3px;min-height:1.4em;cursor:text;overflow-wrap:anywhere;word-break:break-word;white-space:pre-wrap}
+.adm-shot figcaption [contenteditable]:hover{outline-color:#5b92dc;background:rgba(56,109,185,.08)}
+.adm-shot figcaption [contenteditable]:focus{outline:2px solid #5b92dc;background:rgba(56,109,185,.12)}
 .adm-shot figcaption [contenteditable]:empty::before{content:attr(data-ph);color:#777;font-style:italic;text-transform:none;letter-spacing:0}
 .adm-shot .t:empty,.adm-shot .d:empty,.adm-shot .c:empty{display:block!important}
+
+/* la carte garde la largeur de sa colonne, même avec un texte très long */
+.gallery>.shot{min-width:0}
+.adm-shot figcaption{min-width:0;gap:10px}

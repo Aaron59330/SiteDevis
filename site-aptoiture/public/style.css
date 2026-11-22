@@ -508,3 +508,5 @@ body.pj-open{overflow:hidden}
   .pj-cta{margin-top:8px;width:100%}
 }
 /* mode clair : la fenêtre reste sombre comme une visionneuse photo, les cartes gardent leur dégradé */
+.gallery>.shot{min-width:0}
+.shot .t,.shot .c,.shot .d,.pj-title,.pj-desc p{overflow-wrap:anywhere}
