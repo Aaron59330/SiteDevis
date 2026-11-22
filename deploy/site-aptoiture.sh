@@ -34,7 +34,11 @@ ipof() { getent ahostsv4 "$1" | awk 'NR==1{print $1}' || true; }
 APEX="$(ipof "$DOM")"; WWW="$(ipof "www.$DOM")"
 if [ "$APEX" != "$MYIP" ]; then
   echo "✗ $DOM ne pointe pas encore vers ce serveur ($MYIP) : ${APEX:-aucune adresse}."
-  echo "  Chez le fournisseur du domaine → zone DNS : enregistrement A, sous-domaine vide (@), valeur $MYIP"
+  if [ "$(echo "$DOM" | tr -cd . | wc -c)" -ge 2 ]; then
+    echo "  Zone DNS du domaine ${DOM#*.} : enregistrement A, sous-domaine « ${DOM%%.*} », valeur $MYIP"
+  else
+    echo "  Chez le fournisseur du domaine → zone DNS : enregistrement A, sous-domaine vide (@), valeur $MYIP"
+  fi
   echo "  (supprimez l'ancien A ou CNAME de @ s'il y en a un). Attendez 10 à 30 minutes puis relancez ce script."
   exit 1
 fi
