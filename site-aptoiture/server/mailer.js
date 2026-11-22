@@ -18,7 +18,13 @@ function transport() {
 }
 const configured = () => Boolean(transport());
 const oneLine = s => String(s || '').replace(/[\r\n]+/g, ' ').slice(0, 200);
-const from = () => process.env.MAIL_FROM || (process.env.SMTP_USER ? `"P.A Couverture" <${process.env.SMTP_USER}>` : 'P.A Couverture <no-reply@localhost>');
+/* Expéditeur : toujours le compte qui envoie réellement (sinon Gmail/Outlook y voient une usurpation → spam) */
+function from() {
+  const user = process.env.SMTP_USER || '', mf = process.env.MAIL_FROM || '';
+  const addr = (/<([^>]+)>/.exec(mf) || [null, mf])[1].trim();
+  if (mf && (!user || addr.toLowerCase() === user.toLowerCase())) return mf;
+  return user ? `"P.A Couverture" <${user}>` : 'P.A Couverture <no-reply@localhost>';
+}
 
 const LOGO = path.join(__dirname, '..', 'public', 'images', 'mascotte.png');
 const BLUE = '#386db9', DARK = '#16191f', INK = '#1d2633', MUTED = '#5d6878', LINE = '#e3e8ef';
@@ -33,7 +39,6 @@ function layout(o) {
   const rows = (o.rows || []).filter(r => r && r[1]).map(([k, v], i) => `<tr><td style="padding:11px 14px;font-size:13px;color:${MUTED};width:38%;vertical-align:top;${i ? `border-top:1px solid ${LINE};` : ''}">${h(k)}</td><td style="padding:11px 14px;font-size:14px;color:${INK};font-weight:600;vertical-align:top;${i ? `border-top:1px solid ${LINE};` : ''}">${String(v).startsWith('<') ? v : h(v)}</td></tr>`).join('');
   return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>${h(o.title)}</title></head>
 <body style="margin:0;padding:0;background:#eef1f5;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
-<span style="display:none;max-height:0;overflow:hidden;opacity:0">${h(o.preheader || o.title)}</span>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef1f5"><tr><td align="center" style="padding:28px 12px">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border:1px solid ${LINE}">
   <tr><td style="background:${DARK};padding:22px 28px;border-bottom:4px solid ${BLUE}">
@@ -79,11 +84,15 @@ async function send({ to, subject, text, html, replyTo, attachments, mail }) {
   const att = (attachments || []).slice();
   if (mail) { html = layout(mail); text = plain(mail); att.push({ filename: 'logo.png', path: LOGO, cid: 'logo@pa' }); }
   try {
-    await t.sendMail({ from: from(), to, subject: oneLine(subject), text, html, replyTo: replyTo ? oneLine(replyTo) : undefined, attachments: att });
+    await t.sendMail({
+      from: from(), to, subject: oneLine(subject), text, html, replyTo: replyTo ? oneLine(replyTo) : undefined, attachments: att,
+      headers: { 'X-Mailer': 'P.A Couverture', 'Content-Language': 'fr' },
+    });
     return { sent: true };
   } catch (e) {
     console.error('E-mail non envoyé :', e.message);
     return { sent: false, error: e.message };
   }
 }
-module.exports = { send, configured, layout, plain, PHONE };
+const sender = () => process.env.SMTP_USER || '';
+module.exports = { send, configured, layout, plain, PHONE, sender };

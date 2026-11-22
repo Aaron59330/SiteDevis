@@ -93,7 +93,7 @@ router.post('/devis', limiter('devis', 6, 3600e3), photos, async (req, res) => {
         : "Nous avons bien reçu votre demande de devis. Pour vous proposer un prix juste, nous préférons venir voir votre toiture sur place : nous vous contactons rapidement pour convenir d'une visite.",
       rows: contact ? [] : [['Travaux', r.travaux], ['Commune', r.commune], ['Photos envoyées', r.photos.length ? String(r.photos.length) : '']],
       quote: { label: 'Votre message', text: r.message },
-      note: `Une question en attendant ? Appelez-nous au ${mailer.PHONE} ou répondez simplement à cet e-mail.`,
+      note: `Pour être sûr de recevoir nos réponses, ajoutez ${mailer.sender() || 'notre adresse'} à vos contacts. Une question en attendant ? Appelez-nous au ${mailer.PHONE} ou répondez simplement à cet e-mail.`,
     },
   });
   res.json({ ok: true });
@@ -142,7 +142,7 @@ router.post('/rdv', limiter('rdv', 6, 3600e3), async (req, res) => {
       eyebrow: 'Rendez-vous demandé', title: `Merci ${a.nom}, votre demande de rendez-vous est enregistrée`,
       intro: `Nous vous confirmerons ce rendez-vous par e-mail au plus tard ${s.booking.confirmDaysBefore} jours avant la date prévue.`,
       rows: [['Date souhaitée', `${frDate(a.date)} à ${a.time}`], ['Type', a.kind], ['Adresse', a.adresse]],
-      note: `Un empêchement ou une question ? Appelez-nous au ${mailer.PHONE} ou répondez à cet e-mail.`,
+      note: `Pour être sûr de recevoir la confirmation, ajoutez ${mailer.sender() || 'notre adresse'} à vos contacts. Un empêchement ou une question ? Appelez-nous au ${mailer.PHONE} ou répondez à cet e-mail.`,
     },
   });
   res.json({ ok: true, confirmDaysBefore: s.booking.confirmDaysBefore });
