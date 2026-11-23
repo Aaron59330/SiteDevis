@@ -31,7 +31,41 @@ const icsAttachment = a => ({ filename: 'rendez-vous-pa-couverture.ics', content
 
 let running = false;
 async function run() {
-  if (running || !mailer.configured()) return;
+  if (!mailer.configured()) return;
+  await runEvents();
+  await runClients();
+}
+/* rappels de l'agenda personnel (envoyés à l'artisan) */
+let evRunning = false;
+async function runEvents() {
+  if (evRunning) return; evRunning = true;
+  try {
+    const { list, dueReminders, save } = require('./events');
+    const s = settings.get(), evs = list();
+    const due = dueReminders(evs, Date.now(), parisToday(), parisHour());
+    const byEvent = new Map(); due.forEach(d => byEvent.set(d.event.id, (byEvent.get(d.event.id) || []).concat(d)));
+    const done = new Map();
+    for (const [, items] of byEvent) {
+      const e = items[0].event, d = items.find(x => x.kind === 'avant') || items[0];     // un seul e-mail par événement
+      const when = e.allDay ? 'toute la journée' : `à ${fmtTime(e.start)}${e.end ? ' – ' + fmtTime(e.end) : ''}`;
+      const res = await mailer.send({
+        to: s.notifyEmail, subject: `Rappel : ${e.title} — ${d.text} (${frDate(e.date)}${e.allDay ? '' : ' à ' + fmtTime(e.start)})`,
+        mail: {
+          eyebrow: 'Rappel de votre agenda', title: `${e.title} — ${d.text}`, footnote: 'Rappel automatique de votre agenda (tableau de bord du site).',
+          intro: `Vous avez noté ce rendez-vous dans votre agenda.`,
+          rows: [['Date', frDate(e.date)], ['Heure', when], ['Lieu', e.location]],
+          quote: { label: 'Notes', text: e.note },
+          button: s.siteUrl ? { label: 'Ouvrir mon agenda', url: s.siteUrl + '/admin/tableau-de-bord#agenda' } : null,
+        },
+      });
+      if (res.sent) done.set(e.id, items.map(x => x.key).concat(e.remindBefore.filter(m => Date.now() >= require('./events').parisToUtc(e.date, e.allDay ? '08:00' : e.start) - m * 60e3).map(m => 'b' + m)));
+    }
+    if (done.size) save(list().map(e => (done.has(e.id) ? { ...e, sent: [...new Set(e.sent.concat(done.get(e.id)))] } : e)));
+  } catch (e) { console.error('Rappels agenda :', e.message); }
+  finally { evRunning = false; }
+}
+async function runClients() {
+  if (running) return;
   const s = settings.get(), r = s.reminders;
   if (!r.enabled || parisHour() < r.hour) return;
   running = true;
@@ -57,14 +91,19 @@ async function run() {
     // l'artisan reçoit le programme du lendemain (une fois par jour)
     const tomorrowAll = list.filter(a => a.status === 'confirme' && a.date === tomorrow).sort((x, y) => x.time.localeCompare(y.time));
     const meta = readJSON('reminders.json', {});
-    if (r.dailySummary && tomorrowAll.length && meta.summaryFor !== tomorrow) {
+    const mine = require('./events').list().filter(e => e.date === tomorrow).sort((x, y) => (x.start || '').localeCompare(y.start || ''));
+    if (r.dailySummary && (tomorrowAll.length || mine.length) && meta.summaryFor !== tomorrow) {
+      const rows = tomorrowAll.map(a => [fmtTime(a.time), `${a.nom} — ${a.adresse || 'adresse non précisée'} — ${a.tel}`])
+        .concat(mine.map(e => [e.allDay ? 'Journée' : fmtTime(e.start), `${e.title}${e.location ? ' — ' + e.location : ''} (agenda perso)`]))
+        .sort((x, y) => x[0].localeCompare(y[0], 'fr', { numeric: true }));
+      const n = rows.length;
       const res = await mailer.send({
-        to: s.notifyEmail, subject: `Vos rendez-vous de demain (${tomorrowAll.length}) – ${frDate(tomorrow)}`,
+        to: s.notifyEmail, subject: `Votre programme de demain (${n}) – ${frDate(tomorrow)}`,
         mail: {
-          eyebrow: 'Programme de demain', title: `${tomorrowAll.length} rendez-vous demain`,
-          intro: `Voici vos rendez-vous du ${frDate(tomorrow)}. Les clients ont reçu leur rappel.`,
-          rows: tomorrowAll.map(a => [fmtTime(a.time), `${a.nom} — ${a.adresse || 'adresse non précisée'} — ${a.tel}`]),
-          button: s.siteUrl ? { label: 'Ouvrir le tableau de bord', url: s.siteUrl + '/admin/tableau-de-bord#rdv' } : null,
+          eyebrow: 'Programme de demain', footnote: 'Programme automatique de votre agenda (tableau de bord du site).', title: `${n} rendez-vous demain`,
+          intro: `Voici votre programme du ${frDate(tomorrow)}.${tomorrowAll.length ? ' Les clients ont reçu leur rappel.' : ''}`,
+          rows,
+          button: s.siteUrl ? { label: 'Ouvrir mon agenda', url: s.siteUrl + '/admin/tableau-de-bord#agenda' } : null,
         },
       });
       if (res.sent) writeJSON('reminders.json', { ...meta, summaryFor: tomorrow });
@@ -78,5 +117,5 @@ function mergeReminders(done) {
   const sent = new Map(done.filter(a => a.reminderSent).map(a => [a.id, a.reminderSent]));
   return readJSON('appointments.json', []).map(a => (sent.has(a.id) && !a.reminderSent ? { ...a, reminderSent: sent.get(a.id) } : a));
 }
-function start() { setTimeout(run, 30e3); setInterval(run, 10 * 60e3).unref(); }
+function start() { setTimeout(run, 30e3); setInterval(run, 5 * 60e3).unref(); }
 module.exports = { start, run, icsAttachment };

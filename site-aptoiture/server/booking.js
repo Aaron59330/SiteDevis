@@ -14,14 +14,15 @@ function timesFor(date, b) {
   return out;
 }
 // appts : liste des rendez-vous (les « en_attente » et « confirme » bloquent le créneau)
-function availability(settings, appts) {
+function availability(settings, appts, events = []) {
+  const { blocks } = require('./events');
   const b = settings.booking;
   if (!b.enabled) return [];
   const taken = new Set(appts.filter(a => a.status === 'en_attente' || a.status === 'confirme').map(a => a.date + ' ' + a.time));
   const today = parisToday(), days = [];
   for (let i = b.minNoticeDays; i <= b.maxDaysAhead; i++) {
     const date = addDays(today, i);
-    const times = timesFor(date, b).filter(t => !taken.has(date + ' ' + t));
+    const times = timesFor(date, b).filter(t => !taken.has(date + ' ' + t) && !blocks(events, date, t, b.slotMinutes));
     if (times.length) days.push({ date, times });
   }
   return days;

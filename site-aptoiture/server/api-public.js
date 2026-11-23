@@ -102,7 +102,7 @@ router.post('/devis', limiter('devis', 6, 3600e3), photos, async (req, res) => {
 // ---------- rendez-vous
 router.get('/slots', (req, res) => {
   const s = settings.get();
-  res.json({ enabled: s.booking.enabled, confirmDaysBefore: s.booking.confirmDaysBefore, kinds: KINDS, days: availability(s, readJSON('appointments.json', [])) });
+  res.json({ enabled: s.booking.enabled, confirmDaysBefore: s.booking.confirmDaysBefore, kinds: KINDS, days: availability(s, readJSON('appointments.json', []), readJSON('events.json', [])) });
 });
 router.post('/rdv', limiter('rdv', 6, 3600e3), async (req, res) => {
   const b = req.body || {};
@@ -120,7 +120,7 @@ router.post('/rdv', limiter('rdv', 6, 3600e3), async (req, res) => {
   if (!okEmail(a.email)) return res.status(400).json({ error: 'Indiquez une adresse e-mail valide.' });
   if (!yes(b.consent)) return res.status(400).json({ error: 'Merci de cocher la case d\'acceptation.' });
   const list = readJSON('appointments.json', []);
-  const day = availability(s, list).find(d => d.date === a.date);
+  const day = availability(s, list, readJSON('events.json', [])).find(d => d.date === a.date);
   if (!day || !day.times.includes(a.time)) return res.status(409).json({ error: 'Ce créneau n\'est plus disponible. Choisissez-en un autre.' });
   list.unshift(a);
   writeJSON('appointments.json', list);

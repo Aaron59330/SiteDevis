@@ -130,6 +130,21 @@ router.post('/test-mail', async (req, res) => {
   res.json({ ok: true, to: s.notifyEmail });
 });
 
+// ---------- agenda personnel (rendez-vous posés par l'artisan)
+const events = require('./events');
+router.get('/events', (req, res) => res.json({ events: events.list(), appointments: readJSON('appointments.json', []).filter(a => a.status !== 'refuse' && a.status !== 'annule'), before: events.BEFORE }));
+router.post('/events', (req, res) => {
+  try { const e = events.clean(req.body || {}); const l = events.list(); l.push(e); events.save(l); res.json({ ok: true, event: e }); }
+  catch (err) { res.status(400).json({ error: err.message }); }
+});
+router.put('/events/:id', (req, res) => {
+  const l = events.list(), i = l.findIndex(x => x.id === req.params.id);
+  if (i < 0) return res.status(404).json({ error: 'Introuvable' });
+  try { l[i] = events.clean(req.body || {}, l[i]); events.save(l); res.json({ ok: true, event: l[i] }); }
+  catch (err) { res.status(400).json({ error: err.message }); }
+});
+router.delete('/events/:id', (req, res) => { events.save(events.list().filter(x => x.id !== req.params.id)); res.json({ ok: true }); });
+
 // ---------- réglages (annonce, horaires, avis Google, adresse du site)
 router.get('/settings', (req, res) => res.json(settings.get()));
 router.put('/settings', (req, res) => res.json(settings.save(req.body || {})));

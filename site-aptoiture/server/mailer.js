@@ -62,7 +62,7 @@ function layout(o) {
     <a href="tel:${PHONE_TEL}" style="color:${BLUE};text-decoration:none;font-weight:600">${PHONE}</a>
   </td></tr>
 </table>
-<p style="margin:14px 0 0;font-size:11px;color:#98a1ae">Cet e-mail fait suite à une demande sur notre site.</p>
+<p style="margin:14px 0 0;font-size:11px;color:#98a1ae">${h(o.footnote || 'Cet e-mail fait suite à une demande sur notre site.')}</p>
 </td></tr></table></body></html>`;
 }
 /* version texte du même contenu (lue par les messageries qui n'affichent pas le HTML) */

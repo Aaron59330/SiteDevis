@@ -28,7 +28,7 @@
   const todayStr = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris' }).format(new Date());
   const daysBetween = (a, b) => Math.round((new Date(b + 'T12:00:00Z') - new Date(a + 'T12:00:00Z')) / 864e5);
 
-  const TABS = [['demandes', 'Demandes de devis'], ['rdv', 'Rendez-vous'], ['avis', 'Avis'], ['annonce', 'Annonce'], ['horaires', 'Horaires'], ['documents', 'Documents'], ['stats', 'Statistiques'], ['qr', 'QR code'], ['reglages', 'Réglages']];
+  const TABS = [['demandes', 'Demandes de devis'], ['rdv', 'Rendez-vous'], ['agenda', 'Agenda'], ['avis', 'Avis'], ['annonce', 'Annonce'], ['horaires', 'Horaires'], ['documents', 'Documents'], ['stats', 'Statistiques'], ['qr', 'QR code'], ['reglages', 'Réglages']];
   let current = 'demandes', info = {};
 
   /* ---------- Répondre au client par e-mail (historique des réponses + formulaire) */
@@ -64,6 +64,79 @@
     };
     close();
     return wrapEl;
+  }
+
+  // ---------- Agenda : calendrier du mois, rendez-vous clients + rendez-vous personnels
+  const AG = { month: null, form: null };
+  const MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+  const BEF = [[10, '10 min avant'], [30, '30 min avant'], [60, '1 h avant'], [120, '2 h avant'], [180, '3 h avant'], [1440, '1 jour avant'], [2880, '2 jours avant'], [10080, '1 semaine avant']];
+  const COLS = [['blue', 'Bleu'], ['green', 'Vert'], ['orange', 'Orange'], ['red', 'Rouge'], ['purple', 'Violet'], ['grey', 'Gris']];
+  const iso = (y, m, d) => `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  async function agenda(p) {
+    const { events, appointments } = await api('/api/admin/events');
+    const today = todayStr();
+    if (!AG.month) { const [y, m] = today.split('-').map(Number); AG.month = [y, m - 1]; }
+    const [Y, M] = AG.month;
+    const go = d => () => { let [y, m] = AG.month; m += d; if (m < 0) { m = 11; y--; } if (m > 11) { m = 0; y++; } AG.month = [y, m]; render(); };
+    const openForm = ev => { AG.form = ev; render(); setTimeout(() => { const f = document.querySelector('.ag-form'); if (f) { f.scrollIntoView({ behavior: 'smooth', block: 'start' }); f.elements.title.focus(); } }, 50); };
+    p.append(el('div', { class: 'ag-top' },
+      el('div', { class: 'ag-nav' }, el('button', { type: 'button', onclick: go(-1), 'aria-label': 'Mois précédent' }, '‹'), el('h2', {}, `${MONTHS[M]} ${Y}`), el('button', { type: 'button', onclick: go(1), 'aria-label': 'Mois suivant' }, '›'),
+        el('button', { type: 'button', class: 'ag-today', onclick: () => { AG.month = null; render(); } }, "Aujourd'hui")),
+      el('button', { type: 'button', class: 'pri ag-add', onclick: () => openForm({ date: today >= iso(Y, M, 1) && today <= iso(Y, M, 31) ? today : iso(Y, M, 1) }) }, '＋ Nouveau rendez-vous')));
+    p.append(el('div', { class: 'ag-legend' }, el('span', { class: 'ag-chip c-client' }, 'Client confirmé'), el('span', { class: 'ag-chip c-wait' }, 'Client à confirmer'), el('span', { class: 'ag-chip c-blue' }, 'Mon agenda'), el('span', { class: 'ag-blk-l' }, 'Réservation en ligne bloquée')));
+    if (AG.form) p.append(eventForm(AG.form));
+    // grille du mois (semaines du lundi au dimanche)
+    const first = new Date(Date.UTC(Y, M, 1)), offset = (first.getUTCDay() + 6) % 7, days = new Date(Date.UTC(Y, M + 1, 0)).getUTCDate();
+    const grid = el('div', { class: 'ag-grid' }, ...['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map(d => el('div', { class: 'ag-dow' }, d)));
+    for (let i = 0; i < offset; i++) grid.append(el('div', { class: 'ag-cell out' }));
+    for (let d = 1; d <= days; d++) {
+      const date = iso(Y, M, d);
+      const evs = events.filter(e => e.date === date), aps = appointments.filter(a => a.date === date);
+      const blocked = evs.some(e => e.block !== 'none');
+      const items = aps.map(a => ({ t: a.time, node: el('button', { type: 'button', class: 'ag-chip ' + (a.status === 'confirme' ? 'c-client' : 'c-wait'), title: `${a.nom} — ${a.kind}`, onclick: ev => { ev.stopPropagation(); current = 'rdv'; location.hash = 'rdv'; render(); } }, el('b', {}, a.time), ' ', a.nom) }))
+        .concat(evs.map(e => ({ t: e.allDay ? '00:00' : e.start, node: el('button', { type: 'button', class: 'ag-chip c-' + e.color, title: e.title + (e.location ? ' — ' + e.location : ''), onclick: ev => { ev.stopPropagation(); openForm(e); } }, el('b', {}, e.allDay ? 'Journée' : e.start), ' ', e.title, (e.remindBefore.length || e.remindDaily) ? ' 🔔' : '') })))
+        .sort((x, y) => x.t.localeCompare(y.t)).map(x => x.node);
+      grid.append(el('div', { class: 'ag-cell' + (date === today ? ' today' : '') + (date < today ? ' past' : '') + (blocked ? ' blocked' : ''), title: 'Cliquer pour ajouter un rendez-vous le ' + frDate(date, true), onclick: () => openForm({ date }) },
+        el('span', { class: 'ag-num' }, d), ...items));
+    }
+    p.append(grid);
+    // liste des prochains rendez-vous (pratique sur téléphone)
+    const next = events.filter(e => e.date >= today).map(e => ({ date: e.date, t: e.allDay ? '' : e.start, txt: e.title + (e.location ? ' — ' + e.location : ''), e }))
+      .concat(appointments.filter(a => a.date >= today).map(a => ({ date: a.date, t: a.time, txt: `${a.nom} — ${a.kind}${a.status === 'confirme' ? '' : ' (à confirmer)'}` })))
+      .sort((x, y) => (x.date + x.t).localeCompare(y.date + y.t)).slice(0, 15);
+    p.append(el('h2', { class: 'db-h' }, 'Prochains rendez-vous'), next.length ? el('div', { class: 'ag-list' }, ...next.map(x => el('button', { type: 'button', class: 'ag-li' + (x.e ? ' mine c-' + x.e.color : ''), onclick: () => x.e ? openForm(x.e) : (current = 'rdv', location.hash = 'rdv', render()) },
+      el('span', { class: 'ag-li-d' }, frDate(x.date, true), x.t ? ' · ' + x.t : ' · journée'), el('span', {}, x.txt, x.e && (x.e.remindBefore.length || x.e.remindDaily) ? ' 🔔' : '')))) : el('p', { class: 'db-empty' }, 'Aucun rendez-vous à venir.'));
+  }
+  function eventForm(e) {
+    const isNew = !e.id, rb = new Set(e.remindBefore || (isNew ? [1440] : []));
+    const f = el('form', { class: 'db-form ag-form', onsubmit: wrap(async ev => {
+      ev.preventDefault();
+      const body = { title: f.elements.title.value, date: f.elements.date.value, allDay: f.elements.allDay.checked, start: f.elements.start.value, end: f.elements.end.value, location: f.elements.location.value, note: f.elements.note.value, color: f.elements.color.value, block: f.elements.block.value,
+        remindBefore: [...f.querySelectorAll('[name=rb]:checked')].map(x => +x.value), remindDaily: +f.elements.daily.value };
+      await api('/api/admin/events' + (isNew ? '' : '/' + e.id), { method: isNew ? 'POST' : 'PUT', json: body });
+      msg(isNew ? 'Rendez-vous ajouté à votre agenda' : 'Rendez-vous modifié'); AG.form = null; const [y, m] = body.date.split('-').map(Number); AG.month = [y, m - 1]; render();
+    }) },
+      el('h2', { class: 'db-h' }, isNew ? 'Nouveau rendez-vous' : 'Modifier le rendez-vous'),
+      el('label', {}, 'Titre', el('input', { name: 'title', required: true, maxlength: 120, value: e.title || '', placeholder: 'Ex. Chantier toiture M. Martin, fournisseur, rendez-vous banque…' })),
+      el('div', { class: 'ag-row' },
+        el('label', {}, 'Date', el('input', { type: 'date', name: 'date', required: true, value: e.date || '' })),
+        el('label', {}, 'Début', el('input', { type: 'time', name: 'start', value: e.start || '09:00' })),
+        el('label', {}, 'Fin (facultatif)', el('input', { type: 'time', name: 'end', value: e.end || '' }))),
+      el('label', { class: 'db-check' }, el('input', { type: 'checkbox', name: 'allDay', checked: !!e.allDay, onchange: ev => { f.elements.start.disabled = f.elements.end.disabled = ev.target.checked; } }), ' Toute la journée'),
+      el('label', {}, 'Lieu (facultatif)', el('input', { name: 'location', maxlength: 160, value: e.location || '' })),
+      el('label', {}, 'Notes (facultatif)', el('textarea', { name: 'note', rows: 3, maxlength: 1500 }, e.note || '')),
+      el('div', { class: 'ag-row' },
+        el('label', {}, 'Réservation en ligne des clients', el('select', { name: 'block' }, ...[['day', 'Bloquée toute la journée'], ['hours', 'Bloquée seulement pendant ces heures'], ['none', 'Ne pas bloquer']].map(([v, l]) => el('option', { value: v, selected: (e.block || 'day') === v }, l)))),
+        el('label', {}, 'Couleur', el('select', { name: 'color' }, ...COLS.map(([v, l]) => el('option', { value: v, selected: (e.color || 'blue') === v }, l))))),
+      el('fieldset', { class: 'ag-rem' }, el('legend', {}, '🔔 Me rappeler par e-mail'),
+        el('div', { class: 'ag-rem-b' }, ...BEF.map(([m, l]) => el('label', { class: 'db-check' }, el('input', { type: 'checkbox', name: 'rb', value: m, checked: rb.has(m) }), ' ', l))),
+        el('label', {}, 'Rappel chaque jour (le matin)', el('select', { name: 'daily' }, ...[[0, 'Non'], [2, 'À partir de 2 jours avant'], [3, 'À partir de 3 jours avant'], [5, 'À partir de 5 jours avant'], [7, 'À partir de 7 jours avant'], [14, 'À partir de 14 jours avant'], [30, 'À partir de 30 jours avant']].map(([v, l]) => el('option', { value: v, selected: (e.remindDaily || 0) === v }, l)))),
+        info.mail ? '' : el('p', { class: 'db-note-s' }, 'Les e-mails ne sont pas encore configurés (onglet Réglages) : les rappels partiront dès qu\'ils le seront.')),
+      el('div', { class: 'db-actions' }, el('button', { class: 'pri', type: 'submit' }, isNew ? 'Ajouter à mon agenda' : 'Enregistrer'),
+        el('button', { type: 'button', onclick: () => { AG.form = null; render(); } }, 'Annuler'),
+        isNew ? '' : el('button', { type: 'button', class: 'danger', onclick: wrap(async () => { if (!confirm('Supprimer ce rendez-vous de votre agenda ?')) return; await api('/api/admin/events/' + e.id, { method: 'DELETE' }); AG.form = null; msg('Rendez-vous supprimé'); render(); }) }, 'Supprimer')));
+    if (e.allDay) setTimeout(() => { f.elements.start.disabled = f.elements.end.disabled = true; });
+    return f;
   }
 
   // ---------- Demandes
@@ -310,7 +383,7 @@
   }
 
   // ---------- navigation
-  const VIEWS = { demandes, rdv, avis, annonce, horaires, documents, stats: statistiques, qr, reglages };
+  const VIEWS = { demandes, rdv, agenda, avis, annonce, horaires, documents, stats: statistiques, qr, reglages };
   async function render() {
     const panel = $('panel'); panel.innerHTML = '';
     try { info = await api('/api/admin/info'); await VIEWS[current](panel); } catch (e) { msg(e.message, true); }
