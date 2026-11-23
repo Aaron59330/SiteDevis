@@ -367,7 +367,7 @@
   // ---------- Réglages
   async function reglages(p) {
     const [s, i] = await Promise.all([api('/api/admin/settings'), api('/api/admin/info')]);
-    const f = el('form', { class: 'db-form', onsubmit: wrap(async e => { e.preventDefault(); await api('/api/admin/settings', { method: 'PUT', json: { notifyEmail: f.mail.value, siteUrl: f.url.value, reminders: { enabled: f.rem.checked, hour: f.remh.value, dailySummary: f.sum.checked } } }); msg('Réglages enregistrés'); render(); }) },
+    const f = el('form', { class: 'db-form', onsubmit: wrap(async e => { e.preventDefault(); await api('/api/admin/settings', { method: 'PUT', json: { notifyEmail: f.mail.value, siteUrl: f.url.value, reminders: { enabled: f.rem.checked, hour: f.remh.value, dailySummary: f.sum.checked }, sms: { agenda: f.sa.checked, daily: f.sd.checked, requests: f.sr.checked } } }); msg('Réglages enregistrés'); render(); }) },
       el('h2', { class: 'db-h' }, 'Réglages'),
       el('label', {}, 'Adresse e-mail qui reçoit les notifications', el('input', { type: 'email', name: 'mail', value: s.notifyEmail, required: true })),
       el('label', {}, 'Adresse officielle du site (pour le QR code)', el('input', { type: 'url', name: 'url', value: s.siteUrl, placeholder: 'https://www.mon-site.fr' })),
@@ -375,6 +375,13 @@
       el('label', { class: 'db-check' }, el('input', { type: 'checkbox', name: 'rem', checked: s.reminders.enabled }), ' Envoyer un rappel au client la veille de chaque rendez-vous confirmé (avec le fichier agenda)'),
       el('label', { class: 'db-check' }, el('input', { type: 'checkbox', name: 'sum', checked: s.reminders.dailySummary }), ' M\'envoyer chaque veille la liste de mes rendez-vous du lendemain'),
       el('label', {}, 'Heure d\'envoi des rappels (la veille)', el('select', { name: 'remh' }, ...Array.from({ length: 14 }, (_, i) => i + 7).map(h => el('option', { value: h, selected: h === s.reminders.hour }, h + ' h')))),
+      el('h2', { class: 'db-h' }, 'SMS sur mon téléphone'),
+      i.sms ? el('p', {}, el('span', { class: 'badge ok' }, 'Configuré'), ` Les SMS partent via ${i.smsProvider === 'free' ? 'Free Mobile (gratuit, vers votre ligne Free)' : 'Brevo'}.`, ' ',
+          el('button', { type: 'button', onclick: wrap(async e => { e.target.disabled = true; try { await api('/api/admin/test-sms', { method: 'POST' }); msg('SMS d\'essai envoyé : regardez votre téléphone'); } finally { e.target.disabled = false; } }) }, 'Envoyer un SMS d\'essai'))
+        : el('p', { class: 'db-note-s' }, el('span', { class: 'badge warn' }, 'Non configuré'), ' Pour recevoir aussi vos rappels par SMS, lancez sur le serveur :  bash deploy/aptoiture-sms.sh'),
+      el('label', { class: 'db-check' }, el('input', { type: 'checkbox', name: 'sa', checked: s.sms.agenda }), ' Rappels de mon agenda aussi par SMS'),
+      el('label', { class: 'db-check' }, el('input', { type: 'checkbox', name: 'sd', checked: s.sms.daily }), ' Programme du lendemain aussi par SMS'),
+      el('label', { class: 'db-check' }, el('input', { type: 'checkbox', name: 'sr', checked: s.sms.requests }), ' SMS à chaque nouvelle demande de devis ou de rendez-vous'),
       el('button', { class: 'pri', type: 'submit' }, 'Enregistrer'));
     p.append(f, el('div', { class: 'db-form' }, el('h2', { class: 'db-h' }, 'Envoi d\'e-mails'),
       i.mail ? [el('p', {}, el('span', { class: 'badge ok' }, 'Configuré'), ' Vous recevez un e-mail à chaque demande et rendez-vous, vos clients reçoivent leurs confirmations et vos réponses.'),

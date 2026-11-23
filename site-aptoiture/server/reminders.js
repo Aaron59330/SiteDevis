@@ -3,6 +3,8 @@
 const { readJSON, writeJSON } = require('./store');
 const settings = require('./settings');
 const mailer = require('./mailer');
+const sms = require('./sms');
+const shortDate = d => new Date(d + 'T12:00:00Z').toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: '2-digit', timeZone: 'UTC' });
 const { addDays, parisToday } = require('./booking');
 
 const frDate = d => new Date(d + 'T12:00:00Z').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
@@ -31,7 +33,7 @@ const icsAttachment = a => ({ filename: 'rendez-vous-pa-couverture.ics', content
 
 let running = false;
 async function run() {
-  if (!mailer.configured()) return;
+  if (!mailer.configured() && !sms.configured()) return;
   await runEvents();
   await runClients();
 }
@@ -58,7 +60,10 @@ async function runEvents() {
           button: s.siteUrl ? { label: 'Ouvrir mon agenda', url: s.siteUrl + '/admin/tableau-de-bord#agenda' } : null,
         },
       });
-      if (res.sent) done.set(e.id, items.map(x => x.key).concat(e.remindBefore.filter(m => Date.now() >= require('./events').parisToUtc(e.date, e.allDay ? '08:00' : e.start) - m * 60e3).map(m => 'b' + m)));
+      // et par SMS (court) si activé
+      let smsOk = false;
+      if (s.sms.agenda && sms.configured()) smsOk = (await sms.send(`Rappel : ${e.title} ${d.text} (${shortDate(e.date)}${e.allDay ? '' : ' ' + fmtTime(e.start)})${e.location ? ' - ' + e.location : ''}${e.note ? '\n' + e.note.slice(0, 120) : ''}`)).sent;
+      if (res.sent || smsOk) done.set(e.id, items.map(x => x.key).concat(e.remindBefore.filter(m => Date.now() >= require('./events').parisToUtc(e.date, e.allDay ? '08:00' : e.start) - m * 60e3).map(m => 'b' + m)));
     }
     if (done.size) save(list().map(e => (done.has(e.id) ? { ...e, sent: [...new Set(e.sent.concat(done.get(e.id)))] } : e)));
   } catch (e) { console.error('Rappels agenda :', e.message); }
@@ -106,7 +111,9 @@ async function runClients() {
           button: s.siteUrl ? { label: 'Ouvrir mon agenda', url: s.siteUrl + '/admin/tableau-de-bord#agenda' } : null,
         },
       });
-      if (res.sent) writeJSON('reminders.json', { ...meta, summaryFor: tomorrow });
+      let smsOk = false;
+      if (s.sms.daily && sms.configured()) smsOk = (await sms.send(`Demain ${shortDate(tomorrow)} : ` + rows.map(([t, v]) => `${t} ${v.split(' — ')[0]}`).join(' / '))).sent;
+      if (res.sent || smsOk) writeJSON('reminders.json', { ...meta, summaryFor: tomorrow });
     }
     if (due.length) writeJSON('appointments.json', mergeReminders(due));
   } catch (e) { console.error('Rappels :', e.message); }
