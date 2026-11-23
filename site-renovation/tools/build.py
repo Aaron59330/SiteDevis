@@ -68,7 +68,7 @@ def page(fn,title,desc,body,hero=None):
 <div><h4>Ressources</h4><a href="devis.html">Devis en ligne</a><a href="rendez-vous.html">Prendre rendez-vous</a><a href="guide-materiaux.html">Guide : matériaux de toiture</a></div>
 <div><h4>Contact</h4><a href="tel:{TELH}">{TEL}</a><a href="mailto:{MAIL}">{MAIL}</a><span>{ADDR}</span><a href="https://www.instagram.com/{INSTA}" target="_blank" rel="noopener noreferrer">Instagram : {INSTA}</a><span>Facebook : {FB}</span></div>
 </div>
-<div class="container legal"><span>© <span id="year"></span> PA Rénovation – SIRET 000 000 000 00000</span><span class="legal-links"><a href="mentions-legales.html">Mentions légales</a><a href="confidentialite.html">Confidentialité</a><a href="/admin" class="adm-link" data-noedit>Administration</a></span></div>
+<div class="container legal"><span>© <span id="year"></span> PA Rénovation – SIRET 100 148 634 00015</span><span class="legal-links"><a href="mentions-legales.html">Mentions légales</a><a href="confidentialite.html">Confidentialité</a><a href="/admin" class="adm-link" data-noedit>Administration</a></span></div>
 </footer>
 <script src="script.js"></script>
 {EXTRA_JS.get(fn,"")}
@@ -140,7 +140,7 @@ ph=lambda t:f'<figure class="shot"><div class="ph">{I["roof"].replace("width=\"2
 real=banner('Nos réalisations','Un aperçu de nos chantiers de rénovation, à l\'intérieur comme à l\'extérieur.','Réalisations')+'<section class="section"><div class="container"><div class="gallery" id="gallery"></div></div></section>'+cta
 
 # ---------- A PROPOS
-infos=[('SIRET','000 000 000 00000'),('Activité','Rénovation et bâtiment général'),('Adresse',ADDR),('Zone','Neuf-Mesnil et tout le secteur'),('Contact',TEL)]
+infos=[('SIRET','100 148 634 00015'),('Activité','Rénovation et bâtiment général'),('Adresse',ADDR),('Zone','Neuf-Mesnil et tout le secteur'),('Contact',TEL)]
 inf=''.join(f'<div class="irow"><span>{a}</span><b>{b}</b></div>' for a,b in infos)
 about=banner('À propos','Une entreprise locale de rénovation, à votre écoute.','À propos')+f'''<section class="section"><div class="container two"><div>
 <p class="eyebrow">Qui sommes-nous</p><h2>PA Rénovation, artisan du bâtiment</h2>
@@ -180,7 +180,7 @@ def doc(title, intro, blocks, crumb):
 
 mentions=doc('Mentions légales','Informations légales relatives au site et à son éditeur.',[
  ('Éditeur du site',[
-  ['Nom commercial : PA Rénovation','Forme juridique : '+TODO,'SIRET : 000 000 000 00000','Adresse : '+ADDR,'Téléphone : '+TEL,'E-mail : '+MAIL,'N° de TVA intracommunautaire : '+TODO+' (si applicable)']]),
+  ['Nom commercial : PA Rénovation','Forme juridique : '+TODO,'SIRET : 100 148 634 00015','Adresse : '+ADDR,'Téléphone : '+TEL,'E-mail : '+MAIL,'N° de TVA intracommunautaire : '+TODO+' (si applicable)']]),
  ('Directeur de la publication',['Le directeur de la publication est '+TODO+'.']),
  ('Hébergeur',['Le site est hébergé par '+TODO+' (nom, adresse et téléphone de l\'hébergeur).']),
  ('Médiation de la consommation',['Conformément à la réglementation, en cas de litige non résolu avec un client particulier, celui-ci peut recourir gratuitement à un médiateur de la consommation : '+TODO+' (nom et coordonnées du médiateur).']),
