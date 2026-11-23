@@ -2,7 +2,7 @@ import os, unicodedata
 def slugify(t): return ''.join(c for c in unicodedata.normalize('NFD',t.lower()) if unicodedata.category(c)!='Mn').replace("'",'').replace(' ','-')
 OUT=os.path.join(os.path.dirname(os.path.abspath(__file__)),'..','public')
 TEL='07 89 58 02 24'; TELH='+33789580224'; MAIL='aydenpuche@gmail.com'
-ADDR='2A rue Hector Cartigny, 59330 Neuf-Mesnil'; INSTA='pa_renovation59'; FB='PA rénovation'
+ADDR='2A rue Hector Cartigny, 59330 Neuf-Mesnil'; INSTA='pa_renovation_'; FB='PA rénovation'
 
 def ic(p,s=28): return f'<svg class="i" width="{s}" height="{s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{p}</svg>'
 I={

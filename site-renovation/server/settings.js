@@ -17,7 +17,7 @@ const DEFAULTS = {
   },
   reviews: { googleUrl: '' },
   reminders: { enabled: true, hour: 10, dailySummary: true },
-  socials: { instagram: 'https://www.instagram.com/pa_renovation59', facebook: '' },
+  socials: { instagram: 'https://www.instagram.com/pa_renovation_/', facebook: 'https://www.facebook.com/share/1FKSEeboC4/' },
   notifyEmail: 'aydenpuche@gmail.com',
   siteUrl: '',
 };

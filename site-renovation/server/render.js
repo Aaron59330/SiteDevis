@@ -98,9 +98,9 @@ const ICON = {
 };
 function socialLinks(x) {
   const so = x.socials || {};
-  const ig = so.instagram || 'https://www.instagram.com/pa_renovation59';
-  const fb = so.facebook || 'https://www.facebook.com/search/pages/?q=PA%20r%C3%A9novation';
-  const handle = (/instagram\.com\/([\w.]+)/.exec(ig) || [])[1] || 'pa_renovation59';
+  const ig = so.instagram || 'https://www.instagram.com/pa_renovation_/';
+  const fb = so.facebook || 'https://www.facebook.com/share/1FKSEeboC4/';
+  const handle = (/instagram\.com\/([\w.]+)/.exec(ig) || [])[1] || 'pa_renovation_';
   return [
     { k: 'instagram', url: ig, name: 'Instagram', sub: '@' + handle },
     { k: 'facebook', url: fb, name: 'Facebook', sub: 'PA Rénovation' },
