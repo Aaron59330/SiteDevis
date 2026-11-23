@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prendre rendez-vous | PA Rénovation – Neuf-Mesnil</title>
+<meta name="description" content="Prenez rendez-vous en ligne avec PA Rénovation pour une visite, un devis ou un diagnostic de chantier.">
+<script src="theme.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="loader" aria-hidden="true"><div class="loader-in"><img src="images/mascotte.png" alt="" width="118" height="68"><span class="loader-bar"></span></div></div>
+<div class="topbar"><div class="container"><span class="loc"><svg class="i" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg> Neuf-Mesnil (59330) et tout le secteur</span><span class="tb-right"><a href="tel:+33789580224"><svg class="i" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg> 07 89 58 02 24</a></span></div></div>
+<header class="header">
+<div class="container nav">
+<a href="index.html" class="logo" aria-label="PA Rénovation, accueil"><img src="images/mascotte.png" alt="" width="86" height="34"><span>PA <b>RÉNOVATION</b></span></a>
+<button class="burger" aria-label="Ouvrir le menu" aria-expanded="false"><span></span><span></span><span></span></button>
+<nav class="menu"><a href="index.html">Accueil</a><a href="services.html">Services</a><a href="realisations.html">Réalisations</a><a href="zone-intervention.html">Zone d'intervention</a><a href="faq.html">FAQ</a><a href="a-propos.html">À propos</a><button class="theme-toggle" type="button" aria-label="Basculer entre mode clair et mode sombre" title="Mode clair / sombre"><svg class="sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></svg></button><a href="devis.html" class="btn btn-sm">Devis gratuit</a></nav>
+</div>
+</header>
+<main>
+<section class="banner"><div class="container"><p class="crumb"><a href="index.html">Accueil</a> / Rendez-vous</p><h1>Prendre rendez-vous</h1><p>Choisissez un créneau pour une visite ou un échange : nous confirmons votre rendez-vous quelques jours avant la date prévue.</p></div></section><section class="section"><div class="container"><div class="wiz" id="rdv">
+<ol class="wiz-steps"><li class="on">Type</li><li>Date et heure</li><li>Coordonnées</li></ol>
+<form class="wiz-form" id="rdv-form" novalidate>
+<div class="wiz-pane on" data-step="1"><h2>Quel type de rendez-vous ?</h2><p>Choisissez ce qui vous convient.</p>
+<div class="opts"><label class="opt"><input type="radio" name="kind" value="Visite sur place pour devis" checked><span>Visite sur place pour devis</span></label><label class="opt"><input type="radio" name="kind" value="Diagnostic / contrôle du chantier"><span>Diagnostic / contrôle du chantier</span></label><label class="opt"><input type="radio" name="kind" value="Échange téléphonique"><span>Échange téléphonique</span></label></div>
+<p class="tips-box">Votre rendez-vous est enregistré comme une demande. Nous le confirmons <b id="cdb">3</b> jours avant la date prévue, par téléphone ou par e-mail.</p></div>
+<div class="wiz-pane" data-step="2"><h2>Choisissez une date et une heure</h2><p>Les jours disponibles sont indiqués en clair.</p>
+<div class="cal" id="cal"><div class="cal-head"><button type="button" id="cprev" aria-label="Mois précédent">&lsaquo;</button><span id="cmonth"></span><button type="button" id="cnext" aria-label="Mois suivant">&rsaquo;</button></div><div class="cal-grid" id="cgrid"></div></div>
+<p class="cal-empty" id="ctitle" hidden></p><div class="times" id="times"></div></div>
+<div class="wiz-pane" data-step="3"><h2>Vos coordonnées</h2><p>Pour confirmer votre rendez-vous.</p>
+<div class="row2"><label class="field">Nom<input name="nom" autocomplete="name" maxlength="80"></label><label class="field">Téléphone<input name="tel" type="tel" autocomplete="tel" maxlength="30"></label></div>
+<label class="field">E-mail<input name="email" type="email" autocomplete="email" maxlength="120"></label>
+<label class="field">Adresse du chantier (facultatif)<input name="adresse" autocomplete="street-address" maxlength="160"></label>
+<label class="field">Précisions (facultatif)<textarea name="note" rows="3" maxlength="1000"></textarea></label>
+<div class="hp" aria-hidden="true"><label>Ne pas remplir<input type="text" name="website" tabindex="-1" autocomplete="off"></label></div><div class="recap" id="recap"></div><label class="chk-line"><input type="checkbox" name="consent" value="1" required><span>J'accepte que mes informations soient utilisées pour traiter ma demande. <a href="confidentialite.html">Politique de confidentialité</a></span></label></div>
+<p class="wiz-err" id="err" role="alert"></p>
+<div class="wiz-nav"><button type="button" class="btn btn-ghost" id="prev">Précédent</button><button type="button" class="btn" id="next">Suivant</button></div>
+</form>
+<div class="wiz-done" id="done" hidden><div class="ok-ico"><svg class="i" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg></div><h2>Votre demande de rendez-vous est enregistrée</h2><p>Nous vous la confirmerons par téléphone ou par e-mail avant la date prévue.</p><p>Besoin de nous joindre ? <a href="tel:+33789580224">07 89 58 02 24</a></p><a class="btn btn-ghost" href="index.html">Retour à l'accueil</a></div>
+<noscript><p class="tips-box">Cette page nécessite JavaScript. Vous pouvez aussi nous appeler au 07 89 58 02 24.</p></noscript>
+</div></div></section>
+</main>
+<footer class="footer">
+<div class="container fgrid">
+<div><a href="index.html" class="logo"><img src="images/mascotte.png" alt="" width="86" height="34"><span>PA <b>RÉNOVATION</b></span></a>
+<p>Rénovation intérieure et extérieure, espaces verts, débarras et démoussage.<br>Artisan à Neuf-Mesnil.</p></div>
+<div><h4>Navigation</h4><a href="index.html">Accueil</a><a href="services.html">Services</a><a href="realisations.html">Réalisations</a><a href="zone-intervention.html">Zone d'intervention</a><a href="faq.html">FAQ</a><a href="a-propos.html">À propos</a><a href="contact.html">Contact</a></div>
+<div><h4>Ressources</h4><a href="devis.html">Devis en ligne</a><a href="rendez-vous.html">Prendre rendez-vous</a><a href="guide-materiaux.html">Guide : matériaux de toiture</a></div>
+<div><h4>Contact</h4><a href="tel:+33789580224">07 89 58 02 24</a><a href="mailto:aydenpuche@gmail.com">aydenpuche@gmail.com</a><span>2A rue Hector Cartigny, 59330 Neuf-Mesnil</span><a href="https://www.instagram.com/pa_renovation59" target="_blank" rel="noopener noreferrer">Instagram : pa_renovation59</a><span>Facebook : PA rénovation</span></div>
+</div>
+<div class="container legal"><span>© <span id="year"></span> PA Rénovation – SIRET 000 000 000 00000</span><span class="legal-links"><a href="mentions-legales.html">Mentions légales</a><a href="confidentialite.html">Confidentialité</a><a href="/admin" class="adm-link" data-noedit>Administration</a></span></div>
+</footer>
+<script src="script.js"></script>
+<script src="rdv.js"></script>
+</body>
+</html>

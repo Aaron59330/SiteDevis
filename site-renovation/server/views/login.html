@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Connexion | Administration PA Rénovation</title>
+<script src="/theme.js"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/admin/admin.css">
+</head>
+<body class="login-body">
+<main class="login">
+  <a href="/" class="logo"><img src="/images/mascotte.png" alt="" width="86" height="34"><span>PA <b>RÉNOVATION</b></span></a>
+  <form class="form" id="login" autocomplete="on">
+    <h3>Espace administrateur</h3>
+    <label>E-mail<input type="email" name="email" autocomplete="username" required autofocus></label>
+    <label>Mot de passe<input type="password" name="password" autocomplete="current-password" required></label>
+    <button class="btn" type="submit">Se connecter</button>
+    <p class="err" id="err" hidden></p>
+  </form>
+  <a class="back" href="/">&larr; Retour au site</a>
+</main>
+<script src="/admin/login.js"></script>
+</body>
+</html>
