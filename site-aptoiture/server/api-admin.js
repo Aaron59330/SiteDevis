@@ -22,7 +22,7 @@ const clip = (v, n) => String(v == null ? '' : v).slice(0, n).trim();
 
 router.get('/info', (req, res) => {
   const s = settings.get();
-  res.json({ sms: require('./sms').configured(), smsProvider: require('./sms').provider(), mail: mailer.configured(), notifyEmail: s.notifyEmail, siteUrl: s.siteUrl || `${req.protocol}://${req.get('host')}`, siteUrlSet: Boolean(s.siteUrl), doc: fs.existsSync(DOC) });
+  res.json({ mail: mailer.configured(), notifyEmail: s.notifyEmail, siteUrl: s.siteUrl || `${req.protocol}://${req.get('host')}`, siteUrlSet: Boolean(s.siteUrl), doc: fs.existsSync(DOC) });
 });
 
 // ---------- demandes de devis
@@ -120,15 +120,6 @@ async function reply(req, res, file, label) {
 }
 router.post('/requests/:id/reply', (req, res) => reply(req, res, 'requests.json', 'demande').catch(e => res.status(500).json({ error: e.message })));
 router.post('/rdv/:id/reply', (req, res) => reply(req, res, 'appointments.json', 'demande de rendez-vous').catch(e => res.status(500).json({ error: e.message })));
-
-// ---------- SMS d'essai (Réglages)
-router.post('/test-sms', async (req, res) => {
-  const sms = require('./sms');
-  if (!sms.configured()) return res.status(503).json({ error: 'SMS non configurés.' });
-  const r = await sms.send('P.A Couverture : test reussi, vous recevrez vos rappels par SMS.');
-  if (!r.sent) return res.status(502).json({ error: 'Échec : ' + (r.error || 'service indisponible') });
-  res.json({ ok: true });
-});
 
 // ---------- e-mail d'essai (Réglages)
 router.post('/test-mail', async (req, res) => {

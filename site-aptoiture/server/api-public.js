@@ -7,7 +7,6 @@ const crypto = require('crypto');
 const { PRIVATE, DOCS, readJSON, writeJSON } = require('./store');
 const settings = require('./settings');
 const mailer = require('./mailer');
-const sms = require('./sms');
 const stats = require('./stats');
 const { availability, addDays } = require('./booking');
 
@@ -74,7 +73,6 @@ router.post('/devis', limiter('devis', 6, 3600e3), photos, async (req, res) => {
   stats.event('form');
 
   const s = settings.get(), base = siteBase(req, s), kind = contact ? 'message de contact' : 'demande de devis';
-  if (s.sms.requests) sms.send(`Nouvelle ${kind} : ${r.nom}, ${r.tel}${r.commune ? ', ' + r.commune : ''} (${r.travaux})${r.message ? '\n' + r.message.slice(0, 140) : ''}`);
   mailer.send({
     to: s.notifyEmail, replyTo: r.email, attachments,
     subject: `Nouvelle ${kind} : ${r.nom}${r.commune ? ' (' + r.commune + ')' : ''}`,
@@ -128,7 +126,6 @@ router.post('/rdv', limiter('rdv', 6, 3600e3), async (req, res) => {
   writeJSON('appointments.json', list);
   stats.event('form');
   const base = siteBase(req, s);
-  if (s.sms.requests) sms.send(`Demande de RDV a confirmer : ${a.nom}, ${a.tel}, ${frDate(a.date)} a ${a.time}${a.adresse ? ', ' + a.adresse : ''}`);
   mailer.send({
     to: s.notifyEmail, replyTo: a.email, subject: `Demande de rendez-vous : ${a.nom}, ${frDate(a.date)} à ${a.time}`,
     mail: {
