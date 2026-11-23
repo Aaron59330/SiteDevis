@@ -510,3 +510,7 @@ body.pj-open{overflow:hidden}
 /* mode clair : la fenêtre reste sombre comme une visionneuse photo, les cartes gardent leur dégradé */
 .gallery>.shot{min-width:0}
 .shot .t,.shot .c,.shot .d,.pj-title,.pj-desc p{overflow-wrap:anywhere}
+
+/* bouton « Sons » du pied de page */
+.so-toggle{background:none;border:0;color:inherit;font:inherit;cursor:pointer;opacity:.75;padding:0}
+.so-toggle:hover{opacity:1;color:#fff}

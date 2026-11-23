@@ -525,3 +525,7 @@ body.pj-open{overflow:hidden}
 .so-big::after{content:"→";margin-left:auto;font-size:1.3rem;transition:transform .2s}
 .so-big:hover::after{transform:translateX(4px)}
 @media(max-width:800px){.so-band-in{grid-template-columns:1fr;gap:24px}.topbar .container{justify-content:space-between}}
+
+/* bouton « Sons » du pied de page */
+.so-toggle{background:none;border:0;color:inherit;font:inherit;cursor:pointer;opacity:.75;padding:0}
+.so-toggle:hover{opacity:1;color:#fff}

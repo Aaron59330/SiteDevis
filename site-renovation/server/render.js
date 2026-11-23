@@ -34,6 +34,7 @@ function process(raw, { admin = false, overrides = {}, page = '', gallery = null
 
   if (gallery) fillGallery($, gallery, admin);
   if (extras) injectExtras($, extras, admin);
+  if (!admin) $('body').append('<script src="/sounds.js" defer></script>');   // sons d'interface discrets
 
   // 1. Entoure les textes « mixtes » (texte + éléments non-inline) dans des <span>
   $body.find('*').each((_, el) => {
