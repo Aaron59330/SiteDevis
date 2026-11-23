@@ -17,6 +17,7 @@ const DEFAULTS = {
   },
   reviews: { googleUrl: '' },
   reminders: { enabled: true, hour: 10, dailySummary: true },
+  socials: { instagram: 'https://www.instagram.com/pa_renovation59', facebook: '' },
   notifyEmail: 'aydenpuche@gmail.com',
   siteUrl: '',
 };
@@ -29,6 +30,7 @@ function get() {
     booking: { ...DEFAULTS.booking, ...b, weekly: { ...DEFAULTS.booking.weekly, ...(b.weekly || {}) }, closed: b.closed || [] },
     reviews: { ...DEFAULTS.reviews, ...(s.reviews || {}) },
     reminders: { ...DEFAULTS.reminders, ...(s.reminders || {}) },
+    socials: { ...DEFAULTS.socials, ...(s.socials || {}) },
     notifyEmail: s.notifyEmail || DEFAULTS.notifyEmail,
     siteUrl: s.siteUrl || '',
   };
@@ -65,6 +67,7 @@ function save(input) {
     if (Array.isArray(b.closed)) o.closed = [...new Set(b.closed.map(x => str(x, 10)).filter(x => D.test(x)))].sort();
   }
   if (input.reviews) out.reviews.googleUrl = url(input.reviews.googleUrl);
+  if (input.socials) out.socials = { instagram: url(input.socials.instagram), facebook: url(input.socials.facebook) };
   if (input.reminders) out.reminders = { enabled: input.reminders.enabled !== false, hour: int(input.reminders.hour, 7, 20, out.reminders.hour), dailySummary: input.reminders.dailySummary !== false };
   if ('notifyEmail' in input) {
     const e = str(input.notifyEmail, 120);

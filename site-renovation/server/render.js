@@ -91,8 +91,47 @@ function process(raw, { admin = false, overrides = {}, page = '', gallery = null
   return { $, texts, imgs };
 }
 
+// Réseaux sociaux : boutons aux couleurs des marques (liens réglés dans le tableau de bord)
+const ICON = {
+  instagram: '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 2.2c3.2 0 3.6 0 4.8.1 1.2.1 1.8.2 2.2.4.6.2 1 .5 1.4.9.4.4.7.8.9 1.4.2.4.4 1 .4 2.2.1 1.3.1 1.6.1 4.8s0 3.6-.1 4.8c-.1 1.2-.2 1.8-.4 2.2-.2.6-.5 1-.9 1.4-.4.4-.8.7-1.4.9-.4.2-1 .4-2.2.4-1.3.1-1.6.1-4.8.1s-3.6 0-4.8-.1c-1.2-.1-1.8-.2-2.2-.4-.6-.2-1-.5-1.4-.9-.4-.4-.7-.8-.9-1.4-.2-.4-.4-1-.4-2.2C2.2 15.6 2.2 15.2 2.2 12s0-3.6.1-4.8c.1-1.2.2-1.8.4-2.2.2-.6.5-1 .9-1.4.4-.4.8-.7 1.4-.9.4-.2 1-.4 2.2-.4C8.4 2.2 8.8 2.2 12 2.2zm0 1.8c-3.1 0-3.5 0-4.7.1-1.1.1-1.7.2-2.1.4-.5.2-.9.4-1.2.8-.4.3-.6.7-.8 1.2-.2.4-.3 1-.4 2.1C2.7 9.5 2.7 9.9 2.7 12s0 3.5.1 4.7c.1 1.1.2 1.7.4 2.1.2.5.4.9.8 1.2.3.4.7.6 1.2.8.4.2 1 .3 2.1.4 1.2.1 1.6.1 4.7.1s3.5 0 4.7-.1c1.1-.1 1.7-.2 2.1-.4.5-.2.9-.4 1.2-.8.4-.3.6-.7.8-1.2.2-.4.3-1 .4-2.1.1-1.2.1-1.6.1-4.7s0-3.5-.1-4.7c-.1-1.1-.2-1.7-.4-2.1-.2-.5-.4-.9-.8-1.2-.3-.4-.7-.6-1.2-.8-.4-.2-1-.3-2.1-.4C15.5 4 15.1 4 12 4zm0 3.1a4.9 4.9 0 1 1 0 9.8 4.9 4.9 0 0 1 0-9.8zm0 8a3.1 3.1 0 1 0 0-6.2 3.1 3.1 0 0 0 0 6.2zm6.2-8.2a1.1 1.1 0 1 1-2.3 0 1.1 1.1 0 0 1 2.3 0z"/></svg>',
+  facebook: '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M22 12a10 10 0 1 0-11.6 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.9 3.8-3.9 1.1 0 2.2.2 2.2.2v2.5h-1.3c-1.2 0-1.6.8-1.6 1.6V12h2.8l-.4 2.9h-2.3v7A10 10 0 0 0 22 12z"/></svg>',
+};
+function socialLinks(x) {
+  const so = x.socials || {};
+  const ig = so.instagram || 'https://www.instagram.com/pa_renovation59';
+  const fb = so.facebook || 'https://www.facebook.com/search/pages/?q=PA%20r%C3%A9novation';
+  const handle = (/instagram\.com\/([\w.]+)/.exec(ig) || [])[1] || 'pa_renovation59';
+  return [
+    { k: 'instagram', url: ig, name: 'Instagram', sub: '@' + handle },
+    { k: 'facebook', url: fb, name: 'Facebook', sub: 'PA Rénovation' },
+  ];
+}
+const attrUrl = u => esc(u).replace(/"/g, '&quot;');
+function injectSocials($, x) {
+  const links = socialLinks(x);
+  const btn = (l, cls) => `<a class="${cls} so-${l.k}" href="${attrUrl(l.url)}" target="_blank" rel="noopener noreferrer" aria-label="${l.name} : ${esc(l.sub)} (nouvel onglet)">${ICON[l.k]}<span><b>${l.name}</b><small>${esc(l.sub)}</small></span></a>`;
+  // pied de page : on remplace les lignes texte par de vrais boutons
+  $('.footer .fgrid a, .footer .fgrid span').each((_, el) => { const t = $(el).text().trim(); if (/^(Instagram|Facebook)\b/i.test(t)) $(el).remove(); });
+  $('.footer .fgrid h4').filter((_, el) => $(el).text().trim() === 'Contact').parent().append(`<div class="socials" data-noedit>${links.map(l => btn(l, 'so-btn')).join('')}</div>`);
+  // barre du haut : icônes
+  $('.topbar .tb-right').prepend(`<span class="tb-socials" data-noedit>${links.map(l => `<a class="tb-so so-${l.k}" href="${attrUrl(l.url)}" target="_blank" rel="noopener noreferrer" aria-label="${l.name} (nouvel onglet)" title="${l.name}">${ICON[l.k]}</a>`).join('')}</span>`);
+  // page contact : les lignes Instagram / Facebook deviennent cliquables
+  $('.crow').each((_, el) => {
+    const label = $(el).find('small').first().text().trim().toLowerCase();
+    const l = links.find(z => z.k === label); if (!l) return;
+    $(el).replaceWith(btn(l, 'so-card'));
+  });
+  // accueil : bloc « Suivez nos chantiers » avant l'appel à l'action
+  if (x.page === 'index.html') {
+    const block = `<section class="section so-band" data-noedit><div class="container so-band-in"><div><p class="eyebrow">Réseaux sociaux</p><h2>Suivez nos chantiers</h2><p class="para">Avant / après, chantiers en cours et réalisations récentes : retrouvez PA Rénovation sur Instagram et Facebook.</p></div><div class="so-band-btns">${links.map(l => btn(l, 'so-big')).join('')}</div></div></section>`;
+    const cta = $('main .cta').first();
+    if (cta.length) cta.before(block); else $('main').append(block);
+  }
+}
+
 // Annonce, avis clients et documents : contenus gérés depuis le tableau de bord
 function injectExtras($, x, admin) {
+  injectSocials($, x);
   const a = x.announce;
   if (a && a.enabled && a.text) {
     $('body').prepend(`<div class="announce tone-${a.tone === 'warn' ? 'warn' : 'info'}" role="status" data-noedit data-text="${esc(a.text).replace(/"/g, '&quot;')}"><span>${esc(a.text)}</span><button type="button" class="announce-x" aria-label="Fermer l'annonce">&times;</button></div>`);

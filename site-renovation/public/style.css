@@ -496,3 +496,32 @@ body.pj-open{overflow:hidden}
   .wiz-form,.form,.panel{padding:22px}.wiz-steps li{font-size:.7rem;padding:9px 2px}
   .topbar .tb-right{gap:14px}
 }
+
+/* ---------- réseaux sociaux : boutons aux couleurs des marques ---------- */
+.so-instagram{--so:linear-gradient(45deg,#f9a03f 0%,#e1306c 45%,#a439b0 75%,#5b51d8 100%)}
+.so-facebook{--so:#1877f2}
+.so-btn,.so-card,.so-big{display:flex;align-items:center;gap:12px;color:#fff;background:var(--so);border-radius:var(--r);text-decoration:none;transition:transform .2s,filter .2s}
+.so-btn:hover,.so-card:hover,.so-big:hover{transform:translateY(-2px);filter:brightness(1.08)}
+.so-btn svg,.so-card svg,.so-big svg{flex:none}
+.so-btn span,.so-card span,.so-big span{display:grid;line-height:1.25}
+.so-btn b,.so-card b,.so-big b{font-weight:700}
+.so-btn small,.so-card small,.so-big small{opacity:.9;font-size:.82rem}
+.socials{display:grid;gap:8px;margin-top:10px}
+.footer .fgrid .socials a{display:flex;padding:10px 14px;color:#fff}
+.footer .fgrid .socials a:hover{transform:translateY(-2px);color:#fff}
+.so-card{padding:16px 18px;margin-bottom:10px}
+.so-card svg{width:26px;height:26px}
+.tb-socials{display:inline-flex;gap:8px}
+.tb-so{display:grid!important;place-items:center;width:28px;height:28px;border-radius:6px;background:var(--so);color:#fff!important;transition:transform .2s}
+.tb-so:hover{transform:scale(1.1)}
+.tb-so svg{width:16px;height:16px}
+.so-band{border-top:1px solid var(--line)}
+.so-band-in{display:grid;grid-template-columns:1.1fr .9fr;gap:40px;align-items:center}
+.so-band h2{margin-bottom:10px}
+.so-band-btns{display:grid;gap:14px}
+.so-big{padding:20px 24px;font-size:1.05rem}
+.so-big svg{width:30px;height:30px}
+.so-big b{font-size:1.15rem}
+.so-big::after{content:"→";margin-left:auto;font-size:1.3rem;transition:transform .2s}
+.so-big:hover::after{transform:translateX(4px)}
+@media(max-width:800px){.so-band-in{grid-template-columns:1fr;gap:24px}.topbar .container{justify-content:space-between}}

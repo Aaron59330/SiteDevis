@@ -367,10 +367,14 @@
   // ---------- Réglages
   async function reglages(p) {
     const [s, i] = await Promise.all([api('/api/admin/settings'), api('/api/admin/info')]);
-    const f = el('form', { class: 'db-form', onsubmit: wrap(async e => { e.preventDefault(); await api('/api/admin/settings', { method: 'PUT', json: { notifyEmail: f.mail.value, siteUrl: f.url.value, reminders: { enabled: f.rem.checked, hour: f.remh.value, dailySummary: f.sum.checked } } }); msg('Réglages enregistrés'); render(); }) },
+    const f = el('form', { class: 'db-form', onsubmit: wrap(async e => { e.preventDefault(); await api('/api/admin/settings', { method: 'PUT', json: { notifyEmail: f.mail.value, siteUrl: f.url.value, reminders: { enabled: f.rem.checked, hour: f.remh.value, dailySummary: f.sum.checked }, socials: { instagram: f.ig.value, facebook: f.fb.value } } }); msg('Réglages enregistrés'); render(); }) },
       el('h2', { class: 'db-h' }, 'Réglages'),
       el('label', {}, 'Adresse e-mail qui reçoit les notifications', el('input', { type: 'email', name: 'mail', value: s.notifyEmail, required: true })),
       el('label', {}, 'Adresse officielle du site (pour le QR code)', el('input', { type: 'url', name: 'url', value: s.siteUrl, placeholder: 'https://www.mon-site.fr' })),
+      el('h2', { class: 'db-h' }, 'Réseaux sociaux'),
+      el('label', {}, 'Lien de votre page Instagram', el('input', { type: 'url', name: 'ig', value: s.socials.instagram, placeholder: 'https://www.instagram.com/pa_renovation59' })),
+      el('label', {}, 'Lien de votre page Facebook', el('input', { type: 'url', name: 'fb', value: s.socials.facebook, placeholder: 'https://www.facebook.com/votre-page' })),
+      el('p', { class: 'db-note-s' }, 'Ouvrez votre page Facebook sur ordinateur, copiez l\'adresse en haut du navigateur et collez-la ici. Sans lien, le bouton Facebook mène à une recherche « PA rénovation ».'),
       el('h2', { class: 'db-h' }, 'Rappels de rendez-vous'),
       el('label', { class: 'db-check' }, el('input', { type: 'checkbox', name: 'rem', checked: s.reminders.enabled }), ' Envoyer un rappel au client la veille de chaque rendez-vous confirmé (avec le fichier agenda)'),
       el('label', { class: 'db-check' }, el('input', { type: 'checkbox', name: 'sum', checked: s.reminders.dailySummary }), ' M\'envoyer chaque veille la liste de mes rendez-vous du lendemain'),

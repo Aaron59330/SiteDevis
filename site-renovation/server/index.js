@@ -51,7 +51,7 @@ function sendPage(file) {
     const st = settings.get();
     const { $ } = processPage(rawPages[file], {
       admin, page: file, overrides: getOverrides(),
-      extras: { announce: st.announcement, reviews: readJSON('reviews.json', []), googleUrl: st.reviews.googleUrl, hasDoc: fs.existsSync(publicApi.DOC) },
+      extras: { announce: st.announcement, reviews: readJSON('reviews.json', []), googleUrl: st.reviews.googleUrl, socials: st.socials, page: file, hasDoc: fs.existsSync(publicApi.DOC) },
       gallery: file === 'realisations.html' ? getRealisations() : null,
     });
     if (file === 'faq.html') faqJsonLd($);
